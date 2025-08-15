@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { format, isPast, isToday, isFuture } from "date-fns";
 import {
   Table,
@@ -15,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Plus, Search, Calendar as CalendarIcon } from "lucide-react";
+import { Plus, Search, Calendar as CalendarIcon, Loader2, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -30,26 +31,43 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/types";
-
-const initialTasks: Task[] = [
-  { id: "1", title: "Finalize Q3 report", status: "ongoing", dueDate: new Date(new Date().setDate(new Date().getDate() - 2)) },
-  { id: "2", title: "Develop new landing page", status: "ongoing", dueDate: new Date() },
-  { id: "3", title: "Schedule team offsite", status: "ongoing", dueDate: new Date(new Date().setDate(new Date().getDate() + 3)) },
-  { id: "4", title: "Review marketing campaign", status: "completed", dueDate: new Date(new Date().setDate(new Date().getDate() - 5)) },
-  { id: "5", title: "Onboard new hire", status: "ongoing", dueDate: new Date(new Date().setDate(new Date().getDate() + 7)) },
-  { id: "6", title: "Update documentation", status: "ongoing", dueDate: null },
-];
+import { useAuth } from "@/context/auth-context";
+import { getTasks, addTask, updateTaskStatus, deleteTask } from "@/lib/firebase/firestore";
+import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type FilterType = "all" | "overdue" | "ongoing" | "upcoming";
 
 export function TodoList() {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newDueDate, setNewDueDate] = useState<Date | undefined>(undefined);
+
+  useEffect(() => {
+    if (user) {
+      setLoading(true);
+      getTasks(user.uid)
+        .then(setTasks)
+        .catch(error => {
+          console.error(error);
+          toast({
+            variant: "destructive",
+            title: "Error fetching tasks",
+            description: "Could not load tasks from the database."
+          });
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [user, toast]);
 
   const filteredTasks = useMemo(() => {
     return tasks
@@ -72,27 +90,79 @@ export function TodoList() {
       });
   }, [tasks, searchTerm, filter]);
   
-  const handleAddTask = () => {
-    if (!newTaskTitle) return;
-    const newTask: Task = {
-      id: (tasks.length + 1).toString(),
-      title: newTaskTitle,
-      status: 'ongoing',
-      dueDate: newDueDate || null,
-    };
-    setTasks([newTask, ...tasks]);
-    setNewTaskTitle("");
-    setNewDueDate(undefined);
-    setIsDialogOpen(false);
+  const handleAddTask = async () => {
+    if (!newTaskTitle || !user) return;
+    
+    setIsSubmitting(true);
+    try {
+      const newTaskData = { title: newTaskTitle, dueDate: newDueDate || null };
+      const newTaskId = await addTask(user.uid, newTaskData);
+      
+      const newTask: Task = {
+        id: newTaskId,
+        userId: user.uid,
+        title: newTaskTitle,
+        status: 'ongoing',
+        dueDate: newDueDate || null,
+      };
+      
+      setTasks([newTask, ...tasks]);
+      setNewTaskTitle("");
+      setNewDueDate(undefined);
+      setIsDialogOpen(false);
+      toast({ title: "Task added successfully" });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to add the new task."
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const toggleTaskStatus = (taskId: string) => {
+  const toggleTaskStatus = async (taskId: string, currentStatus: 'ongoing' | 'completed') => {
+    const newStatus = currentStatus === 'ongoing' ? 'completed' : 'ongoing';
+    const originalTasks = [...tasks];
+    
+    // Optimistically update UI
     setTasks(tasks.map(task => 
-      task.id === taskId 
-        ? { ...task, status: task.status === 'ongoing' ? 'completed' : 'ongoing' }
-        : task
+      task.id === taskId ? { ...task, status: newStatus } : task
     ));
+
+    try {
+      await updateTaskStatus(taskId, newStatus);
+    } catch (error) {
+      // Revert UI on failure
+      setTasks(originalTasks);
+      toast({
+        variant: "destructive",
+        title: "Update failed",
+        description: "Could not update the task status."
+      });
+    }
   };
+
+  const handleDeleteTask = async (taskId: string) => {
+    const originalTasks = [...tasks];
+    
+    // Optimistically update UI
+    setTasks(tasks.filter(task => task.id !== taskId));
+
+    try {
+      await deleteTask(taskId);
+      toast({ title: "Task deleted" });
+    } catch (error) {
+       // Revert UI on failure
+      setTasks(originalTasks);
+      toast({
+        variant: "destructive",
+        title: "Delete failed",
+        description: "Could not delete the task."
+      });
+    }
+  }
   
   const getBadgeInfo = (dueDate: Date | null, status: 'ongoing' | 'completed'): { variant: "default" | "secondary" | "destructive" | "outline", label: string } => {
     if (status === 'completed') return { variant: "default", label: "Completed" };
@@ -156,7 +226,10 @@ export function TodoList() {
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleAddTask}>Add Task</Button>
+                <Button onClick={handleAddTask} disabled={isSubmitting}>
+                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Add Task
+                </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -169,11 +242,21 @@ export function TodoList() {
             <TableRow>
               <TableHead className="w-[50px]">Status</TableHead>
               <TableHead>Task</TableHead>
-              <TableHead className="text-right">Deadline</TableHead>
+              <TableHead className="w-[100px] text-center">Due</TableHead>
+              <TableHead className="w-[50px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTasks.length > 0 ? (
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell><Skeleton className="h-4 w-4" /></TableCell>
+                  <TableCell><Skeleton className="h-4 w-4/5" /></TableCell>
+                  <TableCell className="text-center"><Skeleton className="h-4 w-20 mx-auto" /></TableCell>
+                  <TableCell className="text-right"><Skeleton className="h-8 w-8 ml-auto" /></TableCell>
+                </TableRow>
+              ))
+            ) : filteredTasks.length > 0 ? (
               filteredTasks.map((task) => {
                 const badgeInfo = getBadgeInfo(task.dueDate, task.status);
                 return (
@@ -181,22 +264,28 @@ export function TodoList() {
                     <TableCell>
                       <Checkbox
                         checked={task.status === 'completed'}
-                        onCheckedChange={() => toggleTaskStatus(task.id)}
+                        onCheckedChange={() => toggleTaskStatus(task.id, task.status)}
                         aria-label="Mark task as completed"
                       />
                     </TableCell>
                     <TableCell className={cn("font-medium", task.status === 'completed' && 'line-through text-muted-foreground')}>
                       {task.title}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-center">
                       <Badge variant={badgeInfo.variant}>{badgeInfo.label}</Badge>
+                    </TableCell>
+                     <TableCell className="text-right">
+                       <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)}>
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Delete task</span>
+                       </Button>
                     </TableCell>
                   </TableRow>
                 );
               })
             ) : (
               <TableRow>
-                <TableCell colSpan={3} className="h-24 text-center">
+                <TableCell colSpan={4} className="h-24 text-center">
                   No tasks found.
                 </TableCell>
               </TableRow>
