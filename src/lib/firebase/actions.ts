@@ -19,6 +19,7 @@ export async function createTaskAction(formData: FormData) {
   }
   
   try {
+    // Base task data object.
     const taskData: {
       userId: string;
       title: string;
@@ -32,6 +33,8 @@ export async function createTaskAction(formData: FormData) {
       createdAt: serverTimestamp(),
     };
 
+    // Only add dueDate if the string is not null and not empty.
+    // An empty string from the form would create an invalid date.
     if (dueDateStr) {
       taskData.dueDate = Timestamp.fromDate(new Date(dueDateStr));
     }
