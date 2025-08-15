@@ -1,15 +1,16 @@
+
 "use client"
 
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts"
 
 const data = [
-  { name: "Mon", accomplished: 8, missed: 2 },
-  { name: "Tue", accomplished: 10, missed: 1 },
-  { name: "Wed", accomplished: 5, missed: 3 },
-  { name: "Thu", accomplished: 12, missed: 0 },
-  { name: "Fri", accomplished: 7, missed: 1 },
-  { name: "Sat", accomplished: 9, missed: 2 },
-  { name: "Sun", accomplished: 4, missed: 4 },
+  { name: "Mon", accomplished: 0, missed: 0 },
+  { name: "Tue", accomplished: 0, missed: 0 },
+  { name: "Wed", accomplished: 0, missed: 0 },
+  { name: "Thu", accomplished: 0, missed: 0 },
+  { name: "Fri", accomplished: 0, missed: 0 },
+  { name: "Sat", accomplished: 0, missed: 0 },
+  { name: "Sun", accomplished: 0, missed: 0 },
 ];
 
 export function ProgressChart() {

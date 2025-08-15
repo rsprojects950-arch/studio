@@ -27,13 +27,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isPast, isToday } from "date-fns";
-
-const upcomingTasks = [
-  { id: 1, title: "Finish project proposal", due: "Tomorrow" },
-  { id: 2, title: "Follow up with client", due: "Tomorrow" },
-  { id: 3, title: "Prepare for team meeting", due: "In 2 days" },
-];
+import { isPast, isToday, formatDistanceToNow, isFuture } from "date-fns";
 
 export function DashboardView() {
   const { user } = useAuth();
@@ -65,10 +59,18 @@ export function DashboardView() {
     return {
       total: totalTasks.toString(),
       completed: completed.toString(),
-      missed: overdue.toString(), // Assuming 'missed' means 'overdue' for now
+      missed: overdue.toString(),
       accomplishmentRate: `${accomplishmentRate}%`,
     };
   }, [tasks]);
+
+  const upcomingTasks = useMemo(() => {
+    return tasks
+      .filter(task => task.status === 'ongoing' && task.dueDate && isFuture(task.dueDate))
+      .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
+      .slice(0, 3);
+  }, [tasks]);
+
 
   if (loading) {
     return (
@@ -123,15 +125,21 @@ export function DashboardView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {upcomingTasks.map((task) => (
+                {upcomingTasks.length > 0 ? upcomingTasks.map((task) => (
                   <TableRow key={task.id}>
-                    <TableCell><Checkbox /></TableCell>
+                    <TableCell><Checkbox disabled /></TableCell>
                     <TableCell className="font-medium">{task.title}</TableCell>
                     <TableCell className="text-right">
-                      <Badge variant="outline">{task.due}</Badge>
+                      <Badge variant="outline">{formatDistanceToNow(task.dueDate!, { addSuffix: true })}</Badge>
                     </TableCell>
                   </TableRow>
-                ))}
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={3} className="h-24 text-center">
+                      No upcoming tasks.
+                    </TableCell>
+                  </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
