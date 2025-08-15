@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { format, isPast, isToday, isFuture } from "date-fns";
 import {
   Table,
@@ -32,7 +32,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/types";
 import { useAuth } from "@/context/auth-context";
-import { getTasks, addTask, updateTaskStatus, deleteTask } from "@/lib/firebase/firestore";
+import { getTasks, updateTaskStatus, deleteTask } from "@/lib/firebase/firestore";
+import { createTaskAction } from "@/lib/firebase/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -41,6 +42,7 @@ type FilterType = "all" | "overdue" | "ongoing" | "upcoming";
 export function TodoList() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const formRef = useRef<HTMLFormElement>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +51,6 @@ export function TodoList() {
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newDueDate, setNewDueDate] = useState<Date | undefined>(undefined);
 
   const fetchTasks = useCallback(async () => {
@@ -101,35 +102,6 @@ export function TodoList() {
       })
   }, [sortedTasks, searchTerm, filter]);
   
-  const handleAddTask = async () => {
-    if (!newTaskTitle || !user) return;
-    
-    setIsSubmitting(true);
-    try {
-      const newTaskData = { 
-        title: newTaskTitle, 
-        dueDate: newDueDate ? newDueDate.toISOString() : null 
-      };
-      const addedTask = await addTask(user.uid, newTaskData);
-      
-      setTasks(prevTasks => [...prevTasks, addedTask]);
-
-      setNewTaskTitle("");
-      setNewDueDate(undefined);
-      setIsDialogOpen(false);
-      toast({ title: "Task added successfully" });
-    } catch (error) {
-      console.error(error);
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Failed to add the new task."
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const toggleTaskStatus = async (taskId: string, currentStatus: 'ongoing' | 'completed') => {
     const newStatus = currentStatus === 'ongoing' ? 'completed' : 'ongoing';
     const originalTasks = [...tasks];
@@ -206,35 +178,60 @@ export function TodoList() {
                   What do you need to get done?
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="task-title" className="text-right">Task</Label>
-                  <Input id="task-title" value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} className="col-span-3" placeholder="e.g. Finish the report" />
+              <form 
+                ref={formRef}
+                action={async (formData) => {
+                  setIsSubmitting(true);
+                  try {
+                    await createTaskAction(formData);
+                    formRef.current?.reset();
+                    setNewDueDate(undefined);
+                    setIsDialogOpen(false);
+                    fetchTasks(); // Refetch tasks to show the new one
+                    toast({ title: "Task added successfully" });
+                  } catch (error) {
+                    console.error(error);
+                    toast({
+                      variant: "destructive",
+                      title: "Error",
+                      description: "Failed to add the new task."
+                    });
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }}
+              >
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="title" className="text-right">Task</Label>
+                    <Input id="title" name="title" className="col-span-3" placeholder="e.g. Finish the report" required />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="dueDate" className="text-right">Due Date</Label>
+                    <input type="hidden" name="dueDate" value={newDueDate ? newDueDate.toISOString() : ''} />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant={"outline"}
+                          className={cn("col-span-3 justify-start text-left font-normal", !newDueDate && "text-muted-foreground")}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {newDueDate ? format(newDueDate, "PPP") : <span>Pick a date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar mode="single" selected={newDueDate} onSelect={setNewDueDate} initialFocus />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="due-date" className="text-right">Due Date</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant={"outline"}
-                        className={cn("col-span-3 justify-start text-left font-normal", !newDueDate && "text-muted-foreground")}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {newDueDate ? format(newDueDate, "PPP") : <span>Pick a date</span>}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar mode="single" selected={newDueDate} onSelect={setNewDueDate} initialFocus />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={handleAddTask} disabled={isSubmitting || !newTaskTitle}>
-                  {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Add Task
-                </Button>
-              </DialogFooter>
+                <DialogFooter>
+                   <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Add Task
+                  </Button>
+                </DialogFooter>
+              </form>
             </DialogContent>
           </Dialog>
         </div>

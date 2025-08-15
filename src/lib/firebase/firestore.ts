@@ -106,58 +106,6 @@ export async function getDashboardStats(userId: string) {
   return { summary, progressChartData, upcomingTasks };
 }
 
-export async function addTask(userId: string, task: { title: string; dueDate: string | null }): Promise<Task> {
-  if (!userId) {
-    throw new Error("User ID is required to add a task.");
-  }
-
-  try {
-    // This is the core of the fix. We create the base task data,
-    // and only add the dueDate field if it's a valid string.
-    const taskData: {
-      userId: string;
-      title: string;
-      status: 'ongoing';
-      createdAt: any;
-      dueDate?: Timestamp | null;
-    } = {
-      userId: userId,
-      title: task.title,
-      status: 'ongoing',
-      createdAt: serverTimestamp(),
-    };
-
-    if (task.dueDate && typeof task.dueDate === 'string') {
-      taskData.dueDate = Timestamp.fromDate(new Date(task.dueDate));
-    } else {
-      taskData.dueDate = null;
-    }
-
-    const docRef = await addDoc(collection(db, "tasks"), taskData);
-    const newDocSnapshot = await getDoc(docRef);
-    const data = newDocSnapshot.data();
-
-    if (!data) {
-      throw new Error("Failed to retrieve new task after creation.");
-    }
-
-    const dueDate = data.dueDate instanceof Timestamp ? data.dueDate.toDate() : null;
-    const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
-
-    return {
-      id: newDocSnapshot.id,
-      title: data.title,
-      status: data.status,
-      dueDate: dueDate,
-      createdAt: createdAt,
-      userId: data.userId,
-    };
-  } catch (error) {
-    console.error("Error adding task to Firestore:", error);
-    throw new Error("Failed to add task.");
-  }
-}
-
 export async function updateTaskStatus(taskId: string, status: 'ongoing' | 'completed'): Promise<void> {
   if (!taskId) {
     throw new Error("Task ID is required to update a task.");
