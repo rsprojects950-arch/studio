@@ -185,6 +185,7 @@ export function TodoList() {
                   if (newDueDate) {
                     formData.append('dueDate', newDueDate.toISOString());
                   }
+                  formData.append('createdAt', new Date().toISOString());
                   try {
                     await createTaskAction(formData);
                     formRef.current?.reset();

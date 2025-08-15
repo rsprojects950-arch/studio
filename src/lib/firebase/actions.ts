@@ -2,7 +2,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { addDoc, collection, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export async function createTaskAction(formData: FormData) {
@@ -17,24 +17,28 @@ export async function createTaskAction(formData: FormData) {
   }
   
   const dueDateStr = formData.get('dueDate') as string | null;
+  const createdAtStr = formData.get('createdAt') as string;
+  
+  if (!createdAtStr) {
+      throw new Error('createdAt is required.');
+  }
 
   try {
     const taskData: {
       userId: string;
       title: string;
       status: 'ongoing';
-      createdAt: any;
+      createdAt: Timestamp;
       dueDate?: Timestamp;
     } = {
       userId: userId,
       title: title,
       status: 'ongoing',
-      createdAt: serverTimestamp(),
+      createdAt: Timestamp.fromDate(new Date(createdAtStr)),
     };
 
     if (dueDateStr) {
       const dueDate = new Date(dueDateStr);
-      // Check if the date is valid before creating a timestamp
       if (!isNaN(dueDate.getTime())) {
         taskData.dueDate = Timestamp.fromDate(dueDate);
       }
