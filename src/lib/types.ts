@@ -5,4 +5,5 @@ export type Task = {
   title: string;
   status: 'ongoing' | 'completed';
   dueDate: Date | null;
+  createdAt: Date | null;
 };

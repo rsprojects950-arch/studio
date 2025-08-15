@@ -1,7 +1,7 @@
 
 'use server';
 
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Task } from '@/lib/types';
 
@@ -12,7 +12,7 @@ export async function getTasks(userId: string): Promise<Task[]> {
   }
 
   const tasksCol = collection(db, 'tasks');
-  const q = query(tasksCol, where('userId', '==', userId));
+  const q = query(tasksCol, where('userId', '==', userId), orderBy('createdAt', 'desc'));
   
   try {
     const querySnapshot = await getDocs(q);
@@ -24,6 +24,7 @@ export async function getTasks(userId: string): Promise<Task[]> {
         ...data,
         // Firestore timestamps need to be converted to JS Dates
         dueDate: data.dueDate ? data.dueDate.toDate() : null,
+        createdAt: data.createdAt ? data.createdAt.toDate() : null,
       } as Task);
     });
     return tasks;
