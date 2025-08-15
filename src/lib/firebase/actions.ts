@@ -4,16 +4,15 @@
 import { revalidatePath } from 'next/cache';
 import { addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { auth } from '@/lib/firebase';
 
 export async function createTaskAction(formData: FormData) {
-  const user = auth.currentUser;
-  if (!user) {
+  const userId = formData.get('userId') as string;
+  if (!userId) {
     throw new Error('You must be logged in to create a task.');
   }
 
   const title = formData.get('title') as string;
-  const dueDate = formData.get('dueDate') as string;
+  const dueDateStr = formData.get('dueDate') as string | null;
 
   if (!title) {
     throw new Error('Task title is required.');
@@ -27,14 +26,14 @@ export async function createTaskAction(formData: FormData) {
       createdAt: any;
       dueDate?: Timestamp | null;
     } = {
-      userId: user.uid,
+      userId: userId,
       title: title,
       status: 'ongoing',
       createdAt: serverTimestamp(),
     };
 
-    if (dueDate) {
-      taskData.dueDate = Timestamp.fromDate(new Date(dueDate));
+    if (dueDateStr) {
+      taskData.dueDate = Timestamp.fromDate(new Date(dueDateStr));
     } else {
       taskData.dueDate = null;
     }
@@ -47,4 +46,5 @@ export async function createTaskAction(formData: FormData) {
   }
 
   revalidatePath('/dashboard/todos');
+  revalidatePath('/dashboard');
 }

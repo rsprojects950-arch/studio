@@ -202,6 +202,7 @@ export function TodoList() {
                 }}
               >
                 <div className="grid gap-4 py-4">
+                  {user && <input type="hidden" name="userId" value={user.uid} />}
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="title" className="text-right">Task</Label>
                     <Input id="title" name="title" className="col-span-3" placeholder="e.g. Finish the report" required />
