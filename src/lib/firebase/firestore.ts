@@ -26,7 +26,7 @@ export async function getTasks(userId: string): Promise<Task[]> {
         ...data,
         // Firestore timestamps need to be converted to JS Dates
         dueDate: data.dueDate ? (data.dueDate as Timestamp).toDate() : null,
-        createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : new Date(), // Fallback for older tasks
+        createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : new Date(),
       } as Task);
     });
     // Manual sort on the server after fetching
@@ -106,20 +106,18 @@ export async function getDashboardStats(userId: string) {
 }
 
 
-export async function addTask(userId: string, task: { title: string; dueDate: Date | null }): Promise<Task> {
+export async function addTask(userId: string, task: { title: string; dueDate: string | null }): Promise<Task> {
   if (!userId) {
     throw new Error("User ID is required to add a task.");
   }
   try {
     const taskData: any = {
-      ...task,
       userId: userId,
+      title: task.title,
       status: 'ongoing',
       createdAt: serverTimestamp(),
+      dueDate: task.dueDate ? Timestamp.fromDate(new Date(task.dueDate)) : null,
     };
-    if (task.dueDate) {
-        taskData.dueDate = Timestamp.fromDate(task.dueDate);
-    }
 
     const docRef = await addDoc(collection(db, "tasks"), taskData);
     

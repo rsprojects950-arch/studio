@@ -106,7 +106,11 @@ export function TodoList() {
     
     setIsSubmitting(true);
     try {
-      const newTaskData = { title: newTaskTitle, dueDate: newDueDate || null };
+      const newTaskData = { 
+        title: newTaskTitle, 
+        // Send dueDate as an ISO string for reliable server serialization
+        dueDate: newDueDate ? newDueDate.toISOString() : null 
+      };
       const addedTask = await addTask(user.uid, newTaskData);
       
       setTasks(prevTasks => [...prevTasks, addedTask]);
