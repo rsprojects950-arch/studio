@@ -19,13 +19,13 @@ export async function createTaskAction(formData: FormData) {
   }
   
   try {
-    // Base task data object.
+    // Start with the base object containing only required fields.
     const taskData: {
       userId: string;
       title: string;
       status: 'ongoing';
       createdAt: any;
-      dueDate?: Timestamp;
+      dueDate?: Timestamp; // Make dueDate optional on the type definition
     } = {
       userId: userId,
       title: title,
@@ -33,10 +33,14 @@ export async function createTaskAction(formData: FormData) {
       createdAt: serverTimestamp(),
     };
 
-    // Only add dueDate if the string is not null and not empty.
+    // Only add the dueDate field to the object if a valid date string is provided.
     // An empty string from the form would create an invalid date.
-    if (dueDateStr) {
-      taskData.dueDate = Timestamp.fromDate(new Date(dueDateStr));
+    if (dueDateStr && dueDateStr.trim() !== '') {
+      const dueDate = new Date(dueDateStr);
+      // Check if the created date is valid before converting to Timestamp
+      if (!isNaN(dueDate.getTime())) {
+          taskData.dueDate = Timestamp.fromDate(dueDate);
+      }
     }
 
     await addDoc(collection(db, "tasks"), taskData);
