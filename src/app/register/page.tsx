@@ -4,32 +4,24 @@ import { RegisterForm } from "@/components/auth/register-form";
 import { useAuth } from "@/context/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
 
 export default function RegisterPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    // If the user is already logged in, redirect them to the dashboard.
     if (!loading && user) {
       router.replace('/dashboard');
     }
   }, [user, loading, router]);
 
-  if (loading || (!loading && user)) {
-     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-        <div className="flex flex-col items-center gap-4">
-          <Skeleton className="h-16 w-16 rounded-full" />
-          <div className="space-y-2 text-center">
-            <Skeleton className="h-6 w-[250px]" />
-            <Skeleton className="h-4 w-[200px]" />
-          </div>
-        </div>
-      </div>
-    );
+  // While loading, or if user is logged in, don't show the form
+  // to prevent flicker. The useEffect will handle the redirect.
+  if (loading || user) {
+    return null; 
   }
-  
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
