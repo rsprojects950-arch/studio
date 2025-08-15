@@ -4,6 +4,8 @@
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Task } from '@/lib/types';
+import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay, endOfWeek } from "date-fns";
+
 
 export async function getTasks(userId: string): Promise<Task[]> {
   if (!userId) {
@@ -24,21 +26,77 @@ export async function getTasks(userId: string): Promise<Task[]> {
         ...data,
         // Firestore timestamps need to be converted to JS Dates
         dueDate: data.dueDate ? data.dueDate.toDate() : null,
-        createdAt: data.createdAt ? data.createdAt.toDate() : null,
+        createdAt: data.createdAt ? data.createdAt.toDate() : new Date(), // Fallback for older tasks
       } as Task);
     });
     // Manual sort on the server after fetching
-    return tasks.sort((a, b) => {
-        if (a.createdAt && b.createdAt) {
-            return b.createdAt.getTime() - a.createdAt.getTime();
-        }
-        return 0;
-    });
+    return tasks.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
   } catch (error) {
     console.error("Error fetching tasks from Firestore:", error);
     return [];
   }
 }
+
+export async function getDashboardStats(userId: string) {
+  const tasks = await getTasks(userId);
+  
+  // Summary Stats Calculation
+  const totalTasks = tasks.length;
+  const completed = tasks.filter((task) => task.status === "completed").length;
+  const overdue = tasks.filter(
+    (task) => task.dueDate && task.status !== "completed" && isPast(task.dueDate) && !isToday(task.dueDate)
+  ).length;
+  const accomplishmentRate = totalTasks > 0 ? Math.round((completed / totalTasks) * 100) : 0;
+
+  const summary = {
+    total: totalTasks.toString(),
+    completed: completed.toString(),
+    missed: overdue.toString(),
+    accomplishmentRate: `${accomplishmentRate}%`,
+  };
+
+  // Progress Chart Data Calculation
+  const today = new Date();
+  const startOfThisWeek = startOfWeek(today, { weekStartsOn: 1 });
+
+  const weekData = Array.from({ length: 7 }).map((_, i) => {
+      const day = addDays(startOfThisWeek, i);
+      return {
+          name: format(day, "EEE"),
+          accomplished: 0,
+          missed: 0,
+          date: day,
+      };
+  });
+
+  tasks.forEach(task => {
+      if (task.dueDate) {
+          const taskDueDate = task.dueDate;
+          const weekDayEntry = weekData.find(d => isSameDay(d.date, taskDueDate));
+
+          if (weekDayEntry) {
+              if (task.status === 'completed') {
+                  weekDayEntry.accomplished += 1;
+              } else if (isPast(taskDueDate) && !isToday(taskDueDate)) { // check status on client? no, here
+                  if (task.status === 'ongoing') {
+                    weekDayEntry.missed += 1;
+                  }
+              }
+          }
+      }
+  });
+  
+  const progressChartData = weekData.map(({date, ...rest}) => rest);
+
+  // Upcoming Tasks Calculation
+  const upcomingTasks = tasks
+    .filter(task => task.status === 'ongoing' && task.dueDate && isFuture(task.dueDate))
+    .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
+    .slice(0, 3);
+  
+  return { summary, progressChartData, upcomingTasks };
+}
+
 
 export async function addTask(userId: string, task: { title: string; dueDate: Date | null }): Promise<string> {
   if (!userId) {

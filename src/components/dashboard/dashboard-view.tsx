@@ -1,9 +1,9 @@
 
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/auth-context";
-import { getTasks } from "@/lib/firebase/firestore";
+import { getDashboardStats } from "@/lib/firebase/firestore";
 import type { Task } from "@/lib/types";
 import { SummaryTile } from "@/components/dashboard/summary-tile";
 import { ProgressChart } from "@/components/dashboard/progress-chart";
@@ -27,21 +27,37 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isPast, isToday, formatDistanceToNow, isFuture, startOfWeek, addDays, format, isSameDay, endOfWeek } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
+
+type DashboardStats = {
+  summary: {
+    total: string;
+    completed: string;
+    missed: string;
+    accomplishmentRate: string;
+  };
+  progressChartData: {
+    name: string;
+    accomplished: number;
+    missed: number;
+  }[];
+  upcomingTasks: Task[];
+};
+
 
 export function DashboardView() {
   const { user } = useAuth();
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchTasks = useCallback(async () => {
+  const fetchStats = useCallback(async () => {
     if (user) {
       setLoading(true);
       try {
-        const userTasks = await getTasks(user.uid);
-        setTasks(userTasks);
+        const dashboardStats = await getDashboardStats(user.uid);
+        setStats(dashboardStats);
       } catch (error) {
-        console.error("Error fetching tasks:", error);
+        console.error("Error fetching dashboard stats:", error);
       } finally {
         setLoading(false);
       }
@@ -49,77 +65,21 @@ export function DashboardView() {
   }, [user]);
 
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+    fetchStats();
+  }, [fetchStats]);
 
   useEffect(() => {
     const handleFocus = () => {
-      fetchTasks();
+      fetchStats();
     };
     window.addEventListener('focus', handleFocus);
     return () => {
       window.removeEventListener('focus', handleFocus);
     };
-  }, [fetchTasks]);
-
-  const summaryStats = useMemo(() => {
-    const totalTasks = tasks.length;
-    const completed = tasks.filter((task) => task.status === "completed").length;
-    const overdue = tasks.filter(
-      (task) => task.dueDate && task.status !== "completed" && isPast(task.dueDate) && !isToday(task.dueDate)
-    ).length;
-    const accomplishmentRate = totalTasks > 0 ? Math.round((completed / totalTasks) * 100) : 0;
-
-    return {
-      total: totalTasks.toString(),
-      completed: completed.toString(),
-      missed: overdue.toString(),
-      accomplishmentRate: `${accomplishmentRate}%`,
-    };
-  }, [tasks]);
-
-  const upcomingTasks = useMemo(() => {
-    return tasks
-      .filter(task => task.status === 'ongoing' && task.dueDate && isFuture(task.dueDate))
-      .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
-      .slice(0, 3);
-  }, [tasks]);
-
-  const progressChartData = useMemo(() => {
-    const today = new Date();
-    const startOfThisWeek = startOfWeek(today, { weekStartsOn: 1 });
-
-    const weekData = Array.from({ length: 7 }).map((_, i) => {
-        const day = addDays(startOfThisWeek, i);
-        return {
-            name: format(day, "EEE"),
-            accomplished: 0,
-            missed: 0,
-            date: day,
-        };
-    });
-
-    tasks.forEach(task => {
-        if (task.dueDate) {
-            const taskDueDate = task.dueDate;
-            const weekDayEntry = weekData.find(d => isSameDay(d.date, taskDueDate));
-
-            if (weekDayEntry) {
-                if (task.status === 'completed') {
-                    weekDayEntry.accomplished += 1;
-                } else if (task.status === 'ongoing' && isPast(taskDueDate) && !isToday(taskDueDate)) {
-                    weekDayEntry.missed += 1;
-                }
-            }
-        }
-    });
-    
-    // We don't need the date property in the final chart data
-    return weekData.map(({date, ...rest}) => rest);
-  }, [tasks]);
+  }, [fetchStats]);
 
 
-  if (loading) {
+  if (loading || !stats) {
     return (
       <>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -139,10 +99,10 @@ export function DashboardView() {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <SummaryTile title="Total Tasks" value={summaryStats.total} icon={ListTodo} />
-        <SummaryTile title="Completed" value={summaryStats.completed} icon={CheckCircle2} />
-        <SummaryTile title="Missed" value={summaryStats.missed} icon={XCircle} />
-        <SummaryTile title="Accomplishment Rate" value={summaryStats.accomplishmentRate} icon={Percent} />
+        <SummaryTile title="Total Tasks" value={stats.summary.total} icon={ListTodo} />
+        <SummaryTile title="Completed" value={stats.summary.completed} icon={CheckCircle2} />
+        <SummaryTile title="Missed" value={stats.summary.missed} icon={XCircle} />
+        <SummaryTile title="Accomplishment Rate" value={stats.summary.accomplishmentRate} icon={Percent} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
@@ -151,7 +111,7 @@ export function DashboardView() {
             <CardTitle>Daily Progress</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
-            <ProgressChart data={progressChartData} />
+            <ProgressChart data={stats.progressChartData} />
           </CardContent>
         </Card>
 
@@ -172,7 +132,7 @@ export function DashboardView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {upcomingTasks.length > 0 ? upcomingTasks.map((task) => (
+                {stats.upcomingTasks.length > 0 ? stats.upcomingTasks.map((task) => (
                   <TableRow key={task.id}>
                     <TableCell><Checkbox disabled /></TableCell>
                     <TableCell className="font-medium">{task.title}</TableCell>
