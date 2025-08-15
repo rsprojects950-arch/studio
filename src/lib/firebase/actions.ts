@@ -19,8 +19,8 @@ export async function createTaskAction(formData: FormData) {
   const dueDateStr = formData.get('dueDate') as string | null;
   const createdAtStr = formData.get('createdAt') as string;
   
-  if (!createdAtStr) {
-      throw new Error('createdAt is required.');
+  if (!createdAtStr || isNaN(new Date(createdAtStr).getTime())) {
+      throw new Error('createdAt is required and must be a valid date.');
   }
 
   try {
@@ -37,11 +37,8 @@ export async function createTaskAction(formData: FormData) {
       createdAt: Timestamp.fromDate(new Date(createdAtStr)),
     };
 
-    if (dueDateStr) {
-      const dueDate = new Date(dueDateStr);
-      if (!isNaN(dueDate.getTime())) {
-        taskData.dueDate = Timestamp.fromDate(dueDate);
-      }
+    if (dueDateStr && !isNaN(new Date(dueDateStr).getTime())) {
+      taskData.dueDate = Timestamp.fromDate(new Date(dueDateStr));
     }
     
     await addDoc(collection(db, "tasks"), taskData);
