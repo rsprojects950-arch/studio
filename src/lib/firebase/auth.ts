@@ -4,8 +4,10 @@ import {
   signOut as signOutFirebase,
   onAuthStateChanged,
   type User,
+  GoogleAuthProvider,
+  signInWithPopup,
 } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 export const signUp = async (name, email, password) => {
@@ -32,6 +34,33 @@ export const signIn = async (email, password) => {
     return { result: null, error };
   }
 };
+
+export const signInWithGoogle = async () => {
+  const provider = new GoogleAuthProvider();
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+    
+    // Check if user already exists in Firestore
+    const userDocRef = doc(db, "users", user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    // If user doesn't exist, create a new document
+    if (!userDoc.exists()) {
+      await setDoc(userDocRef, {
+        uid: user.uid,
+        name: user.displayName,
+        email: user.email,
+        photoURL: user.photoURL,
+      });
+    }
+
+    return { result, error: null };
+  } catch (error) {
+    return { result: null, error };
+  }
+};
+
 
 export const signOut = () => {
   return signOutFirebase(auth);
