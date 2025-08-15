@@ -83,10 +83,12 @@ export function TodoList() {
         return true;
       })
       .sort((a, b) => {
-        if (a.status !== b.status) return a.status === 'completed' ? 1 : -1;
-        if (!a.dueDate) return 1;
-        if (!b.dueDate) return -1;
-        return a.dueDate.getTime() - b.dueDate.getTime();
+        if (a.status !== b.status) {
+          return a.status === 'completed' ? 1 : -1;
+        }
+        const aDate = a.dueDate ? a.dueDate.getTime() : Infinity;
+        const bDate = b.dueDate ? b.dueDate.getTime() : Infinity;
+        return aDate - bDate;
       });
   }, [tasks, searchTerm, filter]);
   
@@ -104,9 +106,10 @@ export function TodoList() {
         title: newTaskTitle,
         status: 'ongoing',
         dueDate: newDueDate || null,
+        createdAt: new Date(), // Use current date for client-side sorting
       };
       
-      setTasks([newTask, ...tasks]);
+      setTasks(prevTasks => [newTask, ...prevTasks]);
       setNewTaskTitle("");
       setNewDueDate(undefined);
       setIsDialogOpen(false);
@@ -260,7 +263,7 @@ export function TodoList() {
               filteredTasks.map((task) => {
                 const badgeInfo = getBadgeInfo(task.dueDate, task.status);
                 return (
-                  <TableRow key={task.id} data-state={task.status === 'completed' ? 'selected' : undefined}>
+                  <TableRow key={task.id} data-state={task.status === 'completed' ? 'completed' : 'ongoing'}>
                     <TableCell>
                       <Checkbox
                         checked={task.status === 'completed'}

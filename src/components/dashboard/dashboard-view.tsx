@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAuth } from "@/context/auth-context";
 import { getTasks } from "@/lib/firebase/firestore";
 import type { Task } from "@/lib/types";
@@ -34,19 +34,33 @@ export function DashboardView() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchTasks = useCallback(async () => {
     if (user) {
-      getTasks(user.uid)
-        .then((userTasks) => {
-          setTasks(userTasks);
-          setLoading(false);
-        })
-        .catch((error) => {
-          console.error("Error fetching tasks:", error);
-          setLoading(false);
-        });
+      setLoading(true);
+      try {
+        const userTasks = await getTasks(user.uid);
+        setTasks(userTasks);
+      } catch (error) {
+        console.error("Error fetching tasks:", error);
+      } finally {
+        setLoading(false);
+      }
     }
   }, [user]);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchTasks();
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [fetchTasks]);
 
   const summaryStats = useMemo(() => {
     const totalTasks = tasks.length;
@@ -130,7 +144,7 @@ export function DashboardView() {
                     <TableCell><Checkbox disabled /></TableCell>
                     <TableCell className="font-medium">{task.title}</TableCell>
                     <TableCell className="text-right">
-                      <Badge variant="outline">{formatDistanceToNow(task.dueDate!, { addSuffix: true })}</Badge>
+                      {task.dueDate && <Badge variant="outline">{formatDistanceToNow(task.dueDate, { addSuffix: true })}</Badge>}
                     </TableCell>
                   </TableRow>
                 )) : (
