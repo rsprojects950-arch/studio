@@ -68,18 +68,10 @@ export function DashboardView() {
     fetchStats();
   }, [fetchStats]);
 
-  useEffect(() => {
-    const handleFocus = () => {
-      // Re-fetch stats when window gets focus
-      fetchStats();
-    };
-    window.addEventListener('focus', handleFocus);
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [fetchStats]);
-
-  const memoizedStats = useMemo(() => stats, [stats]);
+  const memoizedStats = useMemo(() => {
+    if (!stats) return null;
+    return stats;
+  }, [stats]);
 
 
   if (loading || !memoizedStats) {

@@ -49,16 +49,17 @@ export async function getDashboardStats(userId: string) {
   
   // Summary Stats Calculation
   const totalTasks = tasks.length;
-  const completed = tasks.filter((task) => task.status === "completed").length;
-  const overdue = tasks.filter(
+  const completedTasks = tasks.filter((task) => task.status === "completed").length;
+  const overdueTasks = tasks.filter(
     (task) => task.status !== "completed" && task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate)
   ).length;
-  const accomplishmentRate = totalTasks > 0 ? Math.round((completed / totalTasks) * 100) : 0;
+
+  const accomplishmentRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
   const summary = {
     total: totalTasks.toString(),
-    completed: completed.toString(),
-    missed: overdue.toString(),
+    completed: completedTasks.toString(),
+    missed: overdueTasks.toString(),
     accomplishmentRate: `${accomplishmentRate}%`,
   };
 
@@ -116,16 +117,16 @@ export async function addTask(userId: string, task: { title: string; dueDate: Da
       createdAt: timestamp,
     });
     
-    // Fetch the newly created document to get the server-generated timestamp
-    const newDoc = await getDoc(docRef);
-    const data = newDoc.data();
+    const newDocSnapshot = await getDoc(docRef);
+    const newDocData = newDocSnapshot.data();
 
     return {
-        id: newDoc.id,
-        userId,
+        id: newDocSnapshot.id,
+        title: newDocData?.title,
+        dueDate: newDocData?.dueDate ? newDocData.dueDate.toDate() : null,
+        userId: newDocData?.userId,
         status: 'ongoing',
-        ...task,
-        createdAt: data?.createdAt.toDate(),
+        createdAt: newDocData?.createdAt.toDate(),
     };
   } catch (error) {
     console.error("Error adding task to Firestore:", error);
