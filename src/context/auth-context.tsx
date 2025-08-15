@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
-import { onAuthStateChangedHelper, signOut as signOutFirebase } from '@/lib/firebase/auth';
+import { onAuthStateChangedHelper, signOut as signOutFirebase, handleRedirectResult } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
 
 type AuthContextType = {
@@ -23,13 +23,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
 
   useEffect(() => {
+    // Check for redirect result on app load
+    handleRedirectResult().then(({ result, error }) => {
+      if (error) {
+        console.error("Error handling redirect result:", error);
+      }
+      if (result) {
+        // User is signed in
+        router.push('/dashboard');
+      }
+    });
+
     const unsubscribe = onAuthStateChangedHelper((user) => {
       setUser(user);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [router]);
   
   const signOut = async () => {
     await signOutFirebase();

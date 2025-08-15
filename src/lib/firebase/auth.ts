@@ -5,7 +5,8 @@ import {
   onAuthStateChanged,
   type User,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -38,24 +39,38 @@ export const signIn = async (email, password) => {
 export const signInWithGoogle = async () => {
   const provider = new GoogleAuthProvider();
   try {
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
-    
-    // Check if user already exists in Firestore
-    const userDocRef = doc(db, "users", user.uid);
-    const userDoc = await getDoc(userDocRef);
+    // We are now using signInWithRedirect. This is a two-part process.
+    // This line starts the redirect. The result is handled elsewhere.
+    await signInWithRedirect(auth, provider);
+    // The function will not return a result here, as the page is redirecting.
+    // So we return a pending state.
+    return { result: null, error: null, pending: true };
+  } catch (error) {
+    return { result: null, error, pending: false };
+  }
+};
 
-    // If user doesn't exist, create a new document
-    if (!userDoc.exists()) {
-      await setDoc(userDocRef, {
-        uid: user.uid,
-        name: user.displayName,
-        email: user.email,
-        photoURL: user.photoURL,
-      });
+// This new function should be called when the application loads to
+// check for the result of a redirect sign-in.
+export const handleRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      const user = result.user;
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (!userDoc.exists()) {
+        await setDoc(userDocRef, {
+          uid: user.uid,
+          name: user.displayName,
+          email: user.email,
+          photoURL: user.photoURL,
+        });
+      }
+      return { result, error: null };
     }
-
-    return { result, error: null };
+    return { result: null, error: null };
   } catch (error) {
     return { result: null, error };
   }
