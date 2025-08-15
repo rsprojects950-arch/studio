@@ -77,20 +77,22 @@ export async function getDashboardStats(userId: string) {
       };
   });
 
-  tasks.forEach(task => {
-      if (task.dueDate) {
-          const taskDueDate = task.dueDate;
-          const weekDayEntry = weekData.find(d => isSameDay(d.date, taskDueDate));
+  if (tasks.length > 0) {
+    tasks.forEach(task => {
+        if (task.dueDate) {
+            const taskDueDate = task.dueDate;
+            const weekDayEntry = weekData.find(d => isSameDay(d.date, taskDueDate));
 
-          if (weekDayEntry) {
-              if (task.status === 'completed') {
-                  weekDayEntry.accomplished += 1;
-              } else if (task.status === 'ongoing' && isPast(taskDueDate) && !isToday(taskDueDate)) {
-                  weekDayEntry.missed += 1;
-              }
-          }
-      }
-  });
+            if (weekDayEntry) {
+                if (task.status === 'completed') {
+                    weekDayEntry.accomplished += 1;
+                } else if (task.status === 'ongoing' && isPast(taskDueDate) && !isToday(taskDueDate)) {
+                    weekDayEntry.missed += 1;
+                }
+            }
+        }
+    });
+  }
   
   const progressChartData = weekData.map(({date, ...rest}) => rest);
 
