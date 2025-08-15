@@ -51,8 +51,7 @@ export function TodoList() {
   
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // Due date state is no longer needed for the simplified form
-  // const [newDueDate, setNewDueDate] = useState<Date | undefined>(undefined);
+  const [newDueDate, setNewDueDate] = useState<Date | undefined>(undefined);
 
   const fetchTasks = useCallback(async () => {
     if (user) {
@@ -183,10 +182,13 @@ export function TodoList() {
                 ref={formRef}
                 action={async (formData) => {
                   setIsSubmitting(true);
+                  if (newDueDate) {
+                    formData.append('dueDate', newDueDate.toISOString());
+                  }
                   try {
                     await createTaskAction(formData);
                     formRef.current?.reset();
-                    // setNewDueDate(undefined); // No longer needed
+                    setNewDueDate(undefined);
                     setIsDialogOpen(false);
                     fetchTasks(); // Refetch tasks to show the new one
                     toast({ title: "Task added successfully" });
@@ -208,7 +210,31 @@ export function TodoList() {
                     <Label htmlFor="title" className="text-right">Task</Label>
                     <Input id="title" name="title" className="col-span-3" placeholder="e.g. Finish the report" required />
                   </div>
-                  {/* Due date picker removed for simplification */}
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="dueDate" className="text-right">Due Date</Label>
+                     <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-[280px] justify-start text-left font-normal",
+                              !newDueDate && "text-muted-foreground"
+                            )}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {newDueDate ? format(newDueDate, "PPP") : <span>Pick a date</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0">
+                          <Calendar
+                            mode="single"
+                            selected={newDueDate}
+                            onSelect={setNewDueDate}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                  </div>
                 </div>
                 <DialogFooter>
                    <Button type="submit" disabled={isSubmitting}>

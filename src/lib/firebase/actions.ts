@@ -2,7 +2,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export async function createTaskAction(formData: FormData) {
@@ -16,14 +16,31 @@ export async function createTaskAction(formData: FormData) {
     throw new Error('Task title is required.');
   }
   
+  const dueDateStr = formData.get('dueDate') as string | null;
+
   try {
-    // Radically simplified: only save the essential fields to test the core functionality.
-    await addDoc(collection(db, "tasks"), {
+    const taskData: {
+      userId: string;
+      title: string;
+      status: 'ongoing';
+      createdAt: any;
+      dueDate?: Timestamp;
+    } = {
       userId: userId,
       title: title,
       status: 'ongoing',
       createdAt: serverTimestamp(),
-    });
+    };
+
+    if (dueDateStr) {
+      const dueDate = new Date(dueDateStr);
+      // Check if the date is valid before creating a timestamp
+      if (!isNaN(dueDate.getTime())) {
+        taskData.dueDate = Timestamp.fromDate(dueDate);
+      }
+    }
+    
+    await addDoc(collection(db, "tasks"), taskData);
 
   } catch (error) {
     console.error("Error adding task to Firestore:", error);
