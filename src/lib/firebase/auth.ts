@@ -5,11 +5,19 @@ import {
   onAuthStateChanged,
   type User,
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 
-export const signUp = async (email, password) => {
+export const signUp = async (name, email, password) => {
   try {
     const result = await createUserWithEmailAndPassword(auth, email, password);
+    const user = result.user;
+    // Create a document in Firestore
+    await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        name: name,
+        email: email,
+    });
     return { result, error: null };
   } catch (error) {
     return { result: null, error };

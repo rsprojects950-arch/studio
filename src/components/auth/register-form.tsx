@@ -47,8 +47,8 @@ export function RegisterForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    const { email, password } = values;
-    const { error } = await signUp(email, password);
+    const { name, email, password } = values;
+    const { error } = await signUp(name, email, password);
 
     if (error) {
       toast({
