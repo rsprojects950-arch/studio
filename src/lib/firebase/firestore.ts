@@ -1,7 +1,7 @@
 
 'use server';
 
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Task } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
@@ -25,8 +25,8 @@ export async function getTasks(userId: string): Promise<Task[]> {
         id: doc.id,
         ...data,
         // Firestore timestamps need to be converted to JS Dates
-        dueDate: data.dueDate ? data.dueDate.toDate() : null,
-        createdAt: data.createdAt ? data.createdAt.toDate() : new Date(), // Fallback for older tasks
+        dueDate: data.dueDate ? (data.dueDate as Timestamp).toDate() : null,
+        createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : new Date(), // Fallback for older tasks
       } as Task);
     });
     // Manual sort on the server after fetching
@@ -111,12 +111,17 @@ export async function addTask(userId: string, task: { title: string; dueDate: Da
     throw new Error("User ID is required to add a task.");
   }
   try {
-    const docRef = await addDoc(collection(db, "tasks"), {
+    const taskData: any = {
       ...task,
       userId: userId,
       status: 'ongoing',
       createdAt: serverTimestamp(),
-    });
+    };
+    if (task.dueDate) {
+        taskData.dueDate = Timestamp.fromDate(task.dueDate);
+    }
+
+    const docRef = await addDoc(collection(db, "tasks"), taskData);
     
     // Fetch the document we just created to get the server-generated timestamp
     const newDocSnapshot = await getDoc(docRef);
@@ -130,8 +135,8 @@ export async function addTask(userId: string, task: { title: string; dueDate: Da
         id: newDocSnapshot.id,
         title: data.title,
         status: data.status,
-        dueDate: data.dueDate ? data.dueDate.toDate() : null,
-        createdAt: data.createdAt.toDate(),
+        dueDate: data.dueDate ? (data.dueDate as Timestamp).toDate() : null,
+        createdAt: (data.createdAt as Timestamp).toDate(),
         userId: data.userId,
     };
   } catch (error) {
