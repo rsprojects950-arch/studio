@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { format, isPast, isToday, isFuture } from "date-fns";
 import {
   Table,
@@ -52,22 +52,28 @@ export function TodoList() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newDueDate, setNewDueDate] = useState<Date | undefined>(undefined);
 
-  useEffect(() => {
+  const fetchTasks = useCallback(async () => {
     if (user) {
       setLoading(true);
-      getTasks(user.uid)
-        .then(setTasks)
-        .catch(error => {
-          console.error(error);
-          toast({
-            variant: "destructive",
-            title: "Error fetching tasks",
-            description: "Could not load tasks from the database."
-          });
-        })
-        .finally(() => setLoading(false));
+      try {
+        const userTasks = await getTasks(user.uid);
+        setTasks(userTasks);
+      } catch (error) {
+        console.error(error);
+        toast({
+          variant: "destructive",
+          title: "Error fetching tasks",
+          description: "Could not load tasks from the database."
+        });
+      } finally {
+        setLoading(false);
+      }
     }
   }, [user, toast]);
+
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
 
   const filteredTasks = useMemo(() => {
     return tasks
@@ -98,18 +104,11 @@ export function TodoList() {
     setIsSubmitting(true);
     try {
       const newTaskData = { title: newTaskTitle, dueDate: newDueDate || null };
-      const newTaskId = await addTask(user.uid, newTaskData);
+      await addTask(user.uid, newTaskData);
       
-      const newTask: Task = {
-        id: newTaskId,
-        userId: user.uid,
-        title: newTaskTitle,
-        status: 'ongoing',
-        dueDate: newDueDate || null,
-        createdAt: new Date(), // Use current date for client-side sorting
-      };
-      
-      setTasks(prevTasks => [newTask, ...prevTasks]);
+      // Refetch tasks from the server to get the most up-to-date list
+      await fetchTasks();
+
       setNewTaskTitle("");
       setNewDueDate(undefined);
       setIsDialogOpen(false);
@@ -127,23 +126,25 @@ export function TodoList() {
 
   const toggleTaskStatus = async (taskId: string, currentStatus: 'ongoing' | 'completed') => {
     const newStatus = currentStatus === 'ongoing' ? 'completed' : 'ongoing';
-    const originalTasks = [...tasks];
     
     // Optimistically update UI
-    setTasks(tasks.map(task => 
+    setTasks(prevTasks => prevTasks.map(task => 
       task.id === taskId ? { ...task, status: newStatus } : task
     ));
 
     try {
       await updateTaskStatus(taskId, newStatus);
+      // Optional: refetch to ensure data consistency, though optimistic UI should be sufficient
+      // await fetchTasks(); 
     } catch (error) {
       // Revert UI on failure
-      setTasks(originalTasks);
       toast({
         variant: "destructive",
         title: "Update failed",
-        description: "Could not update the task status."
+        description: "Could not update the task status. Reverting changes."
       });
+      // Refetch to get the correct state from the server
+      await fetchTasks();
     }
   };
 

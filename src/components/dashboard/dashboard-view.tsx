@@ -52,6 +52,8 @@ export function DashboardView() {
     fetchTasks();
   }, [fetchTasks]);
 
+  // This effect adds an event listener to re-fetch tasks when the window gains focus.
+  // This helps keep the data fresh if the user navigates away and back to the tab.
   useEffect(() => {
     const handleFocus = () => {
       fetchTasks();
