@@ -52,7 +52,7 @@ export function DashboardView() {
     const totalTasks = tasks.length;
     const completed = tasks.filter((task) => task.status === "completed").length;
     const overdue = tasks.filter(
-      (task) => task.status === "ongoing" && task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate)
+      (task) => task.dueDate && task.status === "ongoing" && isPast(task.dueDate) && !isToday(task.dueDate)
     ).length;
     const accomplishmentRate = totalTasks > 0 ? Math.round((completed / totalTasks) * 100) : 0;
 
