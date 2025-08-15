@@ -4,6 +4,7 @@ import { RegisterForm } from "@/components/auth/register-form";
 import { useAuth } from "@/context/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function RegisterPage() {
   const { user, loading } = useAuth();
@@ -15,8 +16,19 @@ export default function RegisterPage() {
     }
   }, [user, loading, router]);
 
-  // Render the registration form directly without a loading state.
-  if (loading) return null;
+  if (loading || (!loading && user)) {
+     return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+        <div className="flex flex-col items-center gap-4">
+          <Skeleton className="h-16 w-16 rounded-full" />
+          <div className="space-y-2 text-center">
+            <Skeleton className="h-6 w-[250px]" />
+            <Skeleton className="h-4 w-[200px]" />
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
