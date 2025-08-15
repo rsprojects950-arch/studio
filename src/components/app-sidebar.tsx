@@ -22,6 +22,7 @@ import {
   User,
   LogOut,
 } from 'lucide-react';
+import { useAuth } from '@/context/auth-context';
 
 const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -37,6 +38,7 @@ const bottomNav = [
 
 export function AppSidebar() {
   const pathname = usePathname();
+  const { signOut } = useAuth();
 
   return (
     <Sidebar>
@@ -84,11 +86,9 @@ export function AppSidebar() {
           ))}
           <Separator className="my-1" />
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip={{ children: 'Logout', side: 'right' }}>
-              <Link href="/">
-                <LogOut />
-                <span>Logout</span>
-              </Link>
+            <SidebarMenuButton onClick={() => signOut()} tooltip={{ children: 'Logout', side: 'right' }}>
+              <LogOut />
+              <span>Logout</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
