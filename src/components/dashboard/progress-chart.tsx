@@ -3,17 +3,17 @@
 
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts"
 
-const data = [
-  { name: "Mon", accomplished: 0, missed: 0 },
-  { name: "Tue", accomplished: 0, missed: 0 },
-  { name: "Wed", accomplished: 0, missed: 0 },
-  { name: "Thu", accomplished: 0, missed: 0 },
-  { name: "Fri", accomplished: 0, missed: 0 },
-  { name: "Sat", accomplished: 0, missed: 0 },
-  { name: "Sun", accomplished: 0, missed: 0 },
-];
+type ProgressChartData = {
+  name: string;
+  accomplished: number;
+  missed: number;
+};
 
-export function ProgressChart() {
+interface ProgressChartProps {
+  data: ProgressChartData[];
+}
+
+export function ProgressChart({ data }: ProgressChartProps) {
   return (
     <ResponsiveContainer width="100%" height={350}>
       <BarChart data={data}>
@@ -30,6 +30,7 @@ export function ProgressChart() {
           tickLine={false}
           axisLine={false}
           tickFormatter={(value) => `${value}`}
+          allowDecimals={false}
         />
         <Tooltip
           contentStyle={{

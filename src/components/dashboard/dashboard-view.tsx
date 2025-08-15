@@ -27,7 +27,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { isPast, isToday, formatDistanceToNow, isFuture } from "date-fns";
+import { isPast, isToday, formatDistanceToNow, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
 
 export function DashboardView() {
   const { user } = useAuth();
@@ -52,8 +52,6 @@ export function DashboardView() {
     fetchTasks();
   }, [fetchTasks]);
 
-  // This effect adds an event listener to re-fetch tasks when the window gains focus.
-  // This helps keep the data fresh if the user navigates away and back to the tab.
   useEffect(() => {
     const handleFocus = () => {
       fetchTasks();
@@ -85,6 +83,37 @@ export function DashboardView() {
       .filter(task => task.status === 'ongoing' && task.dueDate && isFuture(task.dueDate))
       .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
       .slice(0, 3);
+  }, [tasks]);
+
+  const progressChartData = useMemo(() => {
+    const today = new Date();
+    const startOfThisWeek = startOfWeek(today, { weekStartsOn: 1 }); // Monday
+    const weekData = Array.from({ length: 7 }).map((_, i) => {
+      const day = addDays(startOfThisWeek, i);
+      return {
+        name: format(day, "EEE"),
+        accomplished: 0,
+        missed: 0,
+      };
+    });
+
+    tasks.forEach(task => {
+        if(task.dueDate) {
+            const taskDate = task.dueDate;
+            const dayOfWeek = format(taskDate, "EEE");
+            const weekDayEntry = weekData.find(d => d.name === dayOfWeek);
+
+            if(weekDayEntry) {
+                if (task.status === 'completed' && isSameDay(task.dueDate, taskDate)) {
+                    weekDayEntry.accomplished += 1;
+                } else if (task.status === 'ongoing' && isPast(taskDate) && !isToday(taskDate)) {
+                    weekDayEntry.missed += 1;
+                }
+            }
+        }
+    });
+
+    return weekData;
   }, [tasks]);
 
 
@@ -120,7 +149,7 @@ export function DashboardView() {
             <CardTitle>Daily Progress</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
-            <ProgressChart />
+            <ProgressChart data={progressChartData} />
           </CardContent>
         </Card>
 
