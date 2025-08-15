@@ -1,10 +1,10 @@
 
 'use server';
 
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Task } from '@/lib/types';
-import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay, endOfWeek } from "date-fns";
+import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
 
 
 export async function getTasks(userId: string): Promise<Task[]> {
@@ -115,12 +115,17 @@ export async function addTask(userId: string, task: { title: string; dueDate: Da
       status: 'ongoing',
       createdAt: timestamp,
     });
+    
+    // Fetch the newly created document to get the server-generated timestamp
+    const newDoc = await getDoc(docRef);
+    const data = newDoc.data();
+
     return {
-        id: docRef.id,
+        id: newDoc.id,
         userId,
         status: 'ongoing',
-        createdAt: new Date(), // Approximate, client-side date
-        ...task
+        ...task,
+        createdAt: data?.createdAt.toDate(),
     };
   } catch (error) {
     console.error("Error adding task to Firestore:", error);
