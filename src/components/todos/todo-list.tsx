@@ -191,7 +191,7 @@ export function TodoList() {
                     formRef.current?.reset();
                     setNewDueDate(undefined);
                     setIsDialogOpen(false);
-                    fetchTasks(); // Refetch tasks to show the new one
+                    await fetchTasks(); // Refetch tasks to show the new one
                     toast({ title: "Task added successfully" });
                   } catch (error) {
                     console.error(error);
