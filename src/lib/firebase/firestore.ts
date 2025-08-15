@@ -30,7 +30,14 @@ export async function getTasks(userId: string): Promise<Task[]> {
       } as Task);
     });
     // Manual sort on the server after fetching
-    return tasks.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return tasks.sort((a, b) => {
+        if (a.status !== b.status) {
+          return a.status === 'completed' ? 1 : -1;
+        }
+        const aDate = a.dueDate ? a.dueDate.getTime() : Infinity;
+        const bDate = b.dueDate ? b.dueDate.getTime() : Infinity;
+        return aDate - bDate;
+      });
   } catch (error) {
     console.error("Error fetching tasks from Firestore:", error);
     return [];
@@ -44,7 +51,7 @@ export async function getDashboardStats(userId: string) {
   const totalTasks = tasks.length;
   const completed = tasks.filter((task) => task.status === "completed").length;
   const overdue = tasks.filter(
-    (task) => task.dueDate && task.status !== "completed" && isPast(task.dueDate) && !isToday(task.dueDate)
+    (task) => task.status !== "completed" && task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate)
   ).length;
   const accomplishmentRate = totalTasks > 0 ? Math.round((completed / totalTasks) * 100) : 0;
 
@@ -77,10 +84,8 @@ export async function getDashboardStats(userId: string) {
           if (weekDayEntry) {
               if (task.status === 'completed') {
                   weekDayEntry.accomplished += 1;
-              } else if (isPast(taskDueDate) && !isToday(taskDueDate)) { // check status on client? no, here
-                  if (task.status === 'ongoing') {
-                    weekDayEntry.missed += 1;
-                  }
+              } else if (task.status === 'ongoing' && isPast(taskDueDate) && !isToday(taskDueDate)) {
+                  weekDayEntry.missed += 1;
               }
           }
       }
@@ -90,7 +95,7 @@ export async function getDashboardStats(userId: string) {
 
   // Upcoming Tasks Calculation
   const upcomingTasks = tasks
-    .filter(task => task.status === 'ongoing' && task.dueDate && isFuture(task.dueDate))
+    .filter(task => task.status === 'ongoing' && task.dueDate && (isFuture(task.dueDate) || isToday(task.dueDate)))
     .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
     .slice(0, 3);
   
@@ -98,18 +103,25 @@ export async function getDashboardStats(userId: string) {
 }
 
 
-export async function addTask(userId: string, task: { title: string; dueDate: Date | null }): Promise<string> {
+export async function addTask(userId: string, task: { title: string; dueDate: Date | null }): Promise<Task> {
   if (!userId) {
     throw new Error("User ID is required to add a task.");
   }
   try {
+    const timestamp = serverTimestamp();
     const docRef = await addDoc(collection(db, "tasks"), {
       ...task,
       userId: userId,
       status: 'ongoing',
-      createdAt: serverTimestamp(),
+      createdAt: timestamp,
     });
-    return docRef.id;
+    return {
+        id: docRef.id,
+        userId,
+        status: 'ongoing',
+        createdAt: new Date(), // Approximate, client-side date
+        ...task
+    };
   } catch (error) {
     console.error("Error adding task to Firestore:", error);
     throw new Error("Failed to add task.");

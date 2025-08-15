@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
 import { getDashboardStats } from "@/lib/firebase/firestore";
 import type { Task } from "@/lib/types";
@@ -27,7 +27,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, isPast, isToday } from "date-fns";
 
 type DashboardStats = {
   summary: {
@@ -70,6 +70,7 @@ export function DashboardView() {
 
   useEffect(() => {
     const handleFocus = () => {
+      // Re-fetch stats when window gets focus
       fetchStats();
     };
     window.addEventListener('focus', handleFocus);
@@ -78,8 +79,10 @@ export function DashboardView() {
     };
   }, [fetchStats]);
 
+  const memoizedStats = useMemo(() => stats, [stats]);
 
-  if (loading || !stats) {
+
+  if (loading || !memoizedStats) {
     return (
       <>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -99,10 +102,10 @@ export function DashboardView() {
   return (
     <>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <SummaryTile title="Total Tasks" value={stats.summary.total} icon={ListTodo} />
-        <SummaryTile title="Completed" value={stats.summary.completed} icon={CheckCircle2} />
-        <SummaryTile title="Missed" value={stats.summary.missed} icon={XCircle} />
-        <SummaryTile title="Accomplishment Rate" value={stats.summary.accomplishmentRate} icon={Percent} />
+        <SummaryTile title="Total Tasks" value={memoizedStats.summary.total} icon={ListTodo} />
+        <SummaryTile title="Completed" value={memoizedStats.summary.completed} icon={CheckCircle2} />
+        <SummaryTile title="Missed" value={memoizedStats.summary.missed} icon={XCircle} />
+        <SummaryTile title="Accomplishment Rate" value={memoizedStats.summary.accomplishmentRate} icon={Percent} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
@@ -111,7 +114,7 @@ export function DashboardView() {
             <CardTitle>Daily Progress</CardTitle>
           </CardHeader>
           <CardContent className="pl-2">
-            <ProgressChart data={stats.progressChartData} />
+            <ProgressChart data={memoizedStats.progressChartData} />
           </CardContent>
         </Card>
 
@@ -132,12 +135,12 @@ export function DashboardView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {stats.upcomingTasks.length > 0 ? stats.upcomingTasks.map((task) => (
+                {memoizedStats.upcomingTasks.length > 0 ? memoizedStats.upcomingTasks.map((task) => (
                   <TableRow key={task.id}>
                     <TableCell><Checkbox disabled /></TableCell>
                     <TableCell className="font-medium">{task.title}</TableCell>
                     <TableCell className="text-right">
-                      {task.dueDate && <Badge variant="outline">{formatDistanceToNow(task.dueDate, { addSuffix: true })}</Badge>}
+                      {task.dueDate && <Badge variant={isPast(task.dueDate) && !isToday(task.dueDate) ? 'destructive' : 'outline'}>{formatDistanceToNow(task.dueDate, { addSuffix: true })}</Badge>}
                     </TableCell>
                   </TableRow>
                 )) : (

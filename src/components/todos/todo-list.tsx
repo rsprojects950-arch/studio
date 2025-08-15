@@ -75,8 +75,19 @@ export function TodoList() {
     fetchTasks();
   }, [fetchTasks]);
 
+  const sortedTasks = useMemo(() => {
+    return [...tasks].sort((a, b) => {
+      if (a.status !== b.status) {
+        return a.status === 'completed' ? 1 : -1;
+      }
+      const aDate = a.dueDate ? a.dueDate.getTime() : Infinity;
+      const bDate = b.dueDate ? b.dueDate.getTime() : Infinity;
+      return aDate - bDate;
+    });
+  }, [tasks]);
+
   const filteredTasks = useMemo(() => {
-    return tasks
+    return sortedTasks
       .filter((task) => {
         if (!task.title.toLowerCase().includes(searchTerm.toLowerCase())) {
           return false;
@@ -88,15 +99,7 @@ export function TodoList() {
         if (filter === "upcoming") return task.dueDate && isFuture(task.dueDate);
         return true;
       })
-      .sort((a, b) => {
-        if (a.status !== b.status) {
-          return a.status === 'completed' ? 1 : -1;
-        }
-        const aDate = a.dueDate ? a.dueDate.getTime() : Infinity;
-        const bDate = b.dueDate ? b.dueDate.getTime() : Infinity;
-        return aDate - bDate;
-      });
-  }, [tasks, searchTerm, filter]);
+  }, [sortedTasks, searchTerm, filter]);
   
   const handleAddTask = async () => {
     if (!newTaskTitle || !user) return;
@@ -104,10 +107,9 @@ export function TodoList() {
     setIsSubmitting(true);
     try {
       const newTaskData = { title: newTaskTitle, dueDate: newDueDate || null };
-      await addTask(user.uid, newTaskData);
+      const addedTask = await addTask(user.uid, newTaskData);
       
-      // Refetch tasks from the server to get the most up-to-date list
-      await fetchTasks();
+      setTasks(prevTasks => [...prevTasks, addedTask]);
 
       setNewTaskTitle("");
       setNewDueDate(undefined);
@@ -126,40 +128,34 @@ export function TodoList() {
 
   const toggleTaskStatus = async (taskId: string, currentStatus: 'ongoing' | 'completed') => {
     const newStatus = currentStatus === 'ongoing' ? 'completed' : 'ongoing';
-    
-    // Optimistically update UI
+    const originalTasks = [...tasks];
+
     setTasks(prevTasks => prevTasks.map(task => 
       task.id === taskId ? { ...task, status: newStatus } : task
     ));
 
     try {
       await updateTaskStatus(taskId, newStatus);
-      // Optional: refetch to ensure data consistency, though optimistic UI should be sufficient
-      // await fetchTasks(); 
     } catch (error) {
-      // Revert UI on failure
+      setTasks(originalTasks);
       toast({
         variant: "destructive",
         title: "Update failed",
-        description: "Could not update the task status. Reverting changes."
+        description: "Could not update the task status."
       });
-      // Refetch to get the correct state from the server
-      await fetchTasks();
     }
   };
 
   const handleDeleteTask = async (taskId: string) => {
     const originalTasks = [...tasks];
     
-    // Optimistically update UI
     setTasks(tasks.filter(task => task.id !== taskId));
 
     try {
       await deleteTask(taskId);
       toast({ title: "Task deleted" });
     } catch (error) {
-       // Revert UI on failure
-      setTasks(originalTasks);
+       setTasks(originalTasks);
       toast({
         variant: "destructive",
         title: "Delete failed",
