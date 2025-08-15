@@ -109,24 +109,28 @@ export async function addTask(userId: string, task: { title: string; dueDate: Da
     throw new Error("User ID is required to add a task.");
   }
   try {
-    const timestamp = serverTimestamp();
     const docRef = await addDoc(collection(db, "tasks"), {
       ...task,
       userId: userId,
       status: 'ongoing',
-      createdAt: timestamp,
+      createdAt: serverTimestamp(),
     });
     
+    // Fetch the document we just created to get the server-generated timestamp
     const newDocSnapshot = await getDoc(docRef);
-    const newDocData = newDocSnapshot.data();
+    const data = newDocSnapshot.data();
+
+    if (!data) {
+        throw new Error("Failed to retrieve new task after creation.");
+    }
 
     return {
         id: newDocSnapshot.id,
-        title: newDocData?.title,
-        dueDate: newDocData?.dueDate ? newDocData.dueDate.toDate() : null,
-        userId: newDocData?.userId,
-        status: 'ongoing',
-        createdAt: newDocData?.createdAt.toDate(),
+        title: data.title,
+        status: data.status,
+        dueDate: data.dueDate ? data.dueDate.toDate() : null,
+        createdAt: data.createdAt.toDate(),
+        userId: data.userId,
     };
   } catch (error) {
     console.error("Error adding task to Firestore:", error);
