@@ -24,7 +24,7 @@ export async function createTaskAction(formData: FormData) {
       title: string;
       status: 'ongoing';
       createdAt: any;
-      dueDate?: Timestamp | null;
+      dueDate?: Timestamp;
     } = {
       userId: userId,
       title: title,
@@ -34,8 +34,6 @@ export async function createTaskAction(formData: FormData) {
 
     if (dueDateStr) {
       taskData.dueDate = Timestamp.fromDate(new Date(dueDateStr));
-    } else {
-      taskData.dueDate = null;
     }
 
     await addDoc(collection(db, "tasks"), taskData);
