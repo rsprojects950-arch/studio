@@ -22,9 +22,8 @@ export async function getTasks(userId: string): Promise<Task[]> {
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       
-      // Convert Firestore Timestamps to JS Date objects safely
-      const dueDate = data.dueDate && data.dueDate instanceof Timestamp ? data.dueDate.toDate() : null;
-      const createdAt = data.createdAt && data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
+      const dueDate = data.dueDate instanceof Timestamp ? data.dueDate.toDate() : null;
+      const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
 
       tasks.push({
         id: doc.id,
@@ -36,7 +35,6 @@ export async function getTasks(userId: string): Promise<Task[]> {
       } as Task);
     });
     
-    // Manual sort on the server after fetching
     return tasks.sort((a, b) => {
         if (a.status !== b.status) {
           return a.status === 'completed' ? 1 : -1;
@@ -47,6 +45,7 @@ export async function getTasks(userId: string): Promise<Task[]> {
       });
   } catch (error) {
     console.error("Error fetching tasks from Firestore:", error);
+    // In case of error, return an empty array to prevent app crashes.
     return [];
   }
 }
@@ -54,7 +53,6 @@ export async function getTasks(userId: string): Promise<Task[]> {
 export async function getDashboardStats(userId: string) {
   const tasks = await getTasks(userId);
   
-  // Summary Stats Calculation
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((task) => task.status === "completed").length;
   const overdueTasks = tasks.filter(
@@ -70,7 +68,6 @@ export async function getDashboardStats(userId: string) {
     accomplishmentRate: `${accomplishmentRate}%`,
   };
 
-  // Progress Chart Data Calculation
   const today = new Date();
   const startOfThisWeek = startOfWeek(today, { weekStartsOn: 1 });
 
@@ -84,26 +81,23 @@ export async function getDashboardStats(userId: string) {
       };
   });
 
-  if (tasks.length > 0) {
-    tasks.forEach(task => {
-        if (task.dueDate) {
-            const taskDueDate = task.dueDate;
-            const weekDayEntry = weekData.find(d => isSameDay(d.date, taskDueDate));
+  tasks.forEach(task => {
+      if (task.dueDate) {
+          const taskDueDate = task.dueDate;
+          const weekDayEntry = weekData.find(d => isSameDay(d.date, taskDueDate));
 
-            if (weekDayEntry) {
-                if (task.status === 'completed') {
-                    weekDayEntry.accomplished += 1;
-                } else if (task.status === 'ongoing' && isPast(taskDueDate) && !isToday(taskDueDate)) {
-                    weekDayEntry.missed += 1;
-                }
-            }
-        }
-    });
-  }
+          if (weekDayEntry) {
+              if (task.status === 'completed') {
+                  weekDayEntry.accomplished += 1;
+              } else if (task.status === 'ongoing' && isPast(taskDueDate) && !isToday(taskDueDate)) {
+                  weekDayEntry.missed += 1;
+              }
+          }
+      }
+  });
   
   const progressChartData = weekData.map(({date, ...rest}) => rest);
 
-  // Upcoming Tasks Calculation
   const upcomingTasks = tasks
     .filter(task => task.status === 'ongoing' && task.dueDate && (isFuture(task.dueDate) || isToday(task.dueDate)))
     .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
@@ -111,7 +105,6 @@ export async function getDashboardStats(userId: string) {
   
   return { summary, progressChartData, upcomingTasks };
 }
-
 
 export async function addTask(userId: string, task: { title: string; dueDate: string | null }): Promise<Task> {
   if (!userId) {
@@ -128,7 +121,6 @@ export async function addTask(userId: string, task: { title: string; dueDate: st
 
     const docRef = await addDoc(collection(db, "tasks"), taskData);
     
-    // Fetch the document we just created to get the server-generated timestamp
     const newDocSnapshot = await getDoc(docRef);
     const data = newDocSnapshot.data();
 
@@ -136,8 +128,8 @@ export async function addTask(userId: string, task: { title: string; dueDate: st
         throw new Error("Failed to retrieve new task after creation.");
     }
     
-    const dueDate = data.dueDate && data.dueDate instanceof Timestamp ? data.dueDate.toDate() : null;
-    const createdAt = data.createdAt && data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
+    const dueDate = data.dueDate instanceof Timestamp ? data.dueDate.toDate() : null;
+    const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
 
     return {
         id: newDocSnapshot.id,

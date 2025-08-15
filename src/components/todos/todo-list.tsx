@@ -108,7 +108,6 @@ export function TodoList() {
     try {
       const newTaskData = { 
         title: newTaskTitle, 
-        // Send dueDate as an ISO string for reliable server serialization
         dueDate: newDueDate ? newDueDate.toISOString() : null 
       };
       const addedTask = await addTask(user.uid, newTaskData);
@@ -120,6 +119,7 @@ export function TodoList() {
       setIsDialogOpen(false);
       toast({ title: "Task added successfully" });
     } catch (error) {
+      console.error(error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -230,7 +230,7 @@ export function TodoList() {
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleAddTask} disabled={isSubmitting}>
+                <Button onClick={handleAddTask} disabled={isSubmitting || !newTaskTitle}>
                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Add Task
                 </Button>
@@ -290,7 +290,7 @@ export function TodoList() {
             ) : (
               <TableRow>
                 <TableCell colSpan={4} className="h-24 text-center">
-                  No tasks found.
+                  No tasks found. Try adding a new task!
                 </TableCell>
               </TableRow>
             )}
