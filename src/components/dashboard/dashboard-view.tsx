@@ -66,7 +66,7 @@ export function DashboardView() {
     const totalTasks = tasks.length;
     const completed = tasks.filter((task) => task.status === "completed").length;
     const overdue = tasks.filter(
-      (task) => task.dueDate && task.status === "ongoing" && isPast(task.dueDate) && !isToday(task.dueDate)
+      (task) => task.dueDate && task.status !== "completed" && isPast(task.dueDate) && !isToday(task.dueDate)
     ).length;
     const accomplishmentRate = totalTasks > 0 ? Math.round((completed / totalTasks) * 100) : 0;
 
@@ -87,8 +87,7 @@ export function DashboardView() {
 
   const progressChartData = useMemo(() => {
     const today = new Date();
-    const startOfThisWeek = startOfWeek(today, { weekStartsOn: 1 }); // Monday
-    const endOfThisWeek = endOfWeek(today, { weekStartsOn: 1 });
+    const startOfThisWeek = startOfWeek(today, { weekStartsOn: 1 });
 
     const weekData = Array.from({ length: 7 }).map((_, i) => {
         const day = addDays(startOfThisWeek, i);
@@ -96,29 +95,27 @@ export function DashboardView() {
             name: format(day, "EEE"),
             accomplished: 0,
             missed: 0,
+            date: day,
         };
     });
 
     tasks.forEach(task => {
         if (task.dueDate) {
             const taskDueDate = task.dueDate;
-            // Ensure the task's due date is within the current week's view
-            if (taskDueDate >= startOfThisWeek && taskDueDate <= endOfThisWeek) {
-                const dayOfWeek = format(taskDueDate, "EEE");
-                const weekDayEntry = weekData.find(d => d.name === dayOfWeek);
+            const weekDayEntry = weekData.find(d => isSameDay(d.date, taskDueDate));
 
-                if (weekDayEntry) {
-                    if (task.status === 'completed') {
-                        weekDayEntry.accomplished += 1;
-                    } else if (task.status === 'ongoing' && isPast(taskDueDate) && !isToday(taskDueDate)) {
-                        weekDayEntry.missed += 1;
-                    }
+            if (weekDayEntry) {
+                if (task.status === 'completed') {
+                    weekDayEntry.accomplished += 1;
+                } else if (task.status === 'ongoing' && isPast(taskDueDate) && !isToday(taskDueDate)) {
+                    weekDayEntry.missed += 1;
                 }
             }
         }
     });
     
-    return weekData;
+    // We don't need the date property in the final chart data
+    return weekData.map(({date, ...rest}) => rest);
   }, [tasks]);
 
 
