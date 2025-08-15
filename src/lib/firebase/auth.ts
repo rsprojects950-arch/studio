@@ -7,16 +7,22 @@ import {
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
-export const signUp = (email, password) => {
-  return createUserWithEmailAndPassword(auth, email, password)
-    .then((userCredential) => ({ result: userCredential, error: null }))
-    .catch((error) => ({ result: null, error }));
+export const signUp = async (email, password) => {
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, password);
+    return { result, error: null };
+  } catch (error) {
+    return { result: null, error };
+  }
 };
 
-export const signIn = (email, password) => {
-  return signInWithEmailAndPassword(auth, email, password)
-    .then((userCredential) => ({ result: userCredential, error: null }))
-    .catch((error) => ({ result: null, error }));
+export const signIn = async (email, password) => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, password);
+    return { result, error: null };
+  } catch (error) {
+    return { result: null, error };
+  }
 };
 
 export const signOut = () => {
