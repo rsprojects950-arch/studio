@@ -21,14 +21,21 @@ export async function getTasks(userId: string): Promise<Task[]> {
     const tasks: Task[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
+      
+      // Convert Firestore Timestamps to JS Date objects safely
+      const dueDate = data.dueDate && data.dueDate instanceof Timestamp ? data.dueDate.toDate() : null;
+      const createdAt = data.createdAt && data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
+
       tasks.push({
         id: doc.id,
-        ...data,
-        // Firestore timestamps need to be converted to JS Dates
-        dueDate: data.dueDate ? (data.dueDate as Timestamp).toDate() : null,
-        createdAt: data.createdAt ? (data.createdAt as Timestamp).toDate() : new Date(),
+        userId: data.userId,
+        title: data.title,
+        status: data.status,
+        dueDate: dueDate,
+        createdAt: createdAt,
       } as Task);
     });
+    
     // Manual sort on the server after fetching
     return tasks.sort((a, b) => {
         if (a.status !== b.status) {
@@ -128,13 +135,16 @@ export async function addTask(userId: string, task: { title: string; dueDate: st
     if (!data) {
         throw new Error("Failed to retrieve new task after creation.");
     }
+    
+    const dueDate = data.dueDate && data.dueDate instanceof Timestamp ? data.dueDate.toDate() : null;
+    const createdAt = data.createdAt && data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
 
     return {
         id: newDocSnapshot.id,
         title: data.title,
         status: data.status,
-        dueDate: data.dueDate ? (data.dueDate as Timestamp).toDate() : null,
-        createdAt: (data.createdAt as Timestamp).toDate(),
+        dueDate: dueDate,
+        createdAt: createdAt,
         userId: data.userId,
     };
   } catch (error) {
