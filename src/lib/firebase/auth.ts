@@ -1,14 +1,11 @@
 import {
-  getAuth,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut as signOutFirebase,
   onAuthStateChanged,
   type User,
 } from 'firebase/auth';
-import { app } from '@/lib/firebase';
-
-const auth = getAuth(app);
+import { auth } from '@/lib/firebase';
 
 export const signUp = (email, password) => {
   return createUserWithEmailAndPassword(auth, email, password)
