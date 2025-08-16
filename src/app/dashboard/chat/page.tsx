@@ -20,7 +20,8 @@ import Link from 'next/link';
 
 const renderMessageWithContent = (
     text: string, 
-    currentUserName: string
+    currentUserName: string,
+    isOwnMessage: boolean
 ) => {
     const regex = /(@[a-zA-Z0-9_]+)|(#\[([^\]]+?)\]\(([a-zA-Z0-9-]+)\))/g;
 
@@ -58,7 +59,7 @@ const renderMessageWithContent = (
             const mention = part.content.substring(1);
             const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
             return (
-                <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary')}>
+                <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : isOwnMessage ? '' : 'text-primary' )}>
                     {part.content}
                 </strong>
             );
@@ -353,7 +354,7 @@ export default function ChatPage() {
                                                             <p className="truncate">{msg.replyToText}</p>
                                                         </div>
                                                     )}
-                                                    <div className="whitespace-pre-wrap break-words">{renderMessageWithContent(msg.text, userProfile?.username || '')}</div>
+                                                    <div className="whitespace-pre-wrap break-words">{renderMessageWithContent(msg.text, userProfile?.username || '', user?.uid === msg.userId)}</div>
                                                 </div>
                                                 <span className="text-xs text-muted-foreground mt-1">
                                                     {format(new Date(msg.createdAt), 'p')}
