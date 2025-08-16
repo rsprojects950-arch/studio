@@ -28,25 +28,20 @@ const renderMessageWithContent = (
 
     const parts = text.split(combinedRegex);
     
-    return parts.map((part, index) => {
-        if (!part) return null;
-
+    return parts.filter(Boolean).map((part, index) => {
         // Check for a resource tag: #[title](id)
-        if (part.startsWith('#[') && part.endsWith(')')) {
-            const match = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/.exec(part);
-            if (match) {
-                const title = match[1];
-                const id = match[2];
-                 const resource = resourceLinks?.find(r => r.id === id);
-                return (
-                     <Link key={index} href={`/dashboard/resources?highlight=${id}`} passHref>
-                        <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20">
-                            <BookOpen className="h-3 w-3 mr-1" />
-                            {title}
-                        </Badge>
-                    </Link>
-                );
-            }
+        const resourceMatch = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/.exec(part);
+        if (resourceMatch) {
+            const title = resourceMatch[1];
+            const id = resourceMatch[2];
+            return (
+                 <Link key={index} href={`/dashboard/resources?highlight=${id}`} passHref>
+                    <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20">
+                        <BookOpen className="h-3 w-3 mr-1" />
+                        {title}
+                    </Badge>
+                </Link>
+            );
         }
         
         // Check for a mention: @username
@@ -62,7 +57,7 @@ const renderMessageWithContent = (
 
         // Otherwise, it's plain text
         return <span key={index}>{part}</span>;
-    }).filter(Boolean);
+    });
 };
 
 
@@ -477,4 +472,3 @@ export default function ChatPage() {
         </div>
     );
 }
-
