@@ -449,7 +449,7 @@ export async function getNotes(userId: string): Promise<Note[]> {
     }
 
     const notesCol = collection(db, 'notes');
-    const q = query(notesCol, where('userId', '==', userId), orderBy('updatedAt', 'desc'));
+    const q = query(notesCol, where('userId', '==', userId));
     
     try {
         const querySnapshot = await getDocs(q);
@@ -457,7 +457,6 @@ export async function getNotes(userId: string): Promise<Note[]> {
         querySnapshot.forEach((doc) => {
             const data = doc.data();
             
-            // Safely convert Timestamps to ISO strings for serialization
             const createdAt = data.createdAt instanceof Timestamp 
                 ? data.createdAt.toDate().toISOString() 
                 : new Date().toISOString();
@@ -475,10 +474,10 @@ export async function getNotes(userId: string): Promise<Note[]> {
                 updatedAt: updatedAt,
             });
         });
-        return notes;
+        // Sort in-memory after fetching
+        return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     } catch (error) {
         console.error("[getNotes] Error fetching notes from Firestore:", error);
-        // In case of an error, return an empty array to prevent the app from crashing.
         return [];
     }
 }
