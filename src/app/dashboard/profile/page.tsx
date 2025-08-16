@@ -12,7 +12,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -127,9 +126,6 @@ export default function ProfilePage() {
               <CardDescription>{profile.email}</CardDescription>
             </CardHeader>
           )}
-          <CardFooter className="p-4">
-            {/* The photo upload functionality has been removed as per the user's request. */}
-          </CardFooter>
         </Card>
 
         <Card className="md:col-span-2">
