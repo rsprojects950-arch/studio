@@ -206,13 +206,13 @@ export default function ChatPage() {
                                     <div key={msg.id} className={`flex items-start gap-3 ${user?.uid === msg.userId ? "justify-end" : ""}`}>
                                         {user?.uid !== msg.userId && (
                                             <Avatar>
-                                                <AvatarImage src={msg.userAvatar || 'https://placehold.co/100x100.png'} alt={msg.username} data-ai-hint="user portrait" />
-                                                <AvatarFallback>{msg.username.charAt(0).toUpperCase()}</AvatarFallback>
+                                                <AvatarImage src={msg.userAvatar || 'https://placehold.co/100x100.png'} alt={msg.username || 'User'} data-ai-hint="user portrait" />
+                                                <AvatarFallback>{msg.username ? msg.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
                                             </Avatar>
                                         )}
                                         <div className={`flex flex-col ${user?.uid === msg.userId ? "items-end" : "items-start"}`}>
                                             <div className={`p-3 rounded-lg max-w-xs lg:max-w-md ${user?.uid === msg.userId ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                                                {user?.uid !== msg.userId && <p className="font-semibold text-sm mb-1">{msg.username}</p>}
+                                                {user?.uid !== msg.userId && <p className="font-semibold text-sm mb-1">{msg.username || 'Anonymous'}</p>}
                                                 <p>{renderMessageWithMentions(msg.text, userProfile?.username || '')}</p>
                                             </div>
                                              <span className="text-xs text-muted-foreground mt-1">
