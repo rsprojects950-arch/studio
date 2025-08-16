@@ -5,8 +5,7 @@
 
 import { ai } from '@/ai/genkit';
 import { getResource } from '@/lib/firebase/firestore';
-import { z } from 'genkit';
-import {AIMessage, Part, toolRequest, toolResponse} from 'genkit/experimental/ai';
+import { z, AIMessage, Part, toolRequest, toolResponse } from 'genkit';
 
 const getResourceTool = ai.defineTool(
   {
