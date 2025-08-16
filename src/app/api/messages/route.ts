@@ -2,21 +2,34 @@
 import { NextResponse } from 'next/server';
 import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp, getDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Message } from '@/lib/types';
+import type { Message, UserProfile } from '@/lib/types';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const since = searchParams.get('since');
+    const action = searchParams.get('action');
 
+    if (action === 'get_users') {
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const users: UserProfile[] = [];
+        usersSnapshot.forEach((doc) => {
+            const data = doc.data();
+            users.push({
+                uid: data.uid,
+                name: data.name,
+                email: data.email,
+                photoURL: data.photoURL
+            });
+        });
+        return NextResponse.json(users);
+    }
+
+    const since = searchParams.get('since');
     let q;
     if (since) {
-        // Firestore Timestamps can be tricky, so we'll convert the ISO string from the client
-        // back to a JavaScript Date object, then to a Firestore Timestamp for the query.
         const sinceDate = new Date(since);
         q = query(collection(db, 'messages'), where('createdAt', '>', Timestamp.fromDate(sinceDate)), orderBy('createdAt', 'asc'));
     } else {
-        // Initial load: get the last 50 messages
         q = query(collection(db, 'messages'), orderBy('createdAt', 'desc'), limit(50));
     }
     
@@ -34,12 +47,10 @@ export async function GET(request: Request) {
         });
     });
 
-    // For initial load, reverse the array to show newest messages last
     if (!since) {
         messages.reverse();
     }
 
-    // Convert Timestamps to ISO strings for JSON serialization
     const serializableMessages = messages.map(msg => ({
       ...msg,
       createdAt: (msg.createdAt as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
@@ -47,7 +58,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(serializableMessages);
   } catch (error) {
-    console.error('Error fetching messages:', error);
+    console.error('Error in GET /api/messages:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }

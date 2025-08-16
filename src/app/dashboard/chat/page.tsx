@@ -4,12 +4,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { getUserProfile } from '@/lib/firebase/firestore';
-import type { Message } from '@/lib/types';
+import type { Message, UserProfile } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Send, Loader2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -33,47 +34,19 @@ const renderMessageWithMentions = (text: string, currentUserMame: string) => {
 
 
 export default function ChatPage() {
-    const { user } = useAuth();
+    const { user, profile: userProfile } = useAuth();
     const { toast } = useToast();
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
-    const [userName, setUserName] = useState('');
-    const [userAvatar, setUserAvatar] = useState<string | null>(null);
+    
+    const [users, setUsers] = useState<UserProfile[]>([]);
+    const [mentionSearch, setMentionSearch] = useState('');
+    const [isMentionPopoverOpen, setMentionPopoverOpen] = useState(false);
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const lastMessageTimestamp = useRef<string | null>(null);
-
-    useEffect(() => {
-        if (user) {
-            getUserProfile(user.uid).then(profile => {
-                if (profile) {
-                    setUserName(profile.name || user.displayName || 'Anonymous');
-                    setUserAvatar(profile.photoURL || user.photoURL || null);
-                } else {
-                    setUserName(user.displayName || 'Anonymous');
-                    setUserAvatar(user.photoURL || null);
-                }
-            });
-        }
-    }, [user]);
-
-    const handleNewMessages = useCallback((newMessages: Message[]) => {
-         if (newMessages.length > 0 && userName) {
-            const mentionRegex = new RegExp(`@${userName}(\\s|$)`, 'i');
-            newMessages.forEach(msg => {
-                // Don't notify for your own messages
-                if (msg.userId !== user?.uid && mentionRegex.test(msg.text)) {
-                    toast({
-                        title: "You were mentioned!",
-                        description: `${msg.userName} mentioned you in the chat.`,
-                    });
-                }
-            });
-        }
-    }, [user?.uid, userName, toast]);
-
 
     const fetchMessages = useCallback(async (isInitialLoad = false) => {
         if (!user) return;
@@ -96,9 +69,6 @@ export default function ChatPage() {
                     setMessages(prevMessages => {
                         const existingIds = new Set(prevMessages.map(m => m.id));
                         const uniqueNewMessages = newMessages.filter(m => !existingIds.has(m.id));
-                        if(uniqueNewMessages.length > 0) {
-                            handleNewMessages(uniqueNewMessages);
-                        }
                         return [...prevMessages, ...uniqueNewMessages];
                     });
                 }
@@ -116,7 +86,7 @@ export default function ChatPage() {
         } finally {
             if(isInitialLoad) setLoading(false);
         }
-    }, [user, toast, handleNewMessages]);
+    }, [user, toast]);
 
     useEffect(() => {
         fetchMessages(true); // Initial fetch
@@ -127,19 +97,32 @@ export default function ChatPage() {
 
         return () => clearInterval(interval);
     }, [fetchMessages]);
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const res = await fetch('/api/messages?action=get_users');
+                const data = await res.json();
+                setUsers(data);
+            } catch (error) {
+                console.error("Failed to fetch users for mentions", error);
+            }
+        };
+        fetchUsers();
+    }, []);
     
     useEffect(() => {
         if (scrollAreaRef.current) {
-            const isScrolledToBottom = scrollAreaRef.current.scrollHeight - scrollAreaRef.current.clientHeight <= scrollAreaRef.current.scrollTop + 20;
-            if (isScrolledToBottom) {
-                 scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
-            }
+            // A small delay to allow the new message to render
+            setTimeout(() => {
+                 scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+            }, 100);
         }
     }, [messages]);
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !newMessage.trim()) return;
+        if (!user || !newMessage.trim() || !userProfile) return;
 
         setSending(true);
         try {
@@ -149,8 +132,8 @@ export default function ChatPage() {
                 body: JSON.stringify({ 
                     text: newMessage, 
                     userId: user.uid, 
-                    userName: userName, 
-                    userAvatar: userAvatar
+                    userName: userProfile.name, 
+                    userAvatar: userProfile.photoURL
                 }),
             });
 
@@ -177,6 +160,30 @@ export default function ChatPage() {
             setSending(false);
         }
     };
+    
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const text = e.target.value;
+        setNewMessage(text);
+
+        const mentionMatch = text.match(/@(\w*)$/);
+        if (mentionMatch) {
+            setMentionPopoverOpen(true);
+            setMentionSearch(mentionMatch[1]);
+        } else {
+            setMentionPopoverOpen(false);
+        }
+    };
+
+    const handleMentionSelect = (username: string) => {
+        setNewMessage(current => {
+            const atIndex = current.lastIndexOf('@');
+            return `${current.substring(0, atIndex)}@${username} `;
+        });
+        setMentionPopoverOpen(false);
+        setMentionSearch('');
+    };
+    
+    const filteredUsers = users.filter(u => u.name.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
 
     return (
         <div className="flex-1 flex flex-col p-4 md:p-8 pt-6 h-[calc(100vh-4rem)]">
@@ -207,7 +214,7 @@ export default function ChatPage() {
                                         <div className={`flex flex-col ${user?.uid === msg.userId ? "items-end" : "items-start"}`}>
                                             <div className={`p-3 rounded-lg max-w-xs lg:max-w-md ${user?.uid === msg.userId ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                                                 {user?.uid !== msg.userId && <p className="font-semibold text-sm mb-1">{msg.userName}</p>}
-                                                <p>{renderMessageWithMentions(msg.text, userName)}</p>
+                                                <p>{renderMessageWithMentions(msg.text, userProfile?.name || '')}</p>
                                             </div>
                                              <span className="text-xs text-muted-foreground mt-1">
                                                 {format(new Date(msg.createdAt), 'p')}
@@ -215,8 +222,8 @@ export default function ChatPage() {
                                         </div>
                                         {user?.uid === msg.userId && (
                                             <Avatar>
-                                                <AvatarImage src={userAvatar || 'https://placehold.co/100x100.png'} alt={userName} data-ai-hint="user portrait" />
-                                                <AvatarFallback>{(userName || 'U').charAt(0).toUpperCase()}</AvatarFallback>
+                                                <AvatarImage src={userProfile?.photoURL || 'https://placehold.co/100x100.png'} alt={userProfile?.name} data-ai-hint="user portrait" />
+                                                <AvatarFallback>{(userProfile?.name || 'U').charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
                                         )}
                                     </div>
@@ -227,12 +234,23 @@ export default function ChatPage() {
                 </CardContent>
                 <CardFooter className="p-4 border-t">
                      <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
-                        <Input 
-                            placeholder="Type a message..." 
-                            value={newMessage}
-                            onChange={(e) => setNewMessage(e.target.value)}
-                            disabled={sending || !user}
-                        />
+                        <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
+                            <PopoverTrigger asChild>
+                                <Input 
+                                    placeholder="Type a message..." 
+                                    value={newMessage}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    disabled={sending || !user}
+                                />
+                             </PopoverTrigger>
+                             <PopoverContent className="w-80 p-0" align="start">
+                                <Command 
+                                    users={filteredUsers}
+                                    onSelect={handleMentionSelect}
+                                />
+                             </PopoverContent>
+                        </Popover>
                         <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>
                             {sending ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -248,3 +266,37 @@ export default function ChatPage() {
     );
 }
 
+
+interface CommandProps {
+  users: UserProfile[];
+  onSelect: (username: string) => void;
+}
+
+const Command: React.FC<CommandProps> = ({ users, onSelect }) => (
+  <div className="flex flex-col">
+    <div className="p-2 border-b">
+        <p className="text-sm font-medium">Mention a user</p>
+    </div>
+    <ScrollArea className="max-h-48">
+        <div className="p-1">
+        {users.length > 0 ? (
+            users.map(user => (
+            <div 
+                key={user.uid} 
+                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                onClick={() => onSelect(user.name)}
+            >
+                <Avatar className="h-6 w-6">
+                    <AvatarImage src={user.photoURL || undefined} />
+                    <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                </Avatar>
+                <span className="text-sm">{user.name}</span>
+            </div>
+            ))
+        ) : (
+            <p className="p-2 text-sm text-muted-foreground">No users found.</p>
+        )}
+        </div>
+    </ScrollArea>
+  </div>
+);

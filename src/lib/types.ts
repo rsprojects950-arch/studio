@@ -1,4 +1,5 @@
 
+
 export type Task = {
   id: string;
   userId: string;
@@ -15,4 +16,11 @@ export type Message = {
   userName: string;
   userAvatar: string | null;
   createdAt: string; // ISO 8601 string format
+};
+
+export type UserProfile = {
+  uid: string;
+  name: string;
+  email: string;
+  photoURL: string | null;
 };
