@@ -12,7 +12,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarMenuBadge,
-  SidebarTrigger,
   useSidebar,
 } from '@/components/ui/sidebar';
 import { AppLogo } from '@/components/icons/logo';
@@ -26,15 +25,10 @@ import {
   LogOut,
   Target,
   PanelLeft,
-  Moon,
-  Sun,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import type { UserProfile } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useTheme } from '@/context/theme-context';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 
 const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -48,23 +42,10 @@ const bottomNav = [
   { href: '/dashboard/profile', label: 'Profile', icon: User },
 ];
 
-export function AppSidebarTrigger() {
-  const { isMobile } = useSidebar();
-  if (isMobile) {
-    return (
-      <SidebarTrigger className="flex items-center gap-2">
-        <AppLogo className="w-6 h-6 text-primary" />
-      </SidebarTrigger>
-    );
-  }
-  return null;
-}
-
 export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProfile, unreadCount: number }) {
   const pathname = usePathname();
   const { signOut } = useAuth();
   const { isMobile, toggleSidebar, state } = useSidebar();
-  const { theme, setTheme } = useTheme();
 
   return (
     <Sidebar collapsible={isMobile ? 'offcanvas' : 'icon'}>
@@ -130,22 +111,6 @@ export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProf
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
-           <SidebarMenuItem>
-             <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center p-2 rounded-md text-sm text-sidebar-foreground">
-                <div className="flex items-center gap-2">
-                    {theme === 'light' ? <Sun /> : <Moon />}
-                    <Label htmlFor="dark-mode-toggle" className="group-data-[collapsible=icon]:hidden">
-                        {theme === 'light' ? 'Light Mode' : 'Dark Mode'}
-                    </Label>
-                </div>
-                <Switch
-                    id="dark-mode-toggle"
-                    className="group-data-[collapsible=icon]:hidden"
-                    checked={theme === 'dark'}
-                    onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-                />
-             </div>
-          </SidebarMenuItem>
         </SidebarMenu>
 
         <Separator />

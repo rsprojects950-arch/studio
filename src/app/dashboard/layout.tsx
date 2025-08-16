@@ -1,7 +1,8 @@
 
 'use client';
 
-import { AppSidebar, AppSidebarTrigger } from '@/components/app-sidebar';
+import { AppSidebar } from '@/components/app-sidebar';
+import { DashboardHeader } from '@/components/dashboard/header';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { useAuth } from '@/context/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
@@ -107,10 +108,7 @@ export default function DashboardLayout({
       <SidebarProvider>
         <AppSidebar userProfile={profile} unreadCount={unreadCount} />
         <SidebarInset>
-          <header className="p-4 md:p-2 flex items-center gap-2 md:hidden sticky top-0 bg-background/80 backdrop-blur-sm z-10 border-b">
-            <AppSidebarTrigger />
-            <h1 className="font-semibold">Beyond Theory</h1>
-          </header>
+          <DashboardHeader />
           <div className="flex-1">
             {children}
           </div>
