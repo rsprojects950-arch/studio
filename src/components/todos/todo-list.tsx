@@ -56,27 +56,29 @@ export function TodoList() {
   const [newDueDate, setNewDueDate] = useState<Date | undefined>(undefined);
 
   const fetchTasks = useCallback(async () => {
-    if (user) {
-      setLoading(true);
-      try {
-        const userTasks = await getTasks(user.uid);
-        setTasks(userTasks);
-      } catch (error) {
-        console.error(error);
-        toast({
-          variant: "destructive",
-          title: "Error fetching tasks",
-          description: "Could not load tasks from the database."
-        });
-      } finally {
-        setLoading(false);
-      }
+    if (!user) return; // Guard clause
+    setLoading(true);
+    try {
+      const userTasks = await getTasks(user.uid);
+      setTasks(userTasks);
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Error fetching tasks",
+        description: "Could not load tasks from the database."
+      });
+    } finally {
+      setLoading(false);
     }
   }, [user, toast]);
 
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+    // Only fetch tasks if the user is loaded.
+    if (user) {
+      fetchTasks();
+    }
+  }, [user, fetchTasks]);
 
   const sortedTasks = useMemo(() => {
     return [...tasks].sort((a, b) => {
@@ -153,12 +155,19 @@ export function TodoList() {
 
   const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!user) {
+      toast({ variant: "destructive", title: "You must be logged in."});
+      return;
+    }
     setIsSubmitting(true);
     
     const formData = new FormData(event.currentTarget);
     if (newDueDate) {
       formData.set('dueDate', newDueDate.toISOString());
     }
+    // Set userId on the form data
+    formData.set('userId', user.uid);
+
 
     try {
       await createTaskAction(formData);
@@ -166,7 +175,7 @@ export function TodoList() {
       setNewDueDate(undefined);
       setIsDialogOpen(false);
       toast({ title: "Task added successfully" });
-      router.refresh(); // This will trigger a refetch of all data on the page
+      router.refresh(); 
     } catch (error) {
       console.error(error);
       toast({
@@ -213,7 +222,6 @@ export function TodoList() {
                 onSubmit={handleFormSubmit}
               >
                 <div className="grid gap-4 py-4">
-                  {user && <input type="hidden" name="userId" value={user.uid} />}
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="title" className="text-right">Task</Label>
                     <Input id="title" name="title" className="col-span-3" placeholder="e.g. Finish the report" required />
@@ -316,3 +324,5 @@ export function TodoList() {
     </div>
   );
 }
+
+    
