@@ -249,20 +249,22 @@ export default function ChatPage() {
                     </ScrollArea>
                 </CardContent>
                 <CardFooter className="p-4 border-t">
-                     <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
+                    <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
                         <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
                             <PopoverTrigger asChild>
-                                <Input
-                                    ref={inputRef}
-                                    placeholder="Type a message..."
-                                    value={newMessage}
-                                    onChange={handleInputChange}
-                                    autoComplete="off"
-                                    disabled={sending || !user}
-                                    className="w-full"
-                                />
+                                {/* This empty div is a trick to anchor the popover without making the input the trigger */}
+                                <div className="w-full relative"></div>
                             </PopoverTrigger>
-                            <PopoverContent className="w-80 p-0" align="start">
+                            <Input
+                                ref={inputRef}
+                                placeholder="Type a message..."
+                                value={newMessage}
+                                onChange={handleInputChange}
+                                autoComplete="off"
+                                disabled={sending || !user}
+                                className="w-full"
+                            />
+                            <PopoverContent className="w-80 p-0" align="start" side="top">
                                 <div className="flex flex-col">
                                     <div className="p-2 border-b">
                                         <p className="text-sm font-medium">Mention a user</p>
