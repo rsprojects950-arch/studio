@@ -14,6 +14,24 @@ import { Send, Loader2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
+const renderMessageWithMentions = (text: string, currentUserMame: string) => {
+    const mentionRegex = /(@[a-zA-Z0-9_ -]+)/g;
+    const parts = text.split(mentionRegex);
+
+    return parts.map((part, index) => {
+        if (mentionRegex.test(part)) {
+            const isCurrentUserMention = part.substring(1).trim().toLowerCase() === currentUserMame.toLowerCase();
+            return (
+                <strong key={index} className={isCurrentUserMention ? 'bg-accent text-accent-foreground rounded px-1' : 'text-primary'}>
+                    {part}
+                </strong>
+            );
+        }
+        return part;
+    });
+};
+
+
 export default function ChatPage() {
     const { user } = useAuth();
     const { toast } = useToast();
@@ -41,6 +59,22 @@ export default function ChatPage() {
         }
     }, [user]);
 
+    const handleNewMessages = useCallback((newMessages: Message[]) => {
+         if (newMessages.length > 0 && userName) {
+            const mentionRegex = new RegExp(`@${userName}(\\s|$)`, 'i');
+            newMessages.forEach(msg => {
+                // Don't notify for your own messages
+                if (msg.userId !== user?.uid && mentionRegex.test(msg.text)) {
+                    toast({
+                        title: "You were mentioned!",
+                        description: `${msg.userName} mentioned you in the chat.`,
+                    });
+                }
+            });
+        }
+    }, [user?.uid, userName, toast]);
+
+
     const fetchMessages = useCallback(async (isInitialLoad = false) => {
         if (!user) return;
         setLoading(isInitialLoad);
@@ -62,6 +96,9 @@ export default function ChatPage() {
                     setMessages(prevMessages => {
                         const existingIds = new Set(prevMessages.map(m => m.id));
                         const uniqueNewMessages = newMessages.filter(m => !existingIds.has(m.id));
+                        if(uniqueNewMessages.length > 0) {
+                            handleNewMessages(uniqueNewMessages);
+                        }
                         return [...prevMessages, ...uniqueNewMessages];
                     });
                 }
@@ -79,7 +116,7 @@ export default function ChatPage() {
         } finally {
             if(isInitialLoad) setLoading(false);
         }
-    }, [user, toast]);
+    }, [user, toast, handleNewMessages]);
 
     useEffect(() => {
         fetchMessages(true); // Initial fetch
@@ -149,7 +186,7 @@ export default function ChatPage() {
             <Card className="flex-1 flex flex-col">
                 <CardHeader>
                     <CardTitle>Community Discussion</CardTitle>
-                    <CardDescription>Discuss ideas and get support from the community.</CardDescription>
+                    <CardDescription>Discuss ideas and get support from the community. Mention others with @username.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-1 overflow-hidden p-0">
                     <ScrollArea className="h-full p-6" ref={scrollAreaRef}>
@@ -170,7 +207,7 @@ export default function ChatPage() {
                                         <div className={`flex flex-col ${user?.uid === msg.userId ? "items-end" : "items-start"}`}>
                                             <div className={`p-3 rounded-lg max-w-xs lg:max-w-md ${user?.uid === msg.userId ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                                                 {user?.uid !== msg.userId && <p className="font-semibold text-sm mb-1">{msg.userName}</p>}
-                                                <p>{msg.text}</p>
+                                                <p>{renderMessageWithMentions(msg.text, userName)}</p>
                                             </div>
                                              <span className="text-xs text-muted-foreground mt-1">
                                                 {format(new Date(msg.createdAt), 'p')}
@@ -210,3 +247,4 @@ export default function ChatPage() {
         </div>
     );
 }
+
