@@ -232,19 +232,20 @@ export default function ChatPage() {
                     </ScrollArea>
                 </CardContent>
                 <CardFooter className="p-4 border-t">
-                     <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
+                    <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
                         <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
                             <PopoverTrigger asChild>
-                                <Input 
-                                    ref={inputRef}
-                                    placeholder="Type a message..." 
-                                    value={newMessage}
-                                    onChange={handleInputChange}
-                                    autoComplete="off"
-                                    disabled={sending || !user}
-                                    className="w-full"
-                                />
+                                <div className="w-full" />
                             </PopoverTrigger>
+                            <Input 
+                                ref={inputRef}
+                                placeholder="Type a message..." 
+                                value={newMessage}
+                                onChange={handleInputChange}
+                                autoComplete="off"
+                                disabled={sending || !user}
+                                className="w-full"
+                            />
                              <PopoverContent className="w-80 p-0" align="start">
                                 <div className="flex flex-col">
                                     <div className="p-2 border-b">
@@ -287,4 +288,5 @@ export default function ChatPage() {
             </Card>
         </div>
     );
-}
+
+    
