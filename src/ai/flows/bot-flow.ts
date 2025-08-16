@@ -83,4 +83,3 @@ export async function askBot(query: string): Promise<string> {
         return "I'm not sure how to respond to that. Can you try asking in a different way?";
     }
 }
-
