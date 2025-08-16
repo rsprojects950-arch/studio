@@ -48,46 +48,45 @@ const prompt = ai.definePrompt({
 export async function askBot(query: string): Promise<string> {
     const history: AIMessage[] = [{ role: 'user', content: [{ text: query }] }];
 
+    // Start the conversation
+    let result = await prompt({ history });
+
     while (true) {
-        const result = await prompt({ history });
         const output = result.output;
 
         if (!output || !output.content) {
             return "Sorry, I encountered an unexpected error. Please try again.";
         }
         
-        // Add the AI's response (which may include a tool request) to history
-        history.push(output);
-
         const toolRequestPart = output.content.find(part => part.toolRequest);
 
-        if (toolRequestPart?.toolRequest) {
-            const toolRequest = toolRequestPart.toolRequest;
-            
-            // The AI might pass the whole object or just the string ID.
-            const toolInput = typeof toolRequest.input === 'string' 
-                ? toolRequest.input
-                : (toolRequest.input as { resourceId: string }).resourceId;
-
-            const toolResult = await getResource(toolInput);
-
-            const toolResponsePart = toolResponse(toolRequest.name, toolResult);
-            
-            // Add the tool's response to history for the next turn
-            history.push({ role: 'tool', content: [toolResponsePart] });
-            
-            // Continue the loop to let the AI generate a final response based on the tool's output
-            continue;
+        if (!toolRequestPart || !toolRequestPart.toolRequest) {
+            // No tool request, so we are done. Return the text.
+            const textResponse = result.text;
+            if (textResponse) {
+                return textResponse;
+            }
+            return "I'm not sure how to respond to that. Can you try asking in a different way?";
         }
-
-        // If we're here, there was no tool request. We can exit the loop.
-        const text = result.text;
         
-        if (text) {
-            return text;
-        }
+        // Add the AI's tool request to history
+        history.push(output);
+        
+        const toolRequest = toolRequestPart.toolRequest;
+        
+        // The AI might pass the whole object or just the string ID.
+        const toolInput = typeof toolRequest.input === 'string' 
+            ? toolRequest.input
+            : (toolRequest.input as { resourceId: string }).resourceId;
 
-        // Fallback response if no text is found, though it's unlikely with a valid output.
-        return "I'm not sure how to respond to that. Can you try asking in a different way?";
+        const toolResult = await getResource(toolInput);
+
+        const toolResponsePart = toolResponse(toolRequest.name, toolResult);
+        
+        // Add the tool's response to history for the next turn
+        history.push({ role: 'tool', content: [toolResponsePart] });
+        
+        // Continue the conversation with the new history
+        result = await prompt({ history });
     }
 }
