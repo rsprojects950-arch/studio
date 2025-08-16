@@ -48,5 +48,4 @@ export type Resource = {
   submittedByUid: string;
   submittedByUsername: string;
   createdAt: Date;
-  thumbnailUrl?: string | null;
 };

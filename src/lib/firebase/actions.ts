@@ -5,15 +5,6 @@ import { revalidatePath } from 'next/cache';
 import { addDoc, collection, Timestamp, serverTimestamp, updateDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Resource } from '@/lib/types';
-import { auth } from '@/lib/firebase';
-import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
-
-function getYoutubeVideoId(url: string): string | null {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
-    return (match && match[2].length == 11) ? match[2] : null;
-}
-
 
 export async function createTaskAction(formData: FormData) {
   const userId = formData.get('userId') as string;
@@ -77,9 +68,6 @@ export async function createResourceAction(formData: FormData) {
     throw new Error('All fields are required.');
   }
   
-  const videoId = getYoutubeVideoId(url);
-  const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
-
   try {
     await addDoc(collection(db, "resources"), {
       title,
@@ -90,7 +78,6 @@ export async function createResourceAction(formData: FormData) {
       submittedByUid: userId,
       submittedByUsername: username,
       createdAt: serverTimestamp(),
-      thumbnailUrl,
     });
 
   } catch (error) {
@@ -134,9 +121,6 @@ export async function updateResourceAction(formData: FormData) {
     throw new Error('All fields are required.');
   }
 
-  const videoId = getYoutubeVideoId(url);
-  const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null;
-
   try {
     await updateDoc(resourceRef, {
       title,
@@ -144,7 +128,6 @@ export async function updateResourceAction(formData: FormData) {
       description,
       category,
       type,
-      thumbnailUrl,
     });
   } catch (error) {
     console.error("Error updating resource in Firestore:", error);

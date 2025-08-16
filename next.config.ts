@@ -16,24 +16,9 @@ const nextConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      {
-        protocol: 'https',
-        hostname: 'img.youtube.com',
-        port: '',
-        pathname: '/**',
-      },
     ],
   },
   experimental: {},
-  webpack(config, { isServer }) {
-    if (!isServer) {
-        config.watchOptions.ignored = [
-            ...config.watchOptions.ignored,
-            '**/src/ai/**'
-        ];
-    }
-    return config;
-  }
 };
 
 export default nextConfig;
