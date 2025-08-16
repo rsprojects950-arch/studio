@@ -10,18 +10,62 @@ import { ai } from '@/ai/genkit';
 import { getResource } from '@/lib/firebase/firestore';
 import { z } from 'genkit';
 
-// Temporary simplified version to isolate the issue
+const getResourceTool = ai.defineTool(
+  {
+    name: 'getResource',
+    description: 'Use this tool ONLY when a user provides a specific resource ID. The ID will be in the format #[Resource Name](resource-id). Use the text within the parentheses as the resourceId.',
+    inputSchema: z.object({
+      resourceId: z.string().describe('The unique identifier of the resource.'),
+    }),
+    outputSchema: z.object({
+      title: z.string(),
+      description: z.string(),
+      url: z.string(),
+      type: z.string(),
+      category: z.string(),
+    }).nullable(),
+  },
+  async (input) => {
+    try {
+      console.log('[getResourceTool] Fetching resource:', input.resourceId);
+      const id = input.resourceId;
+      if (!id) {
+        console.log('[getResourceTool] No ID provided');
+        return null;
+      }
+      const result = await getResource(id);
+      console.log('[getResourceTool] Result:', result);
+      return result;
+    } catch (error) {
+      console.error(`[getResourceTool] Failed to fetch resource:`, error);
+      return null;
+    }
+  }
+);
+
+
+const botPrompt = ai.definePrompt(
+  {
+    name: 'botPrompt',
+    system: 'You are BT-bot, a friendly and helpful AI assistant. Your primary function is to engage in general conversation. You have a special tool called getResource that you can use to look up information about specific resources if a user asks about one by providing its ID in the format #[Resource Name](resource-id). Only use the tool if the ID is present.',
+    tools: [getResourceTool],
+  },
+);
+
 export async function askBot(query: string): Promise<string> {
   try {
-    // Skip tools for now, just test basic AI response
-    const { text } = await ai.generate({
-      model: 'googleai/gemini-1.5-flash', // Try this model instead
-      prompt: `You are BT-bot, a helpful assistant. Respond to: ${query}`,
-    });
+    console.log('[askBot] Processing query:', query);
     
-    return text || "No response generated";
+    const result = await botPrompt({ input: query });
+    const textResponse = result.text();
+
+    if (textResponse) {
+      return textResponse;
+    }
+    
+    return "I'm not sure how to respond to that. Can you try asking in a different way?";
   } catch (error: any) {
-    console.error('[askBot] Simple test error:', error);
-    return `Error: ${error.message}`;
+    console.error('[askBot] Detailed error:', error);
+    return "Sorry, I encountered an unexpected error. Please check the server logs.";
   }
 }
