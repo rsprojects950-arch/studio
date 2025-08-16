@@ -103,6 +103,8 @@ export function TodoList() {
       })
   }, [sortedTasks, searchTerm, filter]);
   
+  console.log("Fetched tasks:", filteredTasks);
+
   const toggleTaskStatus = async (taskId: string, currentStatus: 'ongoing' | 'completed') => {
     const newStatus = currentStatus === 'ongoing' ? 'completed' : 'ongoing';
     const originalTasks = [...tasks];
@@ -157,29 +159,22 @@ export function TodoList() {
       return;
     }
     
-    if (!formRef.current) {
-        toast({ variant: "destructive", title: "An unexpected error occurred." });
-        return;
-    }
-
     setIsSubmitting(true);
     
+    const formData = new FormData(event.currentTarget);
+    if (newDueDate) {
+      formData.set('dueDate', newDueDate.toISOString());
+    }
+    formData.set('userId', user.uid); 
+
     try {
-      const idToken = await user.getIdToken();
-      const formData = new FormData(formRef.current);
-      formData.append("idToken", idToken);
-
-      if (newDueDate) {
-        formData.set('dueDate', newDueDate.toISOString());
-      }
-
       await createTaskAction(formData);
 
       formRef.current?.reset();
       setNewDueDate(undefined);
       setIsDialogOpen(false);
       toast({ title: "Task added successfully" });
-      fetchTasks(); // Manually re-fetch tasks instead of relying on router.refresh
+      router.refresh(); 
     } catch (error) {
       console.error(error);
       const errorMessage = error instanceof Error ? error.message : "Failed to add the new task.";

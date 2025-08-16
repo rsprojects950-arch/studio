@@ -8,6 +8,7 @@ import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } fr
 
 
 export async function getTasks(userId: string): Promise<Task[]> {
+  console.log("Fetching tasks for user:", userId);
   if (!userId) {
     return [];
   }
@@ -17,6 +18,7 @@ export async function getTasks(userId: string): Promise<Task[]> {
   
   try {
     const querySnapshot = await getDocs(q);
+    console.log("Tasks fetched:", querySnapshot.docs.map(d => d.data()));
 
     const tasks: Task[] = [];
     querySnapshot.forEach((doc) => {
