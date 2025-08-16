@@ -234,46 +234,47 @@ export default function ChatPage() {
                 <CardFooter className="p-4 border-t">
                      <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
                         <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
-                             <PopoverTrigger asChild>
-                                <div className="relative w-full"></div>
-                             </PopoverTrigger>
-                             <Input 
-                                ref={inputRef}
-                                placeholder="Type a message..." 
-                                value={newMessage}
-                                onChange={handleInputChange}
-                                autoComplete="off"
-                                disabled={sending || !user}
-                                className="w-full"
-                            />
-                             <PopoverContent className="w-80 p-0" align="start">
-                                <div className="flex flex-col">
-                                    <div className="p-2 border-b">
-                                        <p className="text-sm font-medium">Mention a user</p>
-                                    </div>
-                                    <ScrollArea className="max-h-48">
-                                        <div className="p-1">
-                                        {filteredUsers.length > 0 ? (
-                                            filteredUsers.map(u => (
-                                            <div 
-                                                key={u.uid} 
-                                                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
-                                                onClick={() => handleMentionSelect(u.name)}
-                                            >
-                                                <Avatar className="h-6 w-6">
-                                                    <AvatarImage src={u.photoURL || undefined} />
-                                                    <AvatarFallback>{u.name.charAt(0)}</AvatarFallback>
-                                                </Avatar>
-                                                <span className="text-sm">{u.name}</span>
-                                            </div>
-                                            ))
-                                        ) : (
-                                            <p className="p-2 text-sm text-muted-foreground">No users found.</p>
-                                        )}
-                                        </div>
-                                    </ScrollArea>
+                            <PopoverTrigger asChild>
+                                <div className="relative w-full">
+                                    <Input 
+                                        ref={inputRef}
+                                        placeholder="Type a message..." 
+                                        value={newMessage}
+                                        onChange={handleInputChange}
+                                        autoComplete="off"
+                                        disabled={sending || !user}
+                                        className="w-full"
+                                    />
                                 </div>
-                             </PopoverContent>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 p-0" align="start">
+                            <div className="flex flex-col">
+                                <div className="p-2 border-b">
+                                    <p className="text-sm font-medium">Mention a user</p>
+                                </div>
+                                <ScrollArea className="max-h-48">
+                                    <div className="p-1">
+                                    {filteredUsers.length > 0 ? (
+                                        filteredUsers.map(u => (
+                                        <div 
+                                            key={u.uid} 
+                                            className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                                            onClick={() => handleMentionSelect(u.name)}
+                                        >
+                                            <Avatar className="h-6 w-6">
+                                                <AvatarImage src={u.photoURL || undefined} />
+                                                <AvatarFallback>{u.name.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                            <span className="text-sm">{u.name}</span>
+                                        </div>
+                                        ))
+                                    ) : (
+                                        <p className="p-2 text-sm text-muted-foreground">No users found.</p>
+                                    )}
+                                    </div>
+                                </ScrollArea>
+                            </div>
+                            </PopoverContent>
                         </Popover>
                         <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>
                             {sending ? (
@@ -288,5 +289,6 @@ export default function ChatPage() {
             </Card>
         </div>
     );
+}
 
     
