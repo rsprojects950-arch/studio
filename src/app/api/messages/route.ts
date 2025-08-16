@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       text,
       userId,
       username: userProfile.username,
-      userAvatar: userProfile.photoURL,
+      userAvatar: userProfile.photoURL || '',
       createdAt: serverTimestamp(),
     };
     
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       text: text,
       userId: userId,
       username: userProfile.username,
-      userAvatar: userProfile.photoURL,
+      userAvatar: userProfile.photoURL || '',
       createdAt: new Date().toISOString(),
     };
 
