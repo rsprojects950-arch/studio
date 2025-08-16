@@ -20,22 +20,26 @@ import Link from 'next/link';
 
 const renderMessageWithContent = (
     text: string, 
-    currentUserName: string, 
-    isSender: boolean,
+    currentUserName: string,
     resourceLinks?: ResourceLink[]
 ) => {
     const mentionRegex = /@([a-zA-Z0-9_]+)/g;
     const resourceRegex = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/g;
-    const combinedRegex = new RegExp(`(${mentionRegex.source}|${resourceRegex.source})`, 'g');
     
-    const parts = text.split(combinedRegex).filter(Boolean);
-
+    // A single regex to find all matches for mentions and resources
+    const combinedRegex = /(#[^#\][]+\]\([a-zA-Z0-9-]+\)|@[a-zA-Z0-9_]+)/g;
+    
+    const parts = text.split(combinedRegex);
+    
     return parts.map((part, index) => {
-        const resourceMatch = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/.exec(part);
+        if (!part) return null;
+
+        // Check if the part is a resource tag
+        const resourceMatch = resourceRegex.exec(part);
         if (resourceMatch) {
             const id = resourceMatch[2];
             const resource = resourceLinks?.find(r => r.id === id);
-
+            
             if (resource) {
                 return (
                     <Link key={index} href={`/dashboard/resources?highlight=${resource.id}`} passHref>
@@ -46,10 +50,11 @@ const renderMessageWithContent = (
                     </Link>
                 );
             }
-             return part; // Return the raw tag if resource not found
+             return part; // Return raw tag if not found
         }
         
-        const mentionMatch = /@([a-zA-Z0-9_]+)/.exec(part);
+        // Check if the part is a mention
+        const mentionMatch = mentionRegex.exec(part);
         if (mentionMatch) {
             const mention = mentionMatch[1];
             const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
@@ -62,7 +67,7 @@ const renderMessageWithContent = (
 
         // Otherwise, it's plain text
         return <span key={index}>{part}</span>;
-    });
+    }).filter(Boolean);
 };
 
 
@@ -355,7 +360,7 @@ export default function ChatPage() {
                                                             <p className="truncate">{msg.replyToText}</p>
                                                         </div>
                                                     )}
-                                                    <div className="whitespace-pre-wrap break-words">{renderMessageWithContent(msg.text, userProfile?.username || '', user?.uid === msg.userId, msg.resourceLinks)}</div>
+                                                    <div className="whitespace-pre-wrap break-words">{renderMessageWithContent(msg.text, userProfile?.username || '', msg.resourceLinks)}</div>
                                                 </div>
                                                 <span className="text-xs text-muted-foreground mt-1">
                                                     {format(new Date(msg.createdAt), 'p')}
@@ -485,3 +490,5 @@ export default function ChatPage() {
         </div>
     );
 }
+
+    

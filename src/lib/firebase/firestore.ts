@@ -415,22 +415,48 @@ export async function searchResources(queryText: string): Promise<Pick<Resource,
     if (!queryText) return [];
 
     const lowerCaseQuery = queryText.toLowerCase();
+    const resourcesCol = collection(db, 'resources');
+    
+    // Create a query against the collection.
+    // This is a basic "starts-with" query. For more complex search, a third-party service like Algolia is recommended.
+    const q = query(resourcesCol, 
+        where('title_lowercase', '>=', lowerCaseQuery),
+        where('title_lowercase', '<=', lowerCaseQuery + '\uf8ff'),
+        limit(10)
+    );
 
     try {
-        const resourcesSnapshot = await getDocs(collection(db, 'resources'));
+        const querySnapshot = await getDocs(q);
         const allResources: Pick<Resource, 'id' | 'title' | 'type'>[] = [];
 
-        resourcesSnapshot.forEach(doc => {
+        querySnapshot.forEach(doc => {
             const data = doc.data();
-            // Ensure the title exists and is a string before calling toLowerCase
-            if (data.title && typeof data.title === 'string' && data.title.toLowerCase().includes(lowerCaseQuery)) {
-                allResources.push({ 
-                    id: doc.id, 
-                    title: data.title, 
-                    type: data.type 
-                });
-            }
+            allResources.push({ 
+                id: doc.id, 
+                title: data.title, 
+                type: data.type 
+            });
         });
+        
+        // As a fallback for older data that might not have `title_lowercase`, we can do an in-memory filter.
+        // This is not efficient for large datasets.
+        if (allResources.length === 0) {
+            const allDocsSnapshot = await getDocs(collection(db, 'resources'));
+             allDocsSnapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.title && typeof data.title === 'string' && data.title.toLowerCase().includes(lowerCaseQuery)) {
+                    // Check for duplicates before adding
+                    if (!allResources.some(r => r.id === doc.id)) {
+                        allResources.push({
+                            id: doc.id,
+                            title: data.title,
+                            type: data.type
+                        });
+                    }
+                }
+            });
+        }
+
 
         // Limit the results after filtering
         return allResources.slice(0, 10);
@@ -439,3 +465,5 @@ export async function searchResources(queryText: string): Promise<Pick<Resource,
         return [];
     }
 }
+
+    
