@@ -126,8 +126,6 @@ export default function NotesPage() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     formData.set('userId', user.uid);
-    // Explicitly set content from state because it's controlled
-    formData.set('content', content);
 
     try {
       if (editingNote) {
