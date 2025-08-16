@@ -18,17 +18,22 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   const [theme, setThemeState] = useState<Theme>('light');
   const [font, setFontState] = useState<Font>('inter');
-   const [isMounted, setIsMounted] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
     const storedTheme = localStorage.getItem('app-theme') as Theme | null;
     const storedFont = localStorage.getItem('app-font') as Font | null;
     
+    // Set theme from localStorage or default
     if (storedTheme) {
       setThemeState(storedTheme);
+    } else {
+      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setThemeState(prefersDark ? 'dark' : 'light');
     }
     
+    // Set font from localStorage or default
     if (storedFont) {
         setFontState(storedFont);
     }
@@ -44,25 +49,26 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   
    useEffect(() => {
     if (isMounted) {
-      document.documentElement.style.setProperty('--font-body', `var(--font-${font})`);
-      document.documentElement.style.setProperty('--font-headline', `var(--font-${font})`);
-      document.documentElement.classList.remove('font-inter', 'font-roboto', 'font-lora');
-      document.documentElement.classList.add(`font-${font}`);
+      document.body.classList.remove('font-inter', 'font-roboto', 'font-lora');
+      document.body.classList.add(`font-${font}`);
       localStorage.setItem('app-font', font);
     }
   }, [font, isMounted]);
 
   const setTheme = useCallback((newTheme: Theme) => {
-    setThemeState(newTheme);
-  }, []);
+    if (newTheme !== theme) {
+      setThemeState(newTheme);
+    }
+  }, [theme]);
 
   const setFont = useCallback((newFont: Font) => {
-    setFontState(newFont);
-  }, []);
+    if (newFont !== font) {
+        setFontState(newFont);
+    }
+  }, [font]);
   
   const value = { theme, setTheme, font, setFont };
 
-  // To prevent hydration mismatch, we don't render the children until the component is mounted.
   if (!isMounted) {
     return null;
   }

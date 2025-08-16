@@ -12,6 +12,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Slider } from '@/components/ui/slider';
 
 export default function SettingsPage() {
   const { theme, setTheme, font, setFont } = useTheme();
@@ -35,7 +36,7 @@ export default function SettingsPage() {
                 <Label>App Font</Label>
                 <p className="text-sm text-muted-foreground">Change the font used across the app.</p>
               </div>
-              <Select value={font} onValueChange={setFont}>
+              <Select value={font} onValueChange={(value) => setFont(value as any)}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Select font" />
                 </SelectTrigger>
@@ -63,21 +64,21 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Accessibility</CardTitle>
-            <CardDescription>These features are currently unavailable.</CardDescription>
+            <CardDescription>Adjust features to improve your experience.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="flex items-center justify-between space-x-2 opacity-50">
+            <div className="flex items-center justify-between space-x-2">
               <div className="space-y-1">
                 <Label>Text Size</Label>
                 <p className="text-sm text-muted-foreground">Adjust the size of text in the app.</p>
               </div>
               <div className="w-[180px] flex items-center gap-2">
                  <span className="text-sm">A</span>
-                 <div className="w-full h-2 rounded-full bg-muted" />
+                 <Slider defaultValue={[16]} max={20} min={12} step={1} disabled />
                  <span className="text-xl">A</span>
               </div>
             </div>
-            <div className="flex items-center justify-between space-x-2 opacity-50">
+            <div className="flex items-center justify-between space-x-2">
               <div className="space-y-1">
                 <Label>High Contrast Mode</Label>
                 <p className="text-sm text-muted-foreground">Improve visibility with higher contrast colors.</p>

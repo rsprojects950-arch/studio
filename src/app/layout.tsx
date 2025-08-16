@@ -4,6 +4,12 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { AuthProvider } from '@/context/auth-context';
 import { ThemeProvider } from '@/context/theme-context';
+import { Inter, Roboto, Lora } from 'next/font/google';
+import { cn } from '@/lib/utils';
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+const roboto = Roboto({ subsets: ['latin'], weight: ['400', '500', '700'], variable: '--font-roboto' });
+const lora = Lora({ subsets: ['latin'], weight: ['400', '500', '700'], variable: '--font-lora' });
 
 export const metadata: Metadata = {
   title: 'Beyond Theory',
@@ -17,12 +23,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=Lora:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
-      </head>
-      <body>
+      <body className={cn(
+        "min-h-screen bg-background font-sans antialiased",
+        inter.variable,
+        roboto.variable,
+        lora.variable
+      )}>
         <ThemeProvider>
           <AuthProvider>
             {children}
