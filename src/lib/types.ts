@@ -1,4 +1,5 @@
 
+
 export type Task = {
   id: string;
   userId: string;
@@ -44,8 +45,8 @@ export type Note = {
   topic: string;
   content: string;
   resourceLinks?: ResourceLink[];
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string; // ISO 8601 string format
+  updatedAt: string; // ISO 8601 string format
 };
 
 export type UserProfile = {

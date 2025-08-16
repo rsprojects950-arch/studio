@@ -457,8 +457,13 @@ export async function getNotes(userId: string): Promise<Note[]> {
         querySnapshot.forEach((doc) => {
             const data = doc.data();
             
-            const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString();
-            const updatedAt = data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : new Date().toISOString();
+            // Safely convert Timestamps to ISO strings for serialization
+            const createdAt = data.createdAt instanceof Timestamp 
+                ? data.createdAt.toDate().toISOString() 
+                : new Date().toISOString();
+            const updatedAt = data.updatedAt instanceof Timestamp 
+                ? data.updatedAt.toDate().toISOString() 
+                : new Date().toISOString();
 
             notes.push({
                 id: doc.id,
@@ -473,6 +478,7 @@ export async function getNotes(userId: string): Promise<Note[]> {
         return notes;
     } catch (error) {
         console.error("[getNotes] Error fetching notes from Firestore:", error);
+        // In case of an error, return an empty array to prevent the app from crashing.
         return [];
     }
 }
