@@ -36,7 +36,7 @@ const prompt = ai.definePrompt({
 
 
 export async function askBot(query: string): Promise<string> {
-    const history: AIMessage[] = [new AIMessage(query)];
+    const history: AIMessage[] = [{role: 'user', content: [{text: query}]}];
     
     while(true) {
         const {output} = await prompt(history);
@@ -58,7 +58,7 @@ export async function askBot(query: string): Promise<string> {
         if (toolRequestPart?.toolRequest) {
             const toolResponsePart = toolResponse(toolRequestPart.toolRequest.name, await getResource(toolRequestPart.toolRequest.input.resourceId));
             history.push(output);
-            history.push(new AIMessage([toolResponsePart]));
+            history.push({role: 'tool', content: [toolResponsePart]});
             continue;
         }
 
