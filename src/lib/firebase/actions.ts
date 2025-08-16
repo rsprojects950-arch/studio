@@ -200,6 +200,51 @@ export async function createShortTermGoalAction(formData: FormData) {
   revalidatePath('/dashboard/goals');
 }
 
+export async function updateShortTermGoalAction(formData: FormData) {
+  const userId = formData.get('userId') as string;
+  if (!userId) {
+    throw new Error('You must be logged in to update a goal.');
+  }
+  
+  const goalId = formData.get('goalId') as string;
+  if (!goalId) {
+    throw new Error('Goal ID is missing.');
+  }
+
+  const goalRef = doc(db, 'shortTermGoals', goalId);
+  const goalSnap = await getDoc(goalRef);
+
+  if (!goalSnap.exists()) {
+    throw new Error('Goal not found.');
+  }
+
+  if (goalSnap.data().userId !== userId) {
+    throw new Error('You are not authorized to edit this goal.');
+  }
+
+  const title = formData.get('title') as string;
+  if (!title) {
+    throw new Error('Goal title is required.');
+  }
+  
+  const dueDateStr = formData.get('dueDate') as string | null;
+  if (!dueDateStr) {
+      throw new Error('Due date is required for a goal.');
+  }
+
+  try {
+    await updateDoc(goalRef, {
+      title: title,
+      dueDate: Timestamp.fromDate(new Date(dueDateStr)),
+    });
+  } catch (error) {
+    console.error("Error updating goal in Firestore:", error);
+    throw new Error('Could not update goal.');
+  }
+
+  revalidatePath('/dashboard/goals');
+}
+
 
 export async function deleteShortTermGoalAction(goalId: string, userId: string) {
   if (!userId) {
