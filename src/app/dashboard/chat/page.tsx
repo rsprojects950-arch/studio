@@ -16,7 +16,12 @@ import { format } from 'date-fns';
 import { useUnreadCount } from '@/context/unread-count-context';
 
 
-const renderMessageWithMentions = (text: string, currentUserName: string) => {
+const renderMessageWithMentions = (text: string, currentUserName: string, isSender: boolean) => {
+    // If the current user is the sender, just return the plain text
+    if (isSender) {
+        return text;
+    }
+    
     const mentionRegex = /(@[a-zA-Z0-9_ -]+)/g;
     const parts = text.split(mentionRegex);
 
@@ -230,7 +235,7 @@ export default function ChatPage() {
                                         <div className={`flex flex-col ${user?.uid === msg.userId ? "items-end" : "items-start"}`}>
                                             <div className={`p-3 rounded-lg max-w-xs lg:max-w-md ${user?.uid === msg.userId ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                                                 {user?.uid !== msg.userId && <p className="font-semibold text-sm mb-1">{msg.username || 'Anonymous'}</p>}
-                                                <p>{renderMessageWithMentions(msg.text, userProfile?.username || '')}</p>
+                                                <p>{renderMessageWithMentions(msg.text, userProfile?.username || '', user?.uid === msg.userId)}</p>
                                             </div>
                                              <span className="text-xs text-muted-foreground mt-1">
                                                 {format(new Date(msg.createdAt), 'p')}
@@ -252,18 +257,20 @@ export default function ChatPage() {
                     <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
                         <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
                             <PopoverTrigger asChild>
-                                {/* This empty div is a trick to anchor the popover without making the input the trigger */}
-                                <div className="w-full relative"></div>
+                                {/* The ancher for the popover is the form itself, not the input. */}
+                                <div className="w-full relative">
+                                     <Input
+                                        ref={inputRef}
+                                        placeholder="Type a message..."
+                                        value={newMessage}
+                                        onChange={handleInputChange}
+                                        autoComplete="off"
+                                        disabled={sending || !user}
+                                        className="w-full"
+                                    />
+                                </div>
                             </PopoverTrigger>
-                            <Input
-                                ref={inputRef}
-                                placeholder="Type a message..."
-                                value={newMessage}
-                                onChange={handleInputChange}
-                                autoComplete="off"
-                                disabled={sending || !user}
-                                className="w-full"
-                            />
+                           
                             <PopoverContent className="w-80 p-0" align="start" side="top">
                                 <div className="flex flex-col">
                                     <div className="p-2 border-b">
@@ -293,7 +300,7 @@ export default function ChatPage() {
                                 </div>
                             </PopoverContent>
                         </Popover>
-                        <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>
+                         <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>
                             {sending ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
                             ) : (
