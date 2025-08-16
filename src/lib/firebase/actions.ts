@@ -407,3 +407,5 @@ export async function deleteNoteAction(noteId: string, userId: string) {
 
   revalidatePath('/dashboard/notes');
 }
+
+    
