@@ -343,9 +343,9 @@ export default function NotesPage() {
                         </CardHeader>
                         <CardContent className="flex-grow">
                              <ScrollArea className="h-24">
-                                <p className="text-sm text-muted-foreground whitespace-pre-wrap break-words pr-4">
+                                <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words pr-4">
                                     {renderNoteContent(note.content)}
-                                </p>
+                                </div>
                             </ScrollArea>
                         </CardContent>
                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
