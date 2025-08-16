@@ -67,26 +67,25 @@ export default function NotesPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 
-  const fetchNotes = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const userNotes = await getNotes(user.uid);
-      setNotes(userNotes);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to load notes.',
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [user, toast]);
-
   useEffect(() => {
+    const fetchNotes = async () => {
+        if (!user) return;
+        setLoading(true);
+        try {
+          const userNotes = await getNotes(user.uid);
+          setNotes(userNotes);
+        } catch (error) {
+          toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Failed to load notes.',
+          });
+        } finally {
+          setLoading(false);
+        }
+    };
     fetchNotes();
-  }, [fetchNotes]);
+  }, [user, toast]);
   
   useEffect(() => {
     if (editingNote) {
@@ -100,6 +99,23 @@ export default function NotesPage() {
     setEditingNote(note);
     setIsDialogOpen(true);
   };
+  
+  const refreshNotes = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const userNotes = await getNotes(user.uid);
+      setNotes(userNotes);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to refresh notes.',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -108,8 +124,6 @@ export default function NotesPage() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     formData.set('userId', user.uid);
-    // This was the bug: content was not being correctly passed from the form.
-    // This explicitly reads the value from the 'content' textarea at submission time.
     formData.set('content', (e.currentTarget.elements.namedItem('content') as HTMLTextAreaElement).value);
 
     try {
@@ -125,7 +139,7 @@ export default function NotesPage() {
       setContent('');
       setIsDialogOpen(false);
       setEditingNote(null);
-      await fetchNotes();
+      await refreshNotes();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred.';
       toast({ variant: 'destructive', title: 'Error', description: errorMessage });
@@ -139,7 +153,7 @@ export default function NotesPage() {
     try {
       await deleteNoteAction(noteId, user.uid);
       toast({ title: "Note deleted successfully."});
-      await fetchNotes();
+      await refreshNotes();
     } catch(error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to delete note.";
         toast({ variant: "destructive", title: "Error", description: errorMessage });
@@ -384,3 +398,5 @@ export default function NotesPage() {
     </div>
   );
 }
+
+    
