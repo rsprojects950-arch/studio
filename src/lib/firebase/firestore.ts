@@ -104,7 +104,7 @@ export async function getDashboardStats(userId: string) {
       const isUpcoming = task.status === 'ongoing' && task.dueDate && (isFuture(task.dueDate) || isToday(task.dueDate));
       return isMissed || isUpcoming;
     })
-    .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
+    .sort((a, b) => (a.dueDate && b.dueDate) ? a.dueDate.getTime() - b.dueDate.getTime() : 0)
     .slice(0, 3);
   
   return { summary, progressChartData, relevantTasks };
