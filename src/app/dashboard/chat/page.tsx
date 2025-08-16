@@ -222,7 +222,7 @@ export default function ChatPage() {
                                         </div>
                                         {user?.uid === msg.userId && (
                                             <Avatar>
-                                                <AvatarImage src={userProfile?.photoURL || 'https://placehold.co/100x100.png'} alt={userProfile?.name} data-ai-hint="user portrait" />
+                                                <AvatarImage src={userProfile?.photoURL || 'https://placehold.co/100x100.png'} alt={userProfile?.name || ''} data-ai-hint="user portrait" />
                                                 <AvatarFallback>{(userProfile?.name || 'U').charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
                                         )}
@@ -245,10 +245,32 @@ export default function ChatPage() {
                                 />
                              </PopoverTrigger>
                              <PopoverContent className="w-80 p-0" align="start">
-                                <Command 
-                                    users={filteredUsers}
-                                    onSelect={handleMentionSelect}
-                                />
+                                <div className="flex flex-col">
+                                    <div className="p-2 border-b">
+                                        <p className="text-sm font-medium">Mention a user</p>
+                                    </div>
+                                    <ScrollArea className="max-h-48">
+                                        <div className="p-1">
+                                        {filteredUsers.length > 0 ? (
+                                            filteredUsers.map(u => (
+                                            <div 
+                                                key={u.uid} 
+                                                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                                                onClick={() => handleMentionSelect(u.name)}
+                                            >
+                                                <Avatar className="h-6 w-6">
+                                                    <AvatarImage src={u.photoURL || undefined} />
+                                                    <AvatarFallback>{u.name.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                                <span className="text-sm">{u.name}</span>
+                                            </div>
+                                            ))
+                                        ) : (
+                                            <p className="p-2 text-sm text-muted-foreground">No users found.</p>
+                                        )}
+                                        </div>
+                                    </ScrollArea>
+                                </div>
                              </PopoverContent>
                         </Popover>
                         <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>
@@ -265,38 +287,3 @@ export default function ChatPage() {
         </div>
     );
 }
-
-
-interface CommandProps {
-  users: UserProfile[];
-  onSelect: (username: string) => void;
-}
-
-const Command: React.FC<CommandProps> = ({ users, onSelect }) => (
-  <div className="flex flex-col">
-    <div className="p-2 border-b">
-        <p className="text-sm font-medium">Mention a user</p>
-    </div>
-    <ScrollArea className="max-h-48">
-        <div className="p-1">
-        {users.length > 0 ? (
-            users.map(user => (
-            <div 
-                key={user.uid} 
-                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
-                onClick={() => onSelect(user.name)}
-            >
-                <Avatar className="h-6 w-6">
-                    <AvatarImage src={user.photoURL || undefined} />
-                    <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                </Avatar>
-                <span className="text-sm">{user.name}</span>
-            </div>
-            ))
-        ) : (
-            <p className="p-2 text-sm text-muted-foreground">No users found.</p>
-        )}
-        </div>
-    </ScrollArea>
-  </div>
-);
