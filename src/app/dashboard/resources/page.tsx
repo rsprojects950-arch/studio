@@ -63,27 +63,6 @@ export default function ResourcesPage() {
     }
   }, [fetchResources, searchParams]);
 
-  useEffect(() => {
-    if (!loading && highlightedResource && resourceRefs.current[highlightedResource]) {
-        const matchingResource = allResources.find(r => r.id === highlightedResource);
-        if (matchingResource) {
-            setActiveTab(matchingResource.category);
-            setTimeout(() => {
-                const element = resourceRefs.current[highlightedResource];
-                if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    element.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'transition-shadow', 'duration-1000');
-                    setTimeout(() => {
-                        element.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
-                    }, 2000);
-                }
-                 // Reset highlight after scrolling
-                setHighlightedResource(null);
-            }, 100);
-        }
-    }
-}, [loading, highlightedResource, allResources]);
-
   const resourceTypes = useMemo(() => {
     const types = new Set(['All']);
     allResources.filter(r => r.category === activeTab).forEach(r => types.add(r.type));
@@ -98,6 +77,33 @@ export default function ResourcesPage() {
         (activeFilter === 'All' || r.type === activeFilter)
       );
   }, [searchTerm, activeFilter, activeTab, allResources]);
+
+  useEffect(() => {
+    if (!loading && highlightedResource) {
+      const matchingResource = allResources.find(r => r.id === highlightedResource);
+      if (matchingResource && matchingResource.category !== activeTab) {
+        setActiveTab(matchingResource.category);
+      }
+    }
+  }, [loading, highlightedResource, allResources, activeTab]);
+
+  useEffect(() => {
+    if (highlightedResource && filteredResources.some(r => r.id === highlightedResource)) {
+        const element = resourceRefs.current[highlightedResource];
+        if (element) {
+            setTimeout(() => {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                element.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'transition-shadow', 'duration-1000');
+                setTimeout(() => {
+                    element.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+                }, 2000);
+                 // Reset highlight after scrolling
+                setHighlightedResource(null);
+            }, 100);
+        }
+    }
+}, [filteredResources, highlightedResource]);
+
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab as 'tech' | 'entrepreneur' | 'selfHelp');
