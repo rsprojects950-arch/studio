@@ -1,54 +1,17 @@
 
 'use server';
 /**
- * @fileOverview A bot that can answer questions about resources.
- * This bot is designed to be a general conversationalist first,
- * and a resource-fetcher second.
+ * @fileOverview A bot that can answer questions.
+ * This bot is designed to be a general conversationalist.
  */
 
 import { ai } from '@/ai/genkit';
-import { getResource } from '@/lib/firebase/firestore';
 import { z } from 'genkit';
-
-const getResourceTool = ai.defineTool(
-  {
-    name: 'getResource',
-    description: 'Use this tool ONLY when a user provides a specific resource ID. The ID will be in the format #[Resource Name](resource-id). Use the text within the parentheses as the resourceId.',
-    inputSchema: z.object({
-      resourceId: z.string().describe('The unique identifier of the resource.'),
-    }),
-    outputSchema: z.object({
-      title: z.string(),
-      description: z.string(),
-      url: z.string(),
-      type: z.string(),
-      category: z.string(),
-    }).nullable(),
-  },
-  async (input) => {
-    try {
-      console.log('[getResourceTool] Fetching resource:', input.resourceId);
-      const id = input.resourceId;
-      if (!id) {
-        console.log('[getResourceTool] No ID provided');
-        return null;
-      }
-      const result = await getResource(id);
-      console.log('[getResourceTool] Result:', result);
-      return result;
-    } catch (error) {
-      console.error(`[getResourceTool] Failed to fetch resource:`, error);
-      return null;
-    }
-  }
-);
-
 
 const botPrompt = ai.definePrompt(
   {
     name: 'botPrompt',
-    system: 'You are BT-bot, a friendly and helpful AI assistant. Your primary function is to engage in general conversation. You have a special tool called getResource that you can use to look up information about specific resources if a user asks about one by providing its ID in the format #[Resource Name](resource-id). Only use the tool if the ID is present. When you use the tool, briefly summarize the resource details you received in a conversational way.',
-    tools: [getResourceTool],
+    system: 'You are BT-bot, a friendly and helpful AI assistant. Your primary function is to engage in general conversation.',
   },
 );
 
@@ -56,39 +19,18 @@ export async function askBot(query: string): Promise<string> {
   try {
     console.log('[askBot] Processing query:', query);
     
-    // Initial call to the AI
-    let result = await botPrompt({ input: query });
+    // Simplified call to the AI, no tools involved.
+    const result = await botPrompt({ input: query });
+    const textResponse = result.text;
 
-    // This loop correctly handles the back-and-forth for tool use.
-    while (true) {
-        const textResponse = result.text;
-        if (textResponse) {
-            // If we have a final text response, return it.
-            console.log('[askBot] Returning text response:', textResponse);
-            return textResponse;
-        }
-
-        const toolRequest = result.toolRequest;
-        if (toolRequest) {
-            console.log('[askBot] Tool request received:', toolRequest);
-            // AI wants to use a tool, so we execute it.
-            const toolResponse = await toolRequest.run();
-
-            // Send the tool's response back to the AI for a final summary.
-            result = await botPrompt({
-                history: [
-                    { role: 'user', content: [{ text: query }] },
-                    { role: 'model', content: [toolRequest] },
-                    { role: 'tool', content: [toolResponse] }
-                ],
-            });
-            continue; // Continue the loop to process the new result from the tool call.
-        }
-
-        // If there's no text and no tool request, it's an unexpected state.
-        console.warn('[askBot] No text or tool request in AI response.');
-        return "I'm not sure how to respond to that. Can you try asking in a different way?";
+    if (textResponse) {
+        console.log('[askBot] Returning text response:', textResponse);
+        return textResponse;
     }
+
+    // Fallback if no text is generated
+    console.warn('[askBot] No text in AI response.');
+    return "I'm not sure how to respond to that. Can you try asking in a different way?";
     
   } catch (error: any) {
     console.error('[askBot] Detailed error:', error);

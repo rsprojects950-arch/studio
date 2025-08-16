@@ -66,45 +66,6 @@ export default function BtBotPage() {
       setIsLoading(false);
     }
   };
-  
-  const renderBotMessage = (text: string) => {
-    const resourceTagRegex = /#\[([^\]]+?)\]\(([^)]+?)\)/g;
-
-    const parts = [];
-    let lastIndex = 0;
-    let match;
-
-    while ((match = resourceTagRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        parts.push(text.substring(lastIndex, match.index));
-      }
-      parts.push({ type: 'resource', content: match[1], id: match[2] });
-      lastIndex = match.index + match[0].length;
-    }
-
-    if (lastIndex < text.length) {
-      parts.push(text.substring(lastIndex));
-    }
-
-    return parts.map((part, index) => {
-      if (typeof part === 'string') {
-        return <span key={index}>{part}</span>;
-      }
-
-      if (part.type === 'resource') {
-        return (
-          <Link key={index} href={`/dashboard/resources?highlight=${part.id}`} passHref>
-            <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20">
-              <BookOpen className="h-3 w-3 mr-1" />
-              {part.content}
-            </Badge>
-          </Link>
-        );
-      }
-      
-      return null;
-    });
-  };
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
@@ -126,7 +87,7 @@ export default function BtBotPage() {
                     </Avatar>
                   )}
                   <div className={`max-w-lg rounded-lg px-4 py-3 ${message.sender === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
-                     <div className="text-sm whitespace-pre-wrap">{message.sender === 'bot' ? renderBotMessage(message.text) : message.text}</div>
+                     <div className="text-sm whitespace-pre-wrap">{message.text}</div>
                   </div>
                   {message.sender === 'user' && profile && (
                      <Avatar className="w-8 h-8">
@@ -156,7 +117,7 @@ export default function BtBotPage() {
           <Input
             value={input}
             onChange={e => setInput(e.target.value)}
-            placeholder="Ask BT-bot about your progress, resources, or anything else..."
+            placeholder="Ask BT-bot anything..."
             className="flex-1"
             disabled={isLoading}
           />
@@ -164,9 +125,6 @@ export default function BtBotPage() {
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </form>
-         <p className="text-xs text-muted-foreground mt-2">
-            You can mention a resource using #[Resource Title](resource_id). The AI will use the ID to get details.
-        </p>
       </div>
     </div>
   );
