@@ -9,8 +9,8 @@ import admin from 'firebase-admin';
 // This is safe to run on every server action invocation.
 if (!admin.apps.length) {
   admin.initializeApp({
-    // Use application default credentials in a managed environment
     credential: admin.credential.applicationDefault(),
+    projectId: 'beyond-theory-nnj8t', // Explicitly set the project ID
   });
 }
 
