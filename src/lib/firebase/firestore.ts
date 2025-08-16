@@ -18,7 +18,6 @@ export async function getTasks(userId: string): Promise<Task[]> {
   
   try {
     const querySnapshot = await getDocs(q);
-    console.log(`Firestore: Fetched ${querySnapshot.size} tasks for userId: ${userId}`);
     const tasks: Task[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
