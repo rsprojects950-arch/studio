@@ -23,19 +23,13 @@ const renderMessageWithContent = (
     currentUserName: string,
     resourceLinks?: ResourceLink[]
 ) => {
-    const mentionRegex = /@([a-zA-Z0-9_]+)/g;
-    const resourceRegex = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/g;
-    
-    // A single regex to find all matches for mentions and resources
     const combinedRegex = /(#[^#\][]+\]\([a-zA-Z0-9-]+\)|@[a-zA-Z0-9_]+)/g;
-    
     const parts = text.split(combinedRegex);
     
     return parts.map((part, index) => {
         if (!part) return null;
 
-        // Check if the part is a resource tag
-        const resourceMatch = resourceRegex.exec(part);
+        const resourceMatch = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/.exec(part);
         if (resourceMatch) {
             const id = resourceMatch[2];
             const resource = resourceLinks?.find(r => r.id === id);
@@ -50,11 +44,10 @@ const renderMessageWithContent = (
                     </Link>
                 );
             }
-             return part; // Return raw tag if not found
+             return part;
         }
         
-        // Check if the part is a mention
-        const mentionMatch = mentionRegex.exec(part);
+        const mentionMatch = /@([a-zA-Z0-9_]+)/.exec(part);
         if (mentionMatch) {
             const mention = mentionMatch[1];
             const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
@@ -65,7 +58,6 @@ const renderMessageWithContent = (
             );
         }
 
-        // Otherwise, it's plain text
         return <span key={index}>{part}</span>;
     }).filter(Boolean);
 };
@@ -182,7 +174,6 @@ export default function ChatPage() {
         let match;
         const resourceLinks: ResourceLink[] = [];
         
-        // Create a temporary copy for regex execution
         const messageTextForRegex = newMessage;
         while((match = resourceTagRegex.exec(messageTextForRegex)) !== null) {
             const resource = allResources.find(r => r.id === match[2]);
@@ -308,6 +299,7 @@ export default function ChatPage() {
             const res = await fetch(`/api/resources?q=${query}`);
             const data = await res.json();
             setResources(data);
+            // Add to a master list of all resources encountered to ensure we can render tags correctly
             setAllResources(prev => {
                 const existingIds = new Set(prev.map(r => r.id));
                 const uniqueNew = data.filter((r: Resource) => !existingIds.has(r.id));
@@ -490,5 +482,3 @@ export default function ChatPage() {
         </div>
     );
 }
-
-    

@@ -413,57 +413,29 @@ export async function addMessage({ text, userId, replyTo, resourceLinks }: { tex
 
 export async function searchResources(queryText: string): Promise<Pick<Resource, 'id' | 'title' | 'type'>[]> {
     if (!queryText) return [];
-
     const lowerCaseQuery = queryText.toLowerCase();
-    const resourcesCol = collection(db, 'resources');
     
-    // Create a query against the collection.
-    // This is a basic "starts-with" query. For more complex search, a third-party service like Algolia is recommended.
-    const q = query(resourcesCol, 
-        where('title_lowercase', '>=', lowerCaseQuery),
-        where('title_lowercase', '<=', lowerCaseQuery + '\uf8ff'),
-        limit(10)
-    );
-
     try {
-        const querySnapshot = await getDocs(q);
+        const resourcesCol = collection(db, 'resources');
+        const allDocsSnapshot = await getDocs(resourcesCol);
         const allResources: Pick<Resource, 'id' | 'title' | 'type'>[] = [];
 
-        querySnapshot.forEach(doc => {
+        allDocsSnapshot.forEach(doc => {
             const data = doc.data();
-            allResources.push({ 
-                id: doc.id, 
-                title: data.title, 
-                type: data.type 
-            });
+            if (data.title && typeof data.title === 'string' && data.title.toLowerCase().includes(lowerCaseQuery)) {
+                allResources.push({
+                    id: doc.id,
+                    title: data.title,
+                    type: data.type
+                });
+            }
         });
-        
-        // As a fallback for older data that might not have `title_lowercase`, we can do an in-memory filter.
-        // This is not efficient for large datasets.
-        if (allResources.length === 0) {
-            const allDocsSnapshot = await getDocs(collection(db, 'resources'));
-             allDocsSnapshot.forEach(doc => {
-                const data = doc.data();
-                if (data.title && typeof data.title === 'string' && data.title.toLowerCase().includes(lowerCaseQuery)) {
-                    // Check for duplicates before adding
-                    if (!allResources.some(r => r.id === doc.id)) {
-                        allResources.push({
-                            id: doc.id,
-                            title: data.title,
-                            type: data.type
-                        });
-                    }
-                }
-            });
-        }
 
-
-        // Limit the results after filtering
+        // Limit the results
         return allResources.slice(0, 10);
     } catch (error) {
         console.error("Error searching resources:", error);
         return [];
     }
 }
-
     
