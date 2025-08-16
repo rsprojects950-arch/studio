@@ -25,6 +25,7 @@ import {
   Settings,
   User,
   LogOut,
+  Target,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import type { UserProfile } from '@/lib/types';
@@ -33,6 +34,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/todos', label: 'To-Do List', icon: ListTodo },
+  { href: '/dashboard/goals', label: 'Short Term Goals', icon: Target },
   { href: '/dashboard/resources', label: 'Resources', icon: BookOpen },
   { href: '/dashboard/chat', label: 'Chat', icon: MessageSquare, id: 'chat' },
 ];

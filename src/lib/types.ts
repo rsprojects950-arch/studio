@@ -6,7 +6,18 @@ export type Task = {
   status: 'ongoing' | 'completed';
   dueDate: Date | null;
   createdAt: Date;
+  source?: 'user' | 'goal';
+  goalId?: string;
 };
+
+export type ShortTermGoal = {
+  id: string;
+  userId:string;
+  title: string;
+  dueDate: Date;
+  createdAt: Date;
+  isTransferred?: boolean;
+}
 
 export type Message = {
   id: string;

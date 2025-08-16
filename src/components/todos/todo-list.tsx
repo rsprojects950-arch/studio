@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Plus, Search, Calendar as CalendarIcon, Loader2, Trash2 } from "lucide-react";
+import { Plus, Search, Calendar as CalendarIcon, Loader2, Trash2, Target } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,7 @@ import { getTasks, updateTaskStatus, deleteTask } from "@/lib/firebase/firestore
 import { createTaskAction } from "@/lib/firebase/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type FilterType = "all" | "overdue" | "ongoing" | "upcoming";
 
@@ -102,8 +103,6 @@ export function TodoList() {
         return true;
       })
   }, [sortedTasks, searchTerm, filter]);
-  
-  console.log("Fetched tasks:", filteredTasks);
 
   const toggleTaskStatus = async (taskId: string, currentStatus: 'ongoing' | 'completed') => {
     const newStatus = currentStatus === 'ongoing' ? 'completed' : 'ongoing';
@@ -115,6 +114,9 @@ export function TodoList() {
 
     try {
       await updateTaskStatus(taskId, newStatus);
+      // Optimistically show toast, then fetch to confirm state
+      toast({ title: newStatus === 'completed' ? "Task completed!" : "Task marked as ongoing." });
+      fetchTasks();
     } catch (error) {
       setTasks(originalTasks);
       toast({
@@ -174,7 +176,7 @@ export function TodoList() {
       setNewDueDate(undefined);
       setIsDialogOpen(false);
       toast({ title: "Task added successfully" });
-      router.refresh(); 
+      fetchTasks(); // Refresh tasks list
     } catch (error) {
       console.error(error);
       const errorMessage = error instanceof Error ? error.message : "Failed to add the new task.";
@@ -288,7 +290,7 @@ export function TodoList() {
               filteredTasks.map((task) => {
                 const badgeInfo = getBadgeInfo(task.dueDate, task.status);
                 return (
-                  <TableRow key={task.id} data-state={task.status === 'completed' ? 'ongoing' : 'ongoing'}>
+                  <TableRow key={task.id} data-state={task.status === 'completed' ? 'completed' : 'ongoing'}>
                     <TableCell>
                       <Checkbox
                         checked={task.status === 'completed'}
@@ -297,13 +299,27 @@ export function TodoList() {
                       />
                     </TableCell>
                     <TableCell className={cn("font-medium", task.status === 'completed' && 'line-through text-muted-foreground')}>
-                      {task.title}
+                      <div className="flex items-center gap-2">
+                        {task.source === 'goal' && (
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger>
+                                        <Target className="h-4 w-4 text-primary" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>From Short-Term Goal</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        )}
+                        <span>{task.title}</span>
+                      </div>
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant={badgeInfo.variant}>{badgeInfo.label}</Badge>
                     </TableCell>
                      <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)}>
+                       <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)} disabled={task.source === 'goal'}>
                           <Trash2 className="h-4 w-4" />
                           <span className="sr-only">Delete task</span>
                        </Button>

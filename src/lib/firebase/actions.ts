@@ -26,11 +26,13 @@ export async function createTaskAction(formData: FormData) {
       status: 'ongoing';
       createdAt: any; 
       dueDate?: Timestamp;
+      source: 'user';
     } = {
       userId: userId,
       title: title,
       status: 'ongoing',
       createdAt: serverTimestamp(),
+      source: 'user',
     };
 
     if (dueDateStr && !isNaN(new Date(dueDateStr).getTime())) {
@@ -163,4 +165,67 @@ export async function deleteResourceAction(resourceId: string, userId: string) {
   }
 
   revalidatePath('/dashboard/resources');
+}
+
+
+export async function createShortTermGoalAction(formData: FormData) {
+  const userId = formData.get('userId') as string;
+  if (!userId) {
+    throw new Error('You must be logged in to create a goal.');
+  }
+
+  const title = formData.get('title') as string;
+  if (!title) {
+    throw new Error('Goal title is required.');
+  }
+  
+  const dueDateStr = formData.get('dueDate') as string | null;
+  if (!dueDateStr) {
+      throw new Error('Due date is required for a goal.');
+  }
+
+  try {
+    await addDoc(collection(db, "shortTermGoals"), {
+      userId: userId,
+      title: title,
+      isTransferred: false,
+      createdAt: serverTimestamp(),
+      dueDate: Timestamp.fromDate(new Date(dueDateStr)),
+    });
+  } catch (error) {
+    console.error("Error adding goal to Firestore:", error);
+    throw new Error('Could not create goal.');
+  }
+
+  revalidatePath('/dashboard/goals');
+}
+
+
+export async function deleteShortTermGoalAction(goalId: string, userId: string) {
+  if (!userId) {
+    throw new Error('You must be logged in to delete a goal.');
+  }
+  if (!goalId) {
+    throw new Error('Goal ID is missing.');
+  }
+
+  const goalRef = doc(db, 'shortTermGoals', goalId);
+  const goalSnap = await getDoc(goalRef);
+
+  if (!goalSnap.exists()) {
+    throw new Error('Goal not found.');
+  }
+
+  if (goalSnap.data().userId !== userId) {
+    throw new Error('You are not authorized to delete this goal.');
+  }
+
+  try {
+    await deleteDoc(goalRef);
+  } catch (error) {
+    console.error("Error deleting goal from Firestore:", error);
+    throw new Error('Could not delete goal.');
+  }
+
+  revalidatePath('/dashboard/goals');
 }
