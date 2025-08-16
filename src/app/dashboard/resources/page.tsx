@@ -1,3 +1,7 @@
+
+'use client';
+
+import { useState, useMemo } from 'react';
 import {
   Card,
   CardContent,
@@ -12,7 +16,7 @@ import { Search, Book, FileText, Video, ExternalLink } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 
-const resources = {
+const allResources = {
   tech: [
     { title: "React Docs", type: "Documentation", icon: FileText, image: "600x400", hint: "programming code" },
     { title: "Next.js Crash Course", type: "Video", icon: Video, image: "600x400", hint: "laptop desk" },
@@ -61,14 +65,41 @@ const ResourceCard = ({ title, type, icon: Icon, image, hint }: { title: string;
   </Card>
 );
 
+const NoResults = () => (
+    <div className="text-center text-muted-foreground col-span-full py-12">
+        <p className="text-lg font-semibold">No results found</p>
+        <p>Try adjusting your search term.</p>
+    </div>
+);
+
+
 export default function ResourcesPage() {
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const filteredResources = useMemo(() => {
+    if (!searchTerm) return allResources;
+
+    const lowercasedFilter = searchTerm.toLowerCase();
+    
+    return {
+      tech: allResources.tech.filter(r => r.title.toLowerCase().includes(lowercasedFilter)),
+      entrepreneur: allResources.entrepreneur.filter(r => r.title.toLowerCase().includes(lowercasedFilter)),
+      selfHelp: allResources.selfHelp.filter(r => r.title.toLowerCase().includes(lowercasedFilter)),
+    };
+  }, [searchTerm]);
+
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <h2 className="text-3xl font-bold tracking-tight">Resources</h2>
         <div className="relative w-full md:w-1/3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search resources..." className="pl-9" />
+          <Input 
+            placeholder="Search resources..." 
+            className="pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
       </div>
 
@@ -79,13 +110,19 @@ export default function ResourcesPage() {
           <TabsTrigger value="selfHelp">Self Help</TabsTrigger>
         </TabsList>
         <TabsContent value="tech" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {resources.tech.map(r => <ResourceCard key={r.title} {...r} />)}
+          {filteredResources.tech.length > 0 
+            ? filteredResources.tech.map(r => <ResourceCard key={r.title} {...r} />)
+            : <NoResults />}
         </TabsContent>
         <TabsContent value="entrepreneur" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {resources.entrepreneur.map(r => <ResourceCard key={r.title} {...r} />)}
+          {filteredResources.entrepreneur.length > 0
+            ? filteredResources.entrepreneur.map(r => <ResourceCard key={r.title} {...r} />)
+            : <NoResults />}
         </TabsContent>
         <TabsContent value="selfHelp" className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {resources.selfHelp.map(r => <ResourceCard key={r.title} {...r} />)}
+          {filteredResources.selfHelp.length > 0
+            ? filteredResources.selfHelp.map(r => <ResourceCard key={r.title} {...r} />)
+            : <NoResults />}
         </TabsContent>
       </Tabs>
     </div>
