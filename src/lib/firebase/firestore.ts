@@ -79,24 +79,59 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
   }
 }
 
+async function getAllShortTermGoals(userId: string): Promise<ShortTermGoal[]> {
+  if (!userId) return [];
+  const goalsCol = collection(db, 'shortTermGoals');
+  const q = query(goalsCol, where('userId', '==', userId));
+
+  try {
+    const querySnapshot = await getDocs(q);
+    const goals: ShortTermGoal[] = [];
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      goals.push({
+        id: doc.id,
+        userId: data.userId,
+        title: data.title,
+        dueDate: data.dueDate.toDate(),
+        createdAt: data.createdAt.toDate(),
+        isTransferred: data.isTransferred,
+      });
+    });
+    return goals;
+  } catch (error) {
+    console.error("[getAllShortTermGoals] Error fetching goals:", error);
+    return [];
+  }
+}
+
 export async function getDashboardStats(userId: string) {
   const tasks = await getTasks(userId);
-  
+  const goals = await getAllShortTermGoals(userId);
+
+  // Task stats
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((task) => task.status === "completed").length;
   const missedTasksCount = tasks.filter(
     (task) => task.status !== "completed" && task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate)
   ).length;
-
   const accomplishmentRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  
+  // Goal stats
+  const totalGoals = goals.length;
+  const completedGoalIds = new Set(tasks.filter(t => t.source === 'goal' && t.status === 'completed').map(t => t.goalId));
+  const completedGoalsCount = goals.filter(g => completedGoalIds.has(g.id)).length;
 
   const summary = {
     total: totalTasks.toString(),
     completed: completedTasks.toString(),
     missed: missedTasksCount.toString(),
     accomplishmentRate: `${accomplishmentRate}%`,
+    totalGoals: totalGoals.toString(),
+    completedGoals: completedGoalsCount.toString()
   };
 
+  // Chart data
   const today = new Date();
   const startOfThisWeek = startOfWeek(today, { weekStartsOn: 0 }); 
 
@@ -127,6 +162,7 @@ export async function getDashboardStats(userId: string) {
   
   const progressChartData = weekData.map(({date, ...rest}) => rest);
 
+  // Relevant tasks
   const relevantTasks = tasks
     .filter(task => {
       const isMissed = task.status === 'ongoing' && task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate);

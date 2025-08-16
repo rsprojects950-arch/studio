@@ -1,5 +1,5 @@
 
-"use client";
+'use client';
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ListTodo, CheckCircle2, XCircle, Percent, ArrowRight } from "lucide-react";
+import { ListTodo, CheckCircle2, XCircle, Percent, ArrowRight, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import {
@@ -35,6 +35,8 @@ type DashboardStats = {
     completed: string;
     missed: string;
     accomplishmentRate: string;
+    totalGoals: string;
+    completedGoals: string;
   };
   progressChartData: {
     name: string;
@@ -77,7 +79,9 @@ export function DashboardView() {
   if (loading || !memoizedStats) {
     return (
       <>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
           <Skeleton className="h-24" />
           <Skeleton className="h-24" />
           <Skeleton className="h-24" />
@@ -93,11 +97,13 @@ export function DashboardView() {
 
   return (
     <>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <SummaryTile title="Total Tasks" value={memoizedStats.summary.total} icon={ListTodo} />
-        <SummaryTile title="Completed" value={memoizedStats.summary.completed} icon={CheckCircle2} />
-        <SummaryTile title="Missed" value={memoizedStats.summary.missed} icon={XCircle} />
-        <SummaryTile title="Accomplishment Rate" value={memoizedStats.summary.accomplishmentRate} icon={Percent} />
+        <SummaryTile title="Completed Tasks" value={memoizedStats.summary.completed} icon={CheckCircle2} />
+        <SummaryTile title="Missed Tasks" value={memoizedStats.summary.missed} icon={XCircle} />
+        <SummaryTile title="Task Rate" value={memoizedStats.summary.accomplishmentRate} icon={Percent} />
+        <SummaryTile title="Total Goals" value={memoizedStats.summary.totalGoals} icon={Target} />
+        <SummaryTile title="Completed Goals" value={memoizedStats.summary.completedGoals} icon={Target} />
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
