@@ -86,18 +86,19 @@ export default function NotesPage() {
   useEffect(() => {
     if (user) {
       refreshNotes();
-    } else {
-      setLoading(false);
     }
   }, [user, refreshNotes]);
   
   useEffect(() => {
-    if (editingNote) {
-      setContent(editingNote.content);
-    } else {
-      setContent('');
+    if (isDialogOpen) {
+        if (editingNote) {
+            setContent(editingNote.content);
+        } else {
+            setContent('');
+            formRef.current?.reset();
+        }
     }
-  }, [editingNote]);
+  }, [isDialogOpen, editingNote]);
 
   const handleOpenDialog = (note: Note | null = null) => {
     setEditingNote(note);
@@ -111,7 +112,6 @@ export default function NotesPage() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     formData.set('userId', user.uid);
-    // Manually append the content from state, as it's controlled
     formData.set('content', content);
 
     try {
@@ -127,7 +127,7 @@ export default function NotesPage() {
       setContent('');
       setIsDialogOpen(false);
       setEditingNote(null);
-      await refreshNotes(); // This is the crucial line that was missing
+      await refreshNotes();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred.';
       toast({ variant: 'destructive', title: 'Error', description: errorMessage });
