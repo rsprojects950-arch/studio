@@ -10,18 +10,17 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Send, Loader2 } from "lucide-react";
+import { Send, Loader2, MessageSquareReply, X } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { useUnreadCount } from '@/context/unread-count-context';
-
+import { cn } from '@/lib/utils';
 
 const renderMessageWithMentions = (text: string, currentUserName: string, isSender: boolean) => {
     if (isSender) {
-        return text;
+        return <span>{text}</span>;
     }
     
-    // This regex will split the text by mentions, keeping the mentions as part of the result array.
     const mentionRegex = /(@[a-zA-Z0-9_]+)/g;
     const parts = text.split(mentionRegex);
 
@@ -29,7 +28,7 @@ const renderMessageWithMentions = (text: string, currentUserName: string, isSend
         if (part.match(mentionRegex)) {
             const isCurrentUserMention = part.substring(1).trim().toLowerCase() === currentUserName.toLowerCase();
             return (
-                <strong key={index} className={isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary font-bold'}>
+                <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary')}>
                     {part}
                 </strong>
             );
@@ -51,13 +50,14 @@ export default function ChatPage() {
     const [users, setUsers] = useState<Pick<UserProfile, 'uid' | 'username' | 'photoURL'>[]>([]);
     const [mentionSearch, setMentionSearch] = useState('');
     const [isMentionPopoverOpen, setMentionPopoverOpen] = useState(false);
+    
+    const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const lastMessageTimestamp = useRef<string | null>(null);
 
     useEffect(() => {
-      // Reset unread count when the component mounts
       if (resetUnreadCount) {
         resetUnreadCount();
       }
@@ -146,6 +146,11 @@ export default function ChatPage() {
                 body: JSON.stringify({ 
                     text: newMessage, 
                     userId: user.uid,
+                    replyTo: replyingTo ? {
+                        id: replyingTo.id,
+                        text: replyingTo.text,
+                        username: replyingTo.username
+                    } : null
                 }),
             });
 
@@ -160,6 +165,7 @@ export default function ChatPage() {
                 lastMessageTimestamp.current = newlySentMessage.createdAt;
             }
             setNewMessage('');
+            setReplyingTo(null);
 
         } catch (error) {
             console.error("SendMessageError:", error);
@@ -198,6 +204,11 @@ export default function ChatPage() {
         setMentionSearch('');
         inputRef.current?.focus();
     };
+
+    const handleSetReply = (message: Message) => {
+        setReplyingTo(message);
+        inputRef.current?.focus();
+    }
     
     const filteredUsers = users.filter(u => u.username && u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
 
@@ -220,27 +231,44 @@ export default function ChatPage() {
                         ) : (
                             <div className="space-y-4 pr-4">
                                 {messages.map((msg) => (
-                                    <div key={msg.id} className={`flex items-start gap-3 ${user?.uid === msg.userId ? "justify-end" : ""}`}>
-                                        {user?.uid !== msg.userId && (
-                                            <Avatar>
-                                                <AvatarImage src={msg.userAvatar || 'https://placehold.co/100x100.png'} alt={msg.username || 'User'} data-ai-hint="user portrait" />
-                                                <AvatarFallback>{msg.username ? msg.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
-                                            </Avatar>
-                                        )}
-                                        <div className={`flex flex-col ${user?.uid === msg.userId ? "items-end" : "items-start"}`}>
-                                            <div className={`p-3 rounded-lg max-w-xs lg:max-w-md ${user?.uid === msg.userId ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                                                {user?.uid !== msg.userId && <p className="font-semibold text-sm mb-1">{msg.username || 'Anonymous'}</p>}
-                                                <p>{renderMessageWithMentions(msg.text, userProfile?.username || '', user?.uid === msg.userId)}</p>
+                                    <div key={msg.id} className="group relative">
+                                        <div className={`flex items-start gap-3 ${user?.uid === msg.userId ? "justify-end" : ""}`}>
+                                            {user?.uid !== msg.userId && (
+                                                <Avatar>
+                                                    <AvatarImage src={msg.userAvatar || 'https://placehold.co/100x100.png'} alt={msg.username || 'User'} data-ai-hint="user portrait" />
+                                                    <AvatarFallback>{msg.username ? msg.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
+                                                </Avatar>
+                                            )}
+                                            <div className={`flex flex-col ${user?.uid === msg.userId ? "items-end" : "items-start"}`}>
+                                                <div className={`p-3 rounded-lg max-w-xs lg:max-w-md ${user?.uid === msg.userId ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                                                    {user?.uid !== msg.userId && <p className="font-semibold text-sm mb-1 text-primary">{msg.username || 'Anonymous'}</p>}
+                                                    {msg.replyToId && msg.replyToUsername && (
+                                                        <div className="p-2 mb-2 rounded-md bg-black/10 dark:bg-white/10 text-sm opacity-80 border-l-2 border-primary/50">
+                                                            <p className="font-semibold text-xs">{msg.replyToUsername}</p>
+                                                            <p className="truncate">{msg.replyToText}</p>
+                                                        </div>
+                                                    )}
+                                                    <p className="whitespace-pre-wrap break-words">{renderMessageWithMentions(msg.text, userProfile?.username || '', user?.uid === msg.userId)}</p>
+                                                </div>
+                                                <span className="text-xs text-muted-foreground mt-1">
+                                                    {format(new Date(msg.createdAt), 'p')}
+                                                </span>
                                             </div>
-                                             <span className="text-xs text-muted-foreground mt-1">
-                                                {format(new Date(msg.createdAt), 'p')}
-                                            </span>
+                                            {user?.uid === msg.userId && (
+                                                <Avatar>
+                                                    <AvatarImage src={userProfile?.photoURL || 'https://placehold.co/100x100.png'} alt={userProfile?.username || ''} data-ai-hint="user portrait" />
+                                                    <AvatarFallback>{(userProfile?.username || 'U').charAt(0).toUpperCase()}</AvatarFallback>
+                                                </Avatar>
+                                            )}
                                         </div>
-                                        {user?.uid === msg.userId && (
-                                            <Avatar>
-                                                <AvatarImage src={userProfile?.photoURL || 'https://placehold.co/100x100.png'} alt={userProfile?.username || ''} data-ai-hint="user portrait" />
-                                                <AvatarFallback>{(userProfile?.username || 'U').charAt(0).toUpperCase()}</AvatarFallback>
-                                            </Avatar>
+                                         {user && (
+                                            <div className={cn("absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity",
+                                                user.uid === msg.userId ? 'left-0' : 'right-0'
+                                            )}>
+                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleSetReply(msg)}>
+                                                    <MessageSquareReply className="h-4 w-4" />
+                                                </Button>
+                                            </div>
                                         )}
                                     </div>
                                 ))}
@@ -248,20 +276,32 @@ export default function ChatPage() {
                         )}
                     </ScrollArea>
                 </CardContent>
-                <CardFooter className="p-4 border-t">
+                <CardFooter className="p-4 border-t flex flex-col items-start gap-2">
+                    {replyingTo && (
+                        <div className="w-full bg-muted p-2 rounded-md flex items-center justify-between animate-in fade-in-50">
+                            <div className="text-sm">
+                                <p className="font-semibold">Replying to {replyingTo.username}</p>
+                                <p className="text-muted-foreground truncate max-w-xs">{replyingTo.text}</p>
+                            </div>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setReplyingTo(null)}>
+                                <X className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
                     <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
-                         <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
+                        <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
                             <PopoverTrigger asChild>
-                                 <Input
-                                    ref={inputRef}
-                                    placeholder="Type a message..."
-                                    value={newMessage}
-                                    onChange={handleInputChange}
-                                    autoComplete="off"
-                                    disabled={sending || !user}
-                                    className="w-full"
-                                />
+                                <div className="w-full" />
                             </PopoverTrigger>
+                             <Input
+                                ref={inputRef}
+                                placeholder="Type a message..."
+                                value={newMessage}
+                                onChange={handleInputChange}
+                                autoComplete="off"
+                                disabled={sending || !user}
+                                className="w-full"
+                            />
                             <PopoverContent className="w-80 p-0" align="start" side="top">
                                 <div className="flex flex-col">
                                     <div className="p-2 border-b">

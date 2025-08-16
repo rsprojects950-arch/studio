@@ -15,6 +15,9 @@ export type Message = {
   username: string;
   userAvatar: string | null;
   createdAt: string; // ISO 8601 string format
+  replyToId?: string;
+  replyToText?: string;
+  replyToUsername?: string;
 };
 
 export type UserProfile = {

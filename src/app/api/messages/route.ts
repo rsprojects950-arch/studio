@@ -44,6 +44,9 @@ export async function GET(request: Request) {
             username: data.username,
             userAvatar: data.userAvatar,
             createdAt: data.createdAt,
+            replyToId: data.replyToId,
+            replyToText: data.replyToText,
+            replyToUsername: data.replyToUsername,
         });
     });
 
@@ -65,7 +68,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { text, userId } = await request.json();
+    const { text, userId, replyTo } = await request.json();
     if (!text || !userId) {
       return new NextResponse('Missing required fields', { status: 400 });
     }
@@ -76,13 +79,19 @@ export async function POST(request: Request) {
         return new NextResponse('User profile not found', { status: 404 });
     }
 
-    const messageData = {
+    const messageData: { [key: string]: any } = {
       text,
       userId,
       username: userProfile.username,
       userAvatar: userProfile.photoURL || '',
       createdAt: serverTimestamp(),
     };
+    
+    if (replyTo) {
+        messageData.replyToId = replyTo.id;
+        messageData.replyToText = replyTo.text;
+        messageData.replyToUsername = replyTo.username;
+    }
     
     const docRef = await addDoc(collection(db, 'messages'), messageData);
 
@@ -93,6 +102,11 @@ export async function POST(request: Request) {
       username: userProfile.username,
       userAvatar: userProfile.photoURL || '',
       createdAt: new Date().toISOString(),
+       ...(replyTo && { 
+        replyToId: replyTo.id,
+        replyToText: replyTo.text,
+        replyToUsername: replyTo.username,
+      })
     };
 
     return NextResponse.json(serializableMessage, { status: 201 });
