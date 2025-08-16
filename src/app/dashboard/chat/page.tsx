@@ -13,6 +13,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Send, Loader2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { useUnreadCount } from '@/context/unread-count-context';
+
 
 const renderMessageWithMentions = (text: string, currentUserName: string) => {
     const mentionRegex = /(@[a-zA-Z0-9_ -]+)/g;
@@ -35,6 +37,7 @@ const renderMessageWithMentions = (text: string, currentUserName: string) => {
 export default function ChatPage() {
     const { user, profile: userProfile } = useAuth();
     const { toast } = useToast();
+    const { resetUnreadCount } = useUnreadCount();
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(true);
@@ -47,6 +50,13 @@ export default function ChatPage() {
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const lastMessageTimestamp = useRef<string | null>(null);
+
+    useEffect(() => {
+      // Reset unread count when the component mounts
+      if (resetUnreadCount) {
+        resetUnreadCount();
+      }
+    }, [resetUnreadCount]);
 
     const fetchMessages = useCallback(async (isInitialLoad = false) => {
         if (!user) return;
@@ -163,19 +173,26 @@ export default function ChatPage() {
         const text = e.target.value;
         setNewMessage(text);
 
-        const mentionMatch = text.match(/@(\w*)$/);
-        if (mentionMatch) {
+        const lastChar = text[text.length - 1];
+        const lastWord = text.split(" ").pop() || "";
+        
+        if (lastWord.startsWith('@') && lastWord.length > 1) {
             setMentionPopoverOpen(true);
-            setMentionSearch(mentionMatch[1]);
-        } else {
+            setMentionSearch(lastWord.substring(1));
+        } else if (lastChar === '@') {
+            setMentionPopoverOpen(true);
+            setMentionSearch('');
+        }
+        else {
             setMentionPopoverOpen(false);
         }
     };
 
     const handleMentionSelect = (username: string) => {
         setNewMessage(current => {
-            const atIndex = current.lastIndexOf('@');
-            return `${current.substring(0, atIndex)}@${username} `;
+            const parts = current.split(' ');
+            parts.pop(); // remove the partial @mention
+            return `${parts.join(' ')} @${username} `;
         });
         setMentionPopoverOpen(false);
         setMentionSearch('');
@@ -235,7 +252,15 @@ export default function ChatPage() {
                      <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
                         <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
                             <PopoverTrigger asChild>
-                                <div className="w-full" />
+                                <Input
+                                    ref={inputRef}
+                                    placeholder="Type a message..."
+                                    value={newMessage}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    disabled={sending || !user}
+                                    className="w-full"
+                                />
                             </PopoverTrigger>
                             <PopoverContent className="w-80 p-0" align="start">
                                 <div className="flex flex-col">
@@ -266,15 +291,6 @@ export default function ChatPage() {
                                 </div>
                             </PopoverContent>
                         </Popover>
-                        <Input
-                            ref={inputRef}
-                            placeholder="Type a message..."
-                            value={newMessage}
-                            onChange={handleInputChange}
-                            autoComplete="off"
-                            disabled={sending || !user}
-                            className="w-full"
-                        />
                         <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>
                             {sending ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />

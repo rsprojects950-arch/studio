@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -10,6 +11,7 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
+  SidebarMenuBadge,
 } from '@/components/ui/sidebar';
 import { AppLogo } from '@/components/icons/logo';
 import { Separator } from '@/components/ui/separator';
@@ -28,7 +30,7 @@ const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/todos', label: 'To-Do List', icon: ListTodo },
   { href: '/dashboard/resources', label: 'Resources', icon: BookOpen },
-  { href: '/dashboard/chat', label: 'Chat', icon: MessageSquare },
+  { href: '/dashboard/chat', label: 'Chat', icon: MessageSquare, id: 'chat' },
 ];
 
 const bottomNav = [
@@ -36,7 +38,7 @@ const bottomNav = [
   { href: '/dashboard/profile', label: 'Profile', icon: User },
 ];
 
-export function AppSidebar() {
+export function AppSidebar({ unreadCount }: { unreadCount: number }) {
   const pathname = usePathname();
   const { signOut } = useAuth();
 
@@ -62,6 +64,9 @@ export function AppSidebar() {
                 <Link href={item.href}>
                   <item.icon />
                   <span>{item.label}</span>
+                  {item.id === 'chat' && unreadCount > 0 && (
+                     <SidebarMenuBadge>{unreadCount}</SidebarMenuBadge>
+                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

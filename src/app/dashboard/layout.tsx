@@ -4,11 +4,12 @@
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { useAuth } from '@/context/auth-context';
-import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useCallback } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import type { Message } from '@/lib/types';
+import { UnreadCountProvider } from '@/context/unread-count-context';
 
 export default function DashboardLayout({
   children,
@@ -17,15 +18,24 @@ export default function DashboardLayout({
 }) {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
   const lastMessageTimestamp = useRef<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const handleNewMessages = useCallback((newMessages: Message[]) => {
     if (newMessages.length > 0 && profile?.username) {
+       // Filter out messages from the current user
+      const otherUserMessages = newMessages.filter(msg => msg.userId !== user?.uid);
+
+      if (pathname !== '/dashboard/chat') {
+        setUnreadCount(prev => prev + otherUserMessages.length);
+      }
+
       const mentionRegex = new RegExp(`@${profile.username}(\\s|$)`, 'i');
-      newMessages.forEach(msg => {
-        // Don't notify for your own messages or if user is on chat page
-        if (msg.userId !== user?.uid && mentionRegex.test(msg.text) && !window.location.pathname.includes('/chat')) {
+      otherUserMessages.forEach(msg => {
+        // Don't notify if user is on chat page
+        if (mentionRegex.test(msg.text) && pathname !== '/dashboard/chat') {
           toast({
             title: "You were mentioned!",
             description: `${msg.username}: "${msg.text.substring(0, 50)}..."`,
@@ -33,7 +43,7 @@ export default function DashboardLayout({
         }
       });
     }
-  }, [user?.uid, profile?.username, toast]);
+  }, [user?.uid, profile?.username, toast, pathname]);
 
   const pollMessagesForNotifications = useCallback(async () => {
     if (!user || !profile?.username) return;
@@ -74,6 +84,10 @@ export default function DashboardLayout({
     }
   }, [user, loading, router]);
 
+  const resetUnreadCount = useCallback(() => {
+    setUnreadCount(0);
+  }, []);
+
   if (loading || !user || !profile) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -89,11 +103,13 @@ export default function DashboardLayout({
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="flex flex-col">
-        {children}
-      </SidebarInset>
-    </SidebarProvider>
+    <UnreadCountProvider value={{ resetUnreadCount }}>
+      <SidebarProvider>
+        <AppSidebar unreadCount={unreadCount} />
+        <SidebarInset className="flex flex-col">
+          {children}
+        </SidebarInset>
+      </SidebarProvider>
+    </UnreadCountProvider>
   );
 }
