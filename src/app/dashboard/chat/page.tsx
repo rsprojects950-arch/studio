@@ -4,7 +4,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/auth-context';
 import type { Message } from '@/lib/types';
-import { getMessages, sendMessage } from '@/lib/firebase/firestore';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +25,9 @@ export default function ChatPage() {
     const fetchMessages = async () => {
         setLoading(true);
         try {
-            const initialMessages = await getMessages();
+            const response = await fetch('/api/messages');
+            if (!response.ok) throw new Error('Failed to fetch messages');
+            const initialMessages = await response.json();
             setMessages(initialMessages);
         } catch (error) {
              toast({
@@ -41,6 +42,11 @@ export default function ChatPage() {
 
     useEffect(() => {
         fetchMessages();
+        
+        // Poll for new messages every 5 seconds
+        const intervalId = setInterval(fetchMessages, 5000);
+
+        return () => clearInterval(intervalId);
     }, [toast]);
     
     useEffect(() => {
@@ -50,18 +56,22 @@ export default function ChatPage() {
         }
     }, [messages]);
 
-
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !newMessage.trim()) return;
 
         setSending(true);
         try {
-            await sendMessage(user.uid, user.displayName || 'Anonymous', user.photoURL, newMessage);
+            const response = await fetch('/api/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: newMessage, userId: user.uid, userName: user.displayName, userAvatar: user.photoURL }),
+            });
+            if (!response.ok) throw new Error('Failed to send message');
+            
             setNewMessage('');
-            // Refetch messages after sending
-            const updatedMessages = await getMessages();
-            setMessages(updatedMessages);
+            // Refetch messages immediately after sending
+            await fetchMessages();
 
         } catch (error) {
             toast({
@@ -86,7 +96,7 @@ export default function ChatPage() {
                 </CardHeader>
                 <CardContent className="flex-1 overflow-hidden p-0">
                     <ScrollArea className="h-full p-6" ref={scrollAreaRef}>
-                        {loading ? (
+                        {loading && messages.length === 0 ? (
                             <div className="flex items-center justify-center h-full">
                                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                             </div>
@@ -106,7 +116,7 @@ export default function ChatPage() {
                                                 <p>{msg.text}</p>
                                             </div>
                                              <span className="text-xs text-muted-foreground mt-1">
-                                                {format(msg.createdAt, 'p')}
+                                                {format(new Date(msg.createdAt), 'p')}
                                             </span>
                                         </div>
                                         {user?.uid === msg.userId && (

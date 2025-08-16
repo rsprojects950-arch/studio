@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit } from 'firebase/firestore';
@@ -152,38 +153,4 @@ export async function deleteTask(taskId: string): Promise<void> {
         console.error("Error deleting task from Firestore:", error);
         throw new Error("Failed to delete task.");
     }
-}
-
-
-export async function sendMessage(userId: string, userName: string, userAvatar: string | null, text: string) {
-    try {
-        await addDoc(collection(db, 'messages'), {
-            userId,
-            userName,
-            userAvatar,
-            text,
-            createdAt: serverTimestamp(),
-        });
-    } catch (error) {
-        console.error('Error sending message:', error);
-        throw new Error('Failed to send message.');
-    }
-}
-
-export async function getMessages(): Promise<Message[]> {
-    const q = query(collection(db, 'messages'), orderBy('createdAt', 'asc'), limit(50));
-    const querySnapshot = await getDocs(q);
-    const messages: Message[] = [];
-    querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        messages.push({
-            id: doc.id,
-            text: data.text,
-            userId: data.userId,
-            userName: data.userName,
-            userAvatar: data.userAvatar,
-            createdAt: (data.createdAt as Timestamp)?.toDate() || new Date(),
-        });
-    });
-    return messages;
 }
