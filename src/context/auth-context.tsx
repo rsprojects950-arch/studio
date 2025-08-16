@@ -40,10 +40,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         if (!userProfile) {
           // 1. If profile doesn't exist at all, create it.
           // This handles first-time Google sign-ins or new registrations.
-          const newUsername = userAuth.email?.split('@')[0] || `user${Date.now().toString().slice(-4)}`;
+          const newUsername = userAuth.displayName || userAuth.email?.split('@')[0] || `user${Date.now().toString().slice(-4)}`;
           const newProfileData: UserProfile = {
             uid: userAuth.uid,
-            username: userAuth.displayName || newUsername,
+            username: newUsername,
             email: userAuth.email || '',
             photoURL: userAuth.photoURL || null,
           };
@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         } else if (!userProfile.username) {
           // 2. If profile exists but is missing a username (from old data structure)
           // update it with a generated username.
-          const fallbackUsername = userProfile.email?.split('@')[0] || `user${Date.now().toString().slice(-4)}`;
+          const fallbackUsername = userAuth.displayName || userProfile.email?.split('@')[0] || `user${Date.now().toString().slice(-4)}`;
           userProfile.username = fallbackUsername;
           await updateUserProfile(userAuth.uid, { username: fallbackUsername });
         }
