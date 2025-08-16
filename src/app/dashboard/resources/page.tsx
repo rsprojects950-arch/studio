@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,8 @@ export default function ResourcesPage() {
   const { toast } = useToast();
   const addFormRef = useRef<HTMLFormElement>(null);
   const editFormRef = useRef<HTMLFormElement>(null);
+  const searchParams = useSearchParams();
+  const resourceRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [allResources, setAllResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +37,7 @@ export default function ResourcesPage() {
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [highlightedResource, setHighlightedResource] = useState<string | null>(null);
 
   const fetchResources = useCallback(async () => {
     setLoading(true);
@@ -53,8 +57,32 @@ export default function ResourcesPage() {
 
   useEffect(() => {
     fetchResources();
-  }, [fetchResources]);
+    const highlightId = searchParams.get('highlight');
+    if (highlightId) {
+      setHighlightedResource(highlightId);
+    }
+  }, [fetchResources, searchParams]);
 
+  useEffect(() => {
+    if (!loading && highlightedResource && resourceRefs.current[highlightedResource]) {
+        const matchingResource = allResources.find(r => r.id === highlightedResource);
+        if (matchingResource) {
+            setActiveTab(matchingResource.category);
+            setTimeout(() => {
+                const element = resourceRefs.current[highlightedResource];
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.classList.add('ring-2', 'ring-primary', 'ring-offset-2', 'transition-shadow', 'duration-1000');
+                    setTimeout(() => {
+                        element.classList.remove('ring-2', 'ring-primary', 'ring-offset-2');
+                    }, 2000);
+                }
+                 // Reset highlight after scrolling
+                setHighlightedResource(null);
+            }, 100);
+        }
+    }
+}, [loading, highlightedResource, allResources]);
 
   const resourceTypes = useMemo(() => {
     const types = new Set(['All']);
@@ -194,7 +222,14 @@ export default function ResourcesPage() {
               {loading ? (
                   Array.from({ length: 3 }).map((_, i) => <ResourceSkeleton key={i} />)
               ) : filteredResources.length > 0 ? (
-                  filteredResources.map(r => <ResourceCard key={r.id} resource={r} onEdit={() => handleOpenEditDialog(r)} onDelete={() => handleDeleteResource(r.id)} />)
+                  filteredResources.map(r => (
+                      <ResourceCard 
+                          key={r.id}
+                          ref={el => resourceRefs.current[r.id] = el}
+                          resource={r}
+                          onEdit={() => handleOpenEditDialog(r)}
+                          onDelete={() => handleDeleteResource(r.id)} />
+                  ))
               ) : (
                   <NoResults />
               )}

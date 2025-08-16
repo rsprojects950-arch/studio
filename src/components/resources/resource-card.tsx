@@ -1,6 +1,6 @@
 
 'use client';
-
+import { forwardRef } from 'react';
 import {
   Card,
   CardContent,
@@ -23,14 +23,17 @@ const iconMap: { [key: string]: React.ElementType } = {
   Podcast: Mic,
 };
 
-export const ResourceCard = ({ resource, onEdit, onDelete }: { resource: Resource, onEdit: () => void, onDelete: () => void }) => {
+export const ResourceCard = forwardRef<
+    HTMLDivElement,
+    { resource: Resource, onEdit: () => void, onDelete: () => void }
+>(({ resource, onEdit, onDelete }, ref) => {
   const { user } = useAuth();
   const Icon = iconMap[resource.type] || FileText;
   
   const canModify = user?.uid === resource.submittedByUid;
 
   return (
-    <Card className="overflow-hidden flex flex-col group relative">
+    <Card ref={ref} className="overflow-hidden flex flex-col group relative">
       <CardHeader className="p-0">
         <div className="aspect-video bg-muted flex items-center justify-center relative">
           <Icon className="w-16 h-16 text-muted-foreground" />
@@ -87,4 +90,5 @@ export const ResourceCard = ({ resource, onEdit, onDelete }: { resource: Resourc
       )}
     </Card>
   );
-};
+});
+ResourceCard.displayName = 'ResourceCard';
