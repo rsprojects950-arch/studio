@@ -284,7 +284,7 @@ export default function ResourcesPage() {
                               <SelectContent>
                                   <SelectItem value="Book">Book</SelectItem>
                                   <SelectItem value="Video">Video</SelectItem>
-                                  <SelectItem value="Documentation">Documentation</seminar>
+                                  <SelectItem value="Documentation">Documentation</SelectItem>
                                   <SelectItem value="Online Resource">Online Resource</SelectItem>
                                   <SelectItem value="Podcast">Podcast</SelectItem>
                               </SelectContent>
