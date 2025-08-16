@@ -4,7 +4,22 @@
 import { revalidatePath } from 'next/cache';
 import { addDoc, collection, Timestamp, serverTimestamp, updateDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Resource, Note } from '@/lib/types';
+import type { Resource, Note, ResourceLink } from '@/lib/types';
+
+// Helper function to extract resource links from content
+const extractResourceLinks = (content: string): ResourceLink[] => {
+    const resourceTagRegex = /#\[([^\]]+?)\]\(([a-zA-Z0-9-]+)\)/g;
+    const links: ResourceLink[] = [];
+    let match;
+    while((match = resourceTagRegex.exec(content)) !== null) {
+        links.push({
+            title: match[1],
+            id: match[2],
+            type: 'resource', // Type info isn't critical here, can be generic
+        });
+    }
+    return links;
+}
 
 export async function createTaskAction(formData: FormData) {
   const userId = formData.get('userId') as string;
@@ -293,12 +308,15 @@ export async function createNoteAction(formData: FormData) {
   if (!content) {
     throw new Error('Content is required.');
   }
+
+  const resourceLinks = extractResourceLinks(content);
   
   try {
     await addDoc(collection(db, "notes"), {
       userId,
       topic,
       content,
+      resourceLinks,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -344,10 +362,13 @@ export async function updateNoteAction(formData: FormData) {
     throw new Error('Content is required.');
   }
 
+  const resourceLinks = extractResourceLinks(content);
+
   try {
     await updateDoc(noteRef, {
       topic,
       content,
+      resourceLinks,
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
