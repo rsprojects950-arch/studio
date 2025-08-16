@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef, forwardRef } from 'react';
 import {
   Card,
   CardContent,
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Book, FileText, Video, ExternalLink, Mic, Plus, Loader2, User } from "lucide-react";
+import { Search, Book, FileText, Video, ExternalLink, Mic, Plus, Loader2, User, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from '@/lib/utils';
 import type { Resource } from '@/lib/types';
@@ -24,8 +24,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { createResourceAction } from '@/lib/firebase/actions';
-import { useRouter } from 'next/navigation';
+import { createResourceAction, updateResourceAction } from '@/lib/firebase/actions';
 
 const iconMap: { [key: string]: React.ElementType } = {
   Documentation: FileText,
@@ -35,10 +34,14 @@ const iconMap: { [key: string]: React.ElementType } = {
   Podcast: Mic,
 };
 
-const ResourceCard = ({ resource }: { resource: Resource }) => {
+const ResourceCard = ({ resource, onEdit }: { resource: Resource, onEdit: () => void }) => {
+  const { user } = useAuth();
   const Icon = iconMap[resource.type] || FileText;
+  
+  const canEdit = user?.uid === resource.submittedByUid;
+
   return (
-    <Card className="overflow-hidden flex flex-col">
+    <Card className="overflow-hidden flex flex-col group relative">
       <CardHeader className="p-0">
         <div className="aspect-video bg-muted flex items-center justify-center">
           <Icon className="w-16 h-16 text-muted-foreground" />
@@ -65,6 +68,14 @@ const ResourceCard = ({ resource }: { resource: Resource }) => {
             </a>
         </Button>
       </CardFooter>
+      {canEdit && (
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <Button variant="secondary" size="icon" className="h-8 w-8" onClick={onEdit}>
+            <Edit className="h-4 w-4" />
+            <span className="sr-only">Edit resource</span>
+          </Button>
+        </div>
+      )}
     </Card>
   );
 };
@@ -93,11 +104,79 @@ const ResourceSkeleton = () => (
     </Card>
 );
 
+const ResourceForm = forwardRef<
+    HTMLFormElement,
+    {
+        resource?: Resource | null;
+        onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
+        isSubmitting: boolean;
+    }
+>(({ resource, onSubmit, isSubmitting }, ref) => {
+    return (
+        <form
+            ref={ref}
+            onSubmit={onSubmit}
+            className="space-y-4"
+        >
+            {resource && <input type="hidden" name="resourceId" value={resource.id} />}
+            <div className="space-y-2">
+                <Label htmlFor="url">URL</Label>
+                <Input id="url" name="url" placeholder="https://example.com/resource" required defaultValue={resource?.url} />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="title">Title</Label>
+                <Input id="title" name="title" placeholder="e.g. Awesome React Tutorial" required defaultValue={resource?.title} />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea id="description" name="description" placeholder="A short summary of what this resource is about." required defaultValue={resource?.description} />
+            </div>
+            <div className='grid grid-cols-2 gap-4'>
+                <div className="space-y-2">
+                    <Label htmlFor="category">Category</Label>
+                    <Select name="category" required defaultValue={resource?.category}>
+                        <SelectTrigger id="category">
+                            <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="tech">Tech</SelectItem>
+                            <SelectItem value="entrepreneur">Entrepreneur</SelectItem>
+                            <SelectItem value="selfHelp">Self Help</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="type">Type</Label>
+                    <Select name="type" required defaultValue={resource?.type}>
+                        <SelectTrigger id="type">
+                            <SelectValue placeholder="Select a type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Book">Book</SelectItem>
+                            <SelectItem value="Video">Video</SelectItem>
+                            <SelectItem value="Documentation">Documentation</SelectItem>
+                            <SelectItem value="Online Resource">Online Resource</SelectItem>
+                            <SelectItem value="Podcast">Podcast</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+            <DialogFooter>
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {resource ? 'Save Changes' : 'Add Resource'}
+                </Button>
+            </DialogFooter>
+        </form>
+    );
+});
+ResourceForm.displayName = 'ResourceForm';
+
 export default function ResourcesPage() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
-  const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
+  const addFormRef = useRef<HTMLFormElement>(null);
+  const editFormRef = useRef<HTMLFormElement>(null);
 
   const [allResources, setAllResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,7 +184,10 @@ export default function ResourcesPage() {
   const [activeFilter, setActiveFilter] = useState('All');
   const [activeTab, setActiveTab] = useState<'tech' | 'entrepreneur' | 'selfHelp'>('tech');
 
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingResource, setEditingResource] = useState<Resource | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchResources = useCallback(async () => {
@@ -150,7 +232,12 @@ export default function ResourcesPage() {
     setSearchTerm('');
   }
 
-  const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleOpenEditDialog = (resource: Resource) => {
+    setEditingResource(resource);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleAddFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user || !profile) {
       toast({ variant: "destructive", title: "You must be logged in."});
@@ -164,17 +251,39 @@ export default function ResourcesPage() {
 
     try {
       await createResourceAction(formData);
-      formRef.current?.reset();
-      setIsDialogOpen(false);
+      addFormRef.current?.reset();
+      setIsAddDialogOpen(false);
       toast({ title: "Resource added successfully!" });
-      fetchResources(); // Re-fetch to show the new resource
+      fetchResources();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to add the new resource.";
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: errorMessage,
-      });
+      toast({ variant: "destructive", title: "Error", description: errorMessage });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleEditFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user) {
+      toast({ variant: "destructive", title: "You must be logged in."});
+      return;
+    }
+    
+    setIsSubmitting(true);
+    const formData = new FormData(event.currentTarget);
+    formData.set('userId', user.uid);
+    
+    try {
+      await updateResourceAction(formData);
+      editFormRef.current?.reset();
+      setIsEditDialogOpen(false);
+      setEditingResource(null);
+      toast({ title: "Resource updated successfully!" });
+      fetchResources();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update resource.";
+      toast({ variant: "destructive", title: "Error", description: errorMessage });
     } finally {
       setIsSubmitting(false);
     }
@@ -190,7 +299,7 @@ export default function ResourcesPage() {
       </div>
 
       <Tabs defaultValue="tech" className="space-y-4" onValueChange={handleTabChange} value={activeTab}>
-        <div className="flex flex-col md:flex-row justify-between gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <TabsList>
                 <TabsTrigger value="tech">Tech</TabsTrigger>
                 <TabsTrigger value="entrepreneur">Entrepreneur</TabsTrigger>
@@ -225,7 +334,7 @@ export default function ResourcesPage() {
               {loading ? (
                   Array.from({ length: 3 }).map((_, i) => <ResourceSkeleton key={i} />)
               ) : filteredResources.length > 0 ? (
-                  filteredResources.map(r => <ResourceCard key={r.id} resource={r} />)
+                  filteredResources.map(r => <ResourceCard key={r.id} resource={r} onEdit={() => handleOpenEditDialog(r)} />)
               ) : (
                   <NoResults />
               )}
@@ -233,7 +342,7 @@ export default function ResourcesPage() {
         </TabsContent>
       </Tabs>
       
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
               <Button className="fixed bottom-8 right-8 h-14 w-14 rounded-full shadow-lg">
                   <Plus className="h-6 w-6" />
@@ -247,60 +356,24 @@ export default function ResourcesPage() {
                       Share something valuable with the community.
                   </DialogDescription>
               </DialogHeader>
-              <form 
-                  ref={formRef}
-                  onSubmit={handleFormSubmit}
-                  className="space-y-4"
-              >
-                  <div className="space-y-2">
-                      <Label htmlFor="url">URL</Label>
-                      <Input id="url" name="url" placeholder="https://example.com/resource" required />
-                  </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="title">Title</Label>
-                      <Input id="title" name="title" placeholder="e.g. Awesome React Tutorial" required />
-                  </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="description">Description</Label>
-                      <Textarea id="description" name="description" placeholder="A short summary of what this resource is about." required />
-                  </div>
-                  <div className='grid grid-cols-2 gap-4'>
-                      <div className="space-y-2">
-                          <Label htmlFor="category">Category</Label>
-                          <Select name="category" required>
-                              <SelectTrigger id="category">
-                                  <SelectValue placeholder="Select a category" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                  <SelectItem value="tech">Tech</SelectItem>
-                                  <SelectItem value="entrepreneur">Entrepreneur</SelectItem>
-                                  <SelectItem value="selfHelp">Self Help</SelectItem>
-                              </SelectContent>
-                          </Select>
-                      </div>
-                      <div className="space-y-2">
-                          <Label htmlFor="type">Type</Label>
-                            <Select name="type" required>
-                              <SelectTrigger id="type">
-                                  <SelectValue placeholder="Select a type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                  <SelectItem value="Book">Book</SelectItem>
-                                  <SelectItem value="Video">Video</SelectItem>
-                                  <SelectItem value="Documentation">Documentation</SelectItem>
-                                  <SelectItem value="Online Resource">Online Resource</SelectItem>
-                                  <SelectItem value="Podcast">Podcast</SelectItem>
-                              </SelectContent>
-                          </Select>
-                      </div>
-                  </div>
-                  <DialogFooter>
-                      <Button type="submit" disabled={isSubmitting}>
-                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Add Resource
-                      </Button>
-                  </DialogFooter>
-              </form>
+              <ResourceForm ref={addFormRef} onSubmit={handleAddFormSubmit} isSubmitting={isSubmitting} />
+          </DialogContent>
+      </Dialog>
+      
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Edit resource</DialogTitle>
+                  <DialogDescription>
+                     Make changes to your submitted resource.
+                  </DialogDescription>
+              </DialogHeader>
+              <ResourceForm
+                  ref={editFormRef}
+                  resource={editingResource}
+                  onSubmit={handleEditFormSubmit}
+                  isSubmitting={isSubmitting}
+              />
           </DialogContent>
       </Dialog>
     </div>
