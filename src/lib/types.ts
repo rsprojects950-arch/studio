@@ -7,3 +7,12 @@ export type Task = {
   dueDate: Date | null;
   createdAt: Date;
 };
+
+export type Message = {
+  id: string;
+  text: string;
+  userId: string;
+  userName: string;
+  userAvatar: string | null;
+  createdAt: Date;
+};
