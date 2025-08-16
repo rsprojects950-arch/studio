@@ -38,6 +38,16 @@ export type Message = {
   resourceLinks?: ResourceLink[];
 };
 
+export type Note = {
+  id: string;
+  userId: string;
+  topic: string;
+  content: string;
+  resourceLinks?: ResourceLink[];
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type UserProfile = {
   uid: string;
   username: string;

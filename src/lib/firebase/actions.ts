@@ -4,7 +4,7 @@
 import { revalidatePath } from 'next/cache';
 import { addDoc, collection, Timestamp, serverTimestamp, updateDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Resource } from '@/lib/types';
+import type { Resource, Note } from '@/lib/types';
 
 export async function createTaskAction(formData: FormData) {
   const userId = formData.get('userId') as string;
@@ -275,4 +275,114 @@ export async function deleteShortTermGoalAction(goalId: string, userId: string) 
   }
 
   revalidatePath('/dashboard/goals');
+}
+
+export async function createNoteAction(formData: FormData) {
+  const userId = formData.get('userId') as string;
+  if (!userId) {
+    throw new Error('You must be logged in to create a note.');
+  }
+
+  const topic = formData.get('topic') as string;
+  const content = formData.get('content') as string;
+
+  if (!topic) {
+    throw new Error('Topic is required.');
+  }
+  
+  if (!content) {
+    throw new Error('Content is required.');
+  }
+  
+  try {
+    await addDoc(collection(db, "notes"), {
+      userId,
+      topic,
+      content,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error adding note to Firestore:", error);
+    throw new Error('Could not create note.');
+  }
+
+  revalidatePath('/dashboard/notes');
+}
+
+
+export async function updateNoteAction(formData: FormData) {
+  const userId = formData.get('userId') as string;
+  if (!userId) {
+    throw new Error('You must be logged in to update a note.');
+  }
+  
+  const noteId = formData.get('noteId') as string;
+  if (!noteId) {
+    throw new Error('Note ID is missing.');
+  }
+
+  const noteRef = doc(db, 'notes', noteId);
+  const noteSnap = await getDoc(noteRef);
+
+  if (!noteSnap.exists()) {
+    throw new Error('Note not found.');
+  }
+
+  if (noteSnap.data().userId !== userId) {
+    throw new Error('You are not authorized to edit this note.');
+  }
+
+  const topic = formData.get('topic') as string;
+  const content = formData.get('content') as string;
+
+   if (!topic) {
+    throw new Error('Topic is required.');
+  }
+  
+  if (!content) {
+    throw new Error('Content is required.');
+  }
+
+  try {
+    await updateDoc(noteRef, {
+      topic,
+      content,
+      updatedAt: serverTimestamp(),
+    });
+  } catch (error) {
+    console.error("Error updating note in Firestore:", error);
+    throw new Error('Could not update note.');
+  }
+
+  revalidatePath('/dashboard/notes');
+}
+
+export async function deleteNoteAction(noteId: string, userId: string) {
+  if (!userId) {
+    throw new Error('You must be logged in to delete a note.');
+  }
+  if (!noteId) {
+    throw new Error('Note ID is missing.');
+  }
+
+  const noteRef = doc(db, 'notes', noteId);
+  const noteSnap = await getDoc(noteRef);
+
+  if (!noteSnap.exists()) {
+    throw new Error('Note not found.');
+  }
+
+  if (noteSnap.data().userId !== userId) {
+    throw new Error('You are not authorized to delete this note.');
+  }
+
+  try {
+    await deleteDoc(noteRef);
+  } catch (error) {
+    console.error("Error deleting note from Firestore:", error);
+    throw new Error('Could not delete note.');
+  }
+
+  revalidatePath('/dashboard/notes');
 }

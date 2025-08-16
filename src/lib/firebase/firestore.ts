@@ -4,7 +4,7 @@
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink } from '@/lib/types';
+import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink, Note } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
 
 export async function createUserProfile(profile: UserProfile): Promise<void> {
@@ -443,3 +443,32 @@ export async function searchResources(queryText: string): Promise<Pick<Resource,
     }
 }
     
+export async function getNotes(userId: string): Promise<Note[]> {
+    if (!userId) {
+        return [];
+    }
+
+    const notesCol = collection(db, 'notes');
+    const q = query(notesCol, where('userId', '==', userId), orderBy('updatedAt', 'desc'));
+    
+    try {
+        const querySnapshot = await getDocs(q);
+        const notes: Note[] = [];
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            notes.push({
+                id: doc.id,
+                userId: data.userId,
+                topic: data.topic,
+                content: data.content,
+                createdAt: (data.createdAt as Timestamp).toDate(),
+                updatedAt: (data.updatedAt as Timestamp).toDate(),
+                resourceLinks: data.resourceLinks || [],
+            });
+        });
+        return notes;
+    } catch (error) {
+        console.error("[getNotes] Error fetching notes from Firestore:", error);
+        return [];
+    }
+}

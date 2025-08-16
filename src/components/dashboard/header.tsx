@@ -21,6 +21,8 @@ export function DashboardHeader() {
         return 'To-Do List';
       case 'goals':
         return 'Short Term Goals';
+      case 'notes':
+        return 'Notes';
       case 'resources':
         return 'Resources';
       case 'chat':
