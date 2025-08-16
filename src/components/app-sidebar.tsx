@@ -95,6 +95,23 @@ export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProf
       </SidebarContent>
       <SidebarFooter className="p-2 space-y-2">
         <SidebarMenu>
+            <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => signOut()} tooltip={{ children: 'Logout', side: 'right' }}>
+                <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6">
+                    <AvatarImage src={userProfile.photoURL ?? undefined} alt={userProfile.username} data-ai-hint="user portrait" />
+                    <AvatarFallback>{userProfile.username.charAt(0).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <span className="group-data-[collapsible=icon]:hidden">{userProfile.username}</span>
+                </div>
+                <LogOut className="group-data-[collapsible=icon]:hidden ml-auto"/>
+                </SidebarMenuButton>
+            </SidebarMenuItem>
+        </SidebarMenu>
+        
+        <Separator />
+        
+        <SidebarMenu>
           {bottomNav.map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton
@@ -109,23 +126,6 @@ export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProf
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
-        </SidebarMenu>
-
-        <Separator />
-
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => signOut()} tooltip={{ children: 'Logout', side: 'right' }}>
-              <div className="flex items-center gap-2">
-                <Avatar className="h-6 w-6">
-                  <AvatarImage src={userProfile.photoURL ?? undefined} alt={userProfile.username} data-ai-hint="user portrait" />
-                  <AvatarFallback>{userProfile.username.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <span className="group-data-[collapsible=icon]:hidden">{userProfile.username}</span>
-              </div>
-              <LogOut className="group-data-[collapsible=icon]:hidden ml-auto"/>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
