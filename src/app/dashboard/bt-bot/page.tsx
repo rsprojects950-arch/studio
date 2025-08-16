@@ -1,3 +1,4 @@
+
 'use client';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
@@ -41,9 +42,7 @@ export default function BtBotPage() {
     const userMessage: Message = { text: input, sender: 'user', id: Date.now().toString() };
     setMessages(prev => [...prev, userMessage]);
     
-    // Process user input for resource tags like #[title](id)
-    const resourceTagRegex = /#\[([^\]]+?)\]\(([^)]+?)\)/g;
-    const processedInput = input.replace(resourceTagRegex, (match, title, id) => id);
+    const processedInput = input;
 
     setInput('');
     setIsLoading(true);
@@ -73,16 +72,13 @@ export default function BtBotPage() {
     let match;
 
     while ((match = resourceTagRegex.exec(text)) !== null) {
-      // Push text before the match
       if (match.index > lastIndex) {
         parts.push(text.substring(lastIndex, match.index));
       }
-      // Push the resource link object
       parts.push({ type: 'resource', content: match[1], id: match[2] });
       lastIndex = match.index + match[0].length;
     }
 
-    // Push remaining text after the last match
     if (lastIndex < text.length) {
       parts.push(text.substring(lastIndex));
     }

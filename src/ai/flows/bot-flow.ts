@@ -6,7 +6,7 @@
 
 import { ai } from '@/ai/genkit';
 import { getResource } from '@/lib/firebase/firestore';
-import { z, AIMessage, Part, toolRequest, toolResponse } from 'genkit';
+import { z, AIMessage, toolRequest, toolResponse } from 'genkit';
 
 const getResourceTool = ai.defineTool(
   {
@@ -19,7 +19,6 @@ const getResourceTool = ai.defineTool(
   },
   async (input) => {
     try {
-        // The AI might pass the whole object or just the string.
         const id = typeof input === 'string' ? input : input.resourceId;
         return await getResource(id);
     } catch (error) {
@@ -48,45 +47,36 @@ const prompt = ai.definePrompt({
 export async function askBot(query: string): Promise<string> {
     const history: AIMessage[] = [{ role: 'user', content: [{ text: query }] }];
 
-    // Start the conversation
-    let result = await prompt({ history });
-
     while (true) {
+        const result = await prompt({ history });
         const output = result.output;
-
+        
         if (!output || !output.content) {
             return "Sorry, I encountered an unexpected error. Please try again.";
         }
-        
+
         const toolRequestPart = output.content.find(part => part.toolRequest);
 
         if (!toolRequestPart || !toolRequestPart.toolRequest) {
-            // No tool request, so we are done. Return the text.
             const textResponse = result.text;
             if (textResponse) {
                 return textResponse;
             }
             return "I'm not sure how to respond to that. Can you try asking in a different way?";
         }
-        
-        // Add the AI's tool request to history
+
         history.push(output);
-        
+
         const toolRequest = toolRequestPart.toolRequest;
         
-        // The AI might pass the whole object or just the string ID.
         const toolInput = typeof toolRequest.input === 'string' 
-            ? toolRequest.input
+            ? toolRequest.input 
             : (toolRequest.input as { resourceId: string }).resourceId;
 
         const toolResult = await getResource(toolInput);
-
+        
         const toolResponsePart = toolResponse(toolRequest.name, toolResult);
         
-        // Add the tool's response to history for the next turn
         history.push({ role: 'tool', content: [toolResponsePart] });
-        
-        // Continue the conversation with the new history
-        result = await prompt({ history });
     }
 }
