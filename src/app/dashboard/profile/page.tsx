@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAuth } from "@/context/auth-context";
-import { getUserProfile } from "@/lib/firebase/firestore";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,19 +17,12 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from "firebase/auth";
 
-
-type UserProfile = {
-  username: string;
-  email: string;
-  photoURL?: string;
-};
 
 const passwordFormSchema = z.object({
   currentPassword: z.string().min(1, { message: "Current password is required." }),
@@ -46,6 +38,9 @@ export default function ProfilePage() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
   const form = useForm<z.infer<typeof passwordFormSchema>>({
     resolver: zodResolver(passwordFormSchema),
@@ -90,8 +85,11 @@ export default function ProfilePage() {
                 case 'auth/too-many-requests':
                     errorMessage = "Too many attempts. Please try again later.";
                     break;
+                case 'auth/invalid-credential':
+                     errorMessage = "The current password you entered is incorrect. Please try again.";
+                     break;
                 default:
-                    errorMessage = error.message;
+                    errorMessage = "An unexpected error occurred. Please try again.";
             }
          }
          toast({
@@ -151,9 +149,14 @@ export default function ProfilePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Current Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} />
-                      </FormControl>
+                      <div className="relative">
+                        <FormControl>
+                          <Input type={showCurrentPassword ? "text" : "password"} {...field} />
+                        </FormControl>
+                        <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowCurrentPassword(!showCurrentPassword)}>
+                            {showCurrentPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}
+                        </Button>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -164,9 +167,14 @@ export default function ProfilePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>New Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} />
-                      </FormControl>
+                      <div className="relative">
+                        <FormControl>
+                          <Input type={showNewPassword ? "text" : "password"} {...field} />
+                        </FormControl>
+                        <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowNewPassword(!showNewPassword)}>
+                            {showNewPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}
+                        </Button>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -177,9 +185,14 @@ export default function ProfilePage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Confirm New Password</FormLabel>
-                      <FormControl>
-                        <Input type="password" {...field} />
-                      </FormControl>
+                      <div className="relative">
+                        <FormControl>
+                          <Input type={showConfirmPassword ? "text" : "password"} {...field} />
+                        </FormControl>
+                         <Button type="button" variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>
+                            {showConfirmPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}
+                        </Button>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
