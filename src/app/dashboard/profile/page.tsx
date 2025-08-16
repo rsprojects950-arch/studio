@@ -2,8 +2,12 @@
 'use client';
 
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import { useAuth } from "@/context/auth-context";
 import { getUserProfile } from "@/lib/firebase/firestore";
+import { updatePasswordAction } from "@/lib/firebase/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +21,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { useToast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 type UserProfile = {
   username: string;
@@ -24,10 +31,31 @@ type UserProfile = {
   photoURL?: string;
 };
 
+const passwordFormSchema = z.object({
+  currentPassword: z.string().min(1, { message: "Current password is required." }),
+  newPassword: z.string().min(6, { message: "New password must be at least 6 characters." }),
+  confirmPassword: z.string().min(6, { message: "Please confirm your new password." }),
+}).refine((data) => data.newPassword === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+
 export default function ProfilePage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const form = useForm<z.infer<typeof passwordFormSchema>>({
+    resolver: zodResolver(passwordFormSchema),
+    defaultValues: {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    },
+  });
 
   useEffect(() => {
     async function fetchProfile() {
@@ -42,6 +70,38 @@ export default function ProfilePage() {
     }
     fetchProfile();
   }, [user]);
+
+  async function onSubmit(values: z.infer<typeof passwordFormSchema>) {
+    if (!user) return;
+    setIsSubmitting(true);
+    
+    try {
+        const result = await updatePasswordAction(
+            user.uid,
+            user.email!,
+            values.currentPassword,
+            values.newPassword
+        );
+        
+        if (result.success) {
+            toast({
+                title: "Success!",
+                description: "Your password has been updated.",
+            });
+            form.reset();
+        } else {
+            throw new Error(result.error || "An unknown error occurred.");
+        }
+    } catch (error) {
+         toast({
+            variant: "destructive",
+            title: "Password Update Failed",
+            description: (error as Error).message,
+        });
+    } finally {
+        setIsSubmitting(false);
+    }
+  }
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -82,22 +142,57 @@ export default function ProfilePage() {
             <CardDescription>Change your password here.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="current-password">Current Password</Label>
-              <Input id="current-password" type="password" disabled />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-password">New Password</Label>
-              <Input id="new-password" type="password" disabled />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <Input id="confirm-password" type="password" disabled />
-            </div>
-            <Button disabled>Update Password</Button>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="currentPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Current Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="newPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>New Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                 <FormField
+                  control={form.control}
+                  name="confirmPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Confirm New Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <Button type="submit" disabled={isSubmitting}>
+                   {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Update Password
+                </Button>
+              </form>
+            </Form>
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
+
