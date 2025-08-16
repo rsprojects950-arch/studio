@@ -49,6 +49,23 @@ export async function getTasks(userId: string): Promise<Task[]> {
   }
 }
 
+export async function getUserProfile(userId: string) {
+  if (!userId) {
+    return null;
+  }
+  try {
+    const userDocRef = doc(db, "users", userId);
+    const userDoc = await getDoc(userDocRef);
+    if (userDoc.exists()) {
+      return userDoc.data();
+    }
+    return null;
+  } catch (error) {
+    console.error("[getUserProfile] Error fetching user profile:", error);
+    return null;
+  }
+}
+
 export async function getDashboardStats(userId: string) {
   const tasks = await getTasks(userId);
   
@@ -68,8 +85,7 @@ export async function getDashboardStats(userId: string) {
   };
 
   const today = new Date();
-  // Set week to start on Sunday (0) to align with standard calendars
-  const startOfThisWeek = startOfWeek(today, { weekStartsOn: 0 });
+  const startOfThisWeek = startOfWeek(today, { weekStartsOn: 0 }); 
 
   const weekData = Array.from({ length: 7 }).map((_, i) => {
       const day = addDays(startOfThisWeek, i);
