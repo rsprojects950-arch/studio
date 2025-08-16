@@ -23,7 +23,6 @@ export const signInWithGoogle = async () => {
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     
-    // Check if user document exists, if not, create it
     const userDocRef = doc(db, 'users', user.uid);
     const userDoc = await getDoc(userDocRef);
     if (!userDoc.exists()) {
@@ -45,7 +44,6 @@ export const signUp = async (name: string, email, password) => {
   try {
     const result = await createUserWithEmailAndPassword(auth, email, password);
     const user = result.user;
-    // Create a document in Firestore
     await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         name: name,
