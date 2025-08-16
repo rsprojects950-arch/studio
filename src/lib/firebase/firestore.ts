@@ -11,6 +11,11 @@ export async function createUserProfile(profile: UserProfile): Promise<void> {
   await setDoc(userDocRef, profile);
 }
 
+export async function updateUserProfile(userId: string, profileData: Partial<UserProfile>): Promise<void> {
+  const userDocRef = doc(db, 'users', userId);
+  await updateDoc(userDocRef, profileData);
+}
+
 export async function getTasks(userId: string): Promise<Task[]> {
   if (!userId) {
     return [];

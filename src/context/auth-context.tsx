@@ -5,7 +5,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChangedHelper, signOut as signOutFirebase } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
-import { getUserProfile, createUserProfile } from '@/lib/firebase/firestore';
+import { getUserProfile, createUserProfile, updateUserProfile } from '@/lib/firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 
 
@@ -35,9 +35,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (userAuth) {
         setUser(userAuth);
         let userProfile = await getUserProfile(userAuth.uid);
+        
+        // This logic ensures every user has a complete profile.
         if (!userProfile) {
-          // If profile doesn't exist, create it. This handles first-time Google sign-ins
-          const newUsername = userAuth.email?.split('@')[0] || `user${Math.floor(Math.random() * 10000)}`;
+          // 1. If profile doesn't exist at all, create it.
+          // This handles first-time Google sign-ins or new registrations.
+          const newUsername = userAuth.email?.split('@')[0] || `user${Date.now().toString().slice(-4)}`;
           const newProfileData: UserProfile = {
             uid: userAuth.uid,
             username: userAuth.displayName || newUsername,
@@ -46,7 +49,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           };
           await createUserProfile(newProfileData);
           userProfile = newProfileData;
+        } else if (!userProfile.username) {
+          // 2. If profile exists but is missing a username (from old data structure)
+          // update it with a generated username.
+          const fallbackUsername = userProfile.email?.split('@')[0] || `user${Date.now().toString().slice(-4)}`;
+          userProfile.username = fallbackUsername;
+          await updateUserProfile(userAuth.uid, { username: fallbackUsername });
         }
+        
         setProfile(userProfile);
       } else {
         setUser(null);
