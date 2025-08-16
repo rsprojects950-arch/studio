@@ -414,7 +414,7 @@ export async function addMessage({ text, userId, replyTo, resourceLinks }: { tex
 export async function searchResources(queryText: string): Promise<Pick<Resource, 'id' | 'title' | 'type'>[]> {
     try {
         const resourcesCol = collection(db, 'resources');
-        const allDocsSnapshot = await getDocs(resourcesCol);
+        const allDocsSnapshot = await getDocs(query(resourcesCol, orderBy('title')));
         
         const allResources: Pick<Resource, 'id' | 'title' | 'type'>[] = [];
         allDocsSnapshot.forEach(doc => {
@@ -456,13 +456,16 @@ export async function getNotes(userId: string): Promise<Note[]> {
         const notes: Note[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
+            const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
+            const updatedAt = data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date();
+            
             notes.push({
                 id: doc.id,
                 userId: data.userId,
                 topic: data.topic,
                 content: data.content,
-                createdAt: (data.createdAt as Timestamp).toDate(),
-                updatedAt: (data.updatedAt as Timestamp).toDate(),
+                createdAt: createdAt,
+                updatedAt: updatedAt,
                 resourceLinks: data.resourceLinks || [],
             });
         });
@@ -472,3 +475,4 @@ export async function getNotes(userId: string): Promise<Note[]> {
         return [];
     }
 }
+
