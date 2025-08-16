@@ -411,19 +411,18 @@ export async function addMessage({ text, userId, replyTo, resourceLinks }: { tex
     return newMessage;
 }
 
-export async function searchResources(queryText: string): Promise<Pick<Resource, 'id' | 'title' | 'type'>[]> {
+export async function searchResources(queryText: string): Promise<(Resource & { id: string })[]> {
     try {
         const resourcesCol = collection(db, 'resources');
         const allDocsSnapshot = await getDocs(query(resourcesCol, orderBy('title')));
         
-        const allResources: Pick<Resource, 'id' | 'title' | 'type'>[] = [];
+        const allResources: (Resource & { id: string })[] = [];
         allDocsSnapshot.forEach(doc => {
             const data = doc.data();
             allResources.push({
                 id: doc.id,
-                title: data.title,
-                type: data.type
-            });
+                ...data
+            } as (Resource & { id: string }));
         });
 
         if (!queryText) {
@@ -474,10 +473,27 @@ export async function getNotes(userId: string): Promise<Note[]> {
                 updatedAt: updatedAt,
             });
         });
+        
         // Sort in-memory after fetching
         return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     } catch (error) {
         console.error("[getNotes] Error fetching notes from Firestore:", error);
         return [];
+    }
+}
+
+
+export async function getResource(resourceId: string): Promise<Resource | null> {
+    if (!resourceId) return null;
+    try {
+        const resourceRef = doc(db, 'resources', resourceId);
+        const resourceSnap = await getDoc(resourceRef);
+        if (resourceSnap.exists()) {
+            return resourceSnap.data() as Resource;
+        }
+        return null;
+    } catch (error) {
+        console.error("[getResource] Error fetching resource:", error);
+        return null;
     }
 }

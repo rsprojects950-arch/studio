@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -26,6 +25,7 @@ import {
   Target,
   PanelLeft,
   Notebook,
+  Bot,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import type { UserProfile } from '@/lib/types';
@@ -38,6 +38,7 @@ const mainNav = [
   { href: '/dashboard/notes', label: 'Notes', icon: Notebook },
   { href: '/dashboard/resources', label: 'Resources', icon: BookOpen },
   { href: '/dashboard/chat', label: 'Chat', icon: MessageSquare, id: 'chat' },
+  { href: '/dashboard/bt-bot', label: 'BT-bot', icon: Bot },
 ];
 
 const bottomNav = [

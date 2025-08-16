@@ -1,4 +1,3 @@
-
 'use client';
 
 import { usePathname } from 'next/navigation';
@@ -27,6 +26,8 @@ export function DashboardHeader() {
         return 'Resources';
       case 'chat':
         return 'Public Chat';
+      case 'bt-bot':
+        return 'BT-bot';
       case 'profile':
         return 'User Profile';
       default:
