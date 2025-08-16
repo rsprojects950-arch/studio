@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -65,44 +66,7 @@ export default function NotesPage() {
   const [resourceSearch, setResourceSearch] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => {
-    const fetchNotes = async () => {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-      try {
-        const userNotes = await getNotes(user.uid);
-        setNotes(userNotes);
-      } catch (error) {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to load notes.',
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchNotes();
-  }, [user, toast]);
-  
-  useEffect(() => {
-    if (editingNote) {
-      setContent(editingNote.content);
-    } else {
-      setContent('');
-    }
-  }, [editingNote]);
-
-  const handleOpenDialog = (note: Note | null = null) => {
-    setEditingNote(note);
-    setIsDialogOpen(true);
-  };
-  
-  const refreshNotes = async () => {
+  const refreshNotes = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -117,6 +81,27 @@ export default function NotesPage() {
     } finally {
       setLoading(false);
     }
+  }, [user, toast]);
+
+  useEffect(() => {
+    if (user) {
+      refreshNotes();
+    } else {
+      setLoading(false);
+    }
+  }, [user, refreshNotes]);
+  
+  useEffect(() => {
+    if (editingNote) {
+      setContent(editingNote.content);
+    } else {
+      setContent('');
+    }
+  }, [editingNote]);
+
+  const handleOpenDialog = (note: Note | null = null) => {
+    setEditingNote(note);
+    setIsDialogOpen(true);
   };
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -126,6 +111,8 @@ export default function NotesPage() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     formData.set('userId', user.uid);
+    // Manually append the content from state, as it's controlled
+    formData.set('content', content);
 
     try {
       if (editingNote) {
@@ -140,7 +127,7 @@ export default function NotesPage() {
       setContent('');
       setIsDialogOpen(false);
       setEditingNote(null);
-      await refreshNotes();
+      await refreshNotes(); // This is the crucial line that was missing
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred.';
       toast({ variant: 'destructive', title: 'Error', description: errorMessage });
