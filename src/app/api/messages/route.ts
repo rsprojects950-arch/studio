@@ -1,8 +1,9 @@
 
 import { NextResponse } from 'next/server';
-import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp, getDoc, where } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp, getDoc, where, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Message, UserProfile } from '@/lib/types';
+import { getUserProfile } from '@/lib/firebase/firestore';
 
 export async function GET(request: Request) {
   try {
@@ -65,16 +66,22 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { text, userId, userName, userAvatar } = await request.json();
-    if (!text || !userId || !userName) {
+    const { text, userId } = await request.json();
+    if (!text || !userId) {
       return new NextResponse('Missing required fields', { status: 400 });
+    }
+
+    const userProfile = await getUserProfile(userId) as UserProfile | null;
+
+    if (!userProfile) {
+        return new NextResponse('User profile not found', { status: 404 });
     }
 
     const messageData = {
       text,
       userId,
-      userName,
-      userAvatar,
+      userName: userProfile.name,
+      userAvatar: userProfile.photoURL,
       createdAt: serverTimestamp(),
     };
     
@@ -84,8 +91,8 @@ export async function POST(request: Request) {
       id: docRef.id,
       text: text,
       userId: userId,
-      userName: userName,
-      userAvatar: userAvatar,
+      userName: userProfile.name,
+      userAvatar: userProfile.photoURL,
       createdAt: new Date().toISOString(),
     };
 

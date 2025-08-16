@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
-import { getUserProfile } from '@/lib/firebase/firestore';
 import type { Message, UserProfile } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -15,13 +14,13 @@ import { Send, Loader2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
-const renderMessageWithMentions = (text: string, currentUserMame: string) => {
+const renderMessageWithMentions = (text: string, currentUserName: string) => {
     const mentionRegex = /(@[a-zA-Z0-9_ -]+)/g;
     const parts = text.split(mentionRegex);
 
     return parts.map((part, index) => {
         if (mentionRegex.test(part)) {
-            const isCurrentUserMention = part.substring(1).trim().toLowerCase() === currentUserMame.toLowerCase();
+            const isCurrentUserMention = part.substring(1).trim().toLowerCase() === currentUserName.toLowerCase();
             return (
                 <strong key={index} className={isCurrentUserMention ? 'bg-accent text-accent-foreground rounded px-1' : 'text-primary'}>
                     {part}
@@ -50,7 +49,7 @@ export default function ChatPage() {
 
     const fetchMessages = useCallback(async (isInitialLoad = false) => {
         if (!user) return;
-        setLoading(isInitialLoad);
+        if (isInitialLoad) setLoading(true);
         
         try {
             const url = isInitialLoad 
@@ -122,7 +121,7 @@ export default function ChatPage() {
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !newMessage.trim() || !userProfile) return;
+        if (!user || !newMessage.trim()) return;
 
         setSending(true);
         try {
@@ -131,9 +130,7 @@ export default function ChatPage() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     text: newMessage, 
-                    userId: user.uid, 
-                    userName: userProfile.name, 
-                    userAvatar: userProfile.photoURL
+                    userId: user.uid,
                 }),
             });
 
