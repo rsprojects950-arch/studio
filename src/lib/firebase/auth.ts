@@ -14,6 +14,8 @@ const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async () => {
   try {
+    // Explicitly use the default project-level authentication
+    auth.tenantId = null; 
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     
