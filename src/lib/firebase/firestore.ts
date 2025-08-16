@@ -8,9 +8,7 @@ import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } fr
 
 
 export async function getTasks(userId: string): Promise<Task[]> {
-  console.log(`[getTasks] Fetching tasks for userId: ${userId}`);
   if (!userId) {
-    console.log("[getTasks] No userId provided, returning empty array.");
     return [];
   }
 
@@ -19,7 +17,6 @@ export async function getTasks(userId: string): Promise<Task[]> {
   
   try {
     const querySnapshot = await getDocs(q);
-    console.log(`[getTasks] Firestore query returned ${querySnapshot.docs.length} documents.`);
 
     const tasks: Task[] = [];
     querySnapshot.forEach((doc) => {

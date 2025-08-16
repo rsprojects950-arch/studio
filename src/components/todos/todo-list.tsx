@@ -74,8 +74,10 @@ export function TodoList() {
   }, [user, toast]);
 
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+    if (user) {
+      fetchTasks();
+    }
+  }, [user, fetchTasks]);
 
   const sortedTasks = useMemo(() => {
     return [...tasks].sort((a, b) => {
@@ -102,8 +104,6 @@ export function TodoList() {
         return true;
       })
   }, [sortedTasks, searchTerm, filter]);
-
-  console.log("Filtered tasks:", filteredTasks);
   
   const toggleTaskStatus = async (taskId: string, currentStatus: 'ongoing' | 'completed') => {
     const newStatus = currentStatus === 'ongoing' ? 'completed' : 'ongoing';
@@ -286,7 +286,7 @@ export function TodoList() {
               filteredTasks.map((task) => {
                 const badgeInfo = getBadgeInfo(task.dueDate, task.status);
                 return (
-                  <TableRow key={task.id} data-state={task.status === 'completed' ? 'completed' : 'ongoing'}>
+                  <TableRow key={task.id} data-state={task.status === 'completed' ? 'ongoing' : 'ongoing'}>
                     <TableCell>
                       <Checkbox
                         checked={task.status === 'completed'}
