@@ -24,41 +24,43 @@ const renderMessageWithContent = (
     currentUserName: string,
     resourceLinks?: ResourceLink[]
 ) => {
-    const combinedRegex = /(#\[.*?\]\(.+?\)|\s*@[a-zA-Z0-9_]+)/g;
+    const combinedRegex = /(@[a-zA-Z0-9_]+)|(#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\))/g;
+
     const parts = text.split(combinedRegex);
     
     return parts.map((part, index) => {
         if (!part) return null;
 
-        const resourceMatch = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/.exec(part);
-        if (resourceMatch) {
-            const id = resourceMatch[2];
-            const resource = resourceLinks?.find(r => r.id === id);
-            
-            if (resource) {
+        // Check for a resource tag: #[title](id)
+        if (part.startsWith('#[') && part.endsWith(')')) {
+            const match = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/.exec(part);
+            if (match) {
+                const title = match[1];
+                const id = match[2];
+                 const resource = resourceLinks?.find(r => r.id === id);
                 return (
-                    <Link key={index} href={`/dashboard/resources?highlight=${resource.id}`} passHref>
+                     <Link key={index} href={`/dashboard/resources?highlight=${id}`} passHref>
                         <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20">
                             <BookOpen className="h-3 w-3 mr-1" />
-                            {resource.title}
+                            {title}
                         </Badge>
                     </Link>
                 );
             }
-             return part;
         }
         
-        const mentionMatch = /@([a-zA-Z0-9_]+)/.exec(part);
-        if (mentionMatch) {
-            const mention = mentionMatch[1];
+        // Check for a mention: @username
+        if (part.startsWith('@')) {
+            const mention = part.substring(1);
             const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
             return (
                 <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary')}>
-                    {`@${mention}`}
+                    {part}
                 </strong>
             );
         }
 
+        // Otherwise, it's plain text
         return <span key={index}>{part}</span>;
     }).filter(Boolean);
 };
@@ -248,11 +250,7 @@ export default function ChatPage() {
             setResourcePopoverOpen(true);
             const query = currentWord.substring(1);
             setResourceSearch(query);
-            if (query) {
-                fetchResources(query);
-            } else {
-                setResources([]);
-            }
+            fetchResources(query);
         } else {
             setResourcePopoverOpen(false);
             setMentionPopoverOpen(false);
@@ -292,10 +290,6 @@ export default function ChatPage() {
     }
 
     const fetchResources = useCallback(async(query: string) => {
-        if (!query) {
-            setResources([]);
-            return;
-        }
         try {
             const res = await fetch(`/api/resources?q=${query}`);
             const data = await res.json();

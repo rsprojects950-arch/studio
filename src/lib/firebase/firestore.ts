@@ -412,31 +412,34 @@ export async function addMessage({ text, userId, replyTo, resourceLinks }: { tex
 }
 
 export async function searchResources(queryText: string): Promise<Pick<Resource, 'id' | 'title' | 'type'>[]> {
-    if (!queryText) return [];
-    const lowerCaseQuery = queryText.toLowerCase();
-    
     try {
         const resourcesCol = collection(db, 'resources');
         const allDocsSnapshot = await getDocs(resourcesCol);
+        
         const allResources: Pick<Resource, 'id' | 'title' | 'type'>[] = [];
-
         allDocsSnapshot.forEach(doc => {
             const data = doc.data();
-            if (data.title && typeof data.title === 'string' && data.title.toLowerCase().includes(lowerCaseQuery)) {
-                allResources.push({
-                    id: doc.id,
-                    title: data.title,
-                    type: data.type
-                });
-            }
+            allResources.push({
+                id: doc.id,
+                title: data.title,
+                type: data.type
+            });
         });
 
-        // Limit the results
-        return allResources.slice(0, 10);
+        if (!queryText) {
+            return allResources.slice(0, 10); // Return most recent if no query
+        }
+
+        const lowerCaseQuery = queryText.toLowerCase();
+        
+        const filteredResources = allResources.filter(resource => 
+            resource.title.toLowerCase().includes(lowerCaseQuery)
+        );
+
+        return filteredResources.slice(0, 10);
     } catch (error) {
         console.error("Error searching resources:", error);
         return [];
     }
 }
     
-
