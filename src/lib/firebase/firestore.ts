@@ -1,7 +1,7 @@
 
 'use server';
 
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, onSnapshot, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Task, Message } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
@@ -170,24 +170,20 @@ export async function sendMessage(userId: string, userName: string, userAvatar: 
     }
 }
 
-export function getMessages(callback: (messages: Message[]) => void): () => void {
-    const q = query(collection(db, 'messages'), orderBy('createdAt', 'desc'), limit(50));
-
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const messages: Message[] = [];
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            messages.push({
-                id: doc.id,
-                text: data.text,
-                userId: data.userId,
-                userName: data.userName,
-                userAvatar: data.userAvatar,
-                createdAt: (data.createdAt as Timestamp)?.toDate() || new Date(),
-            });
+export async function getMessages(): Promise<Message[]> {
+    const q = query(collection(db, 'messages'), orderBy('createdAt', 'asc'), limit(50));
+    const querySnapshot = await getDocs(q);
+    const messages: Message[] = [];
+    querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        messages.push({
+            id: doc.id,
+            text: data.text,
+            userId: data.userId,
+            userName: data.userName,
+            userAvatar: data.userAvatar,
+            createdAt: (data.createdAt as Timestamp)?.toDate() || new Date(),
         });
-        callback(messages.reverse());
     });
-
-    return unsubscribe;
+    return messages;
 }

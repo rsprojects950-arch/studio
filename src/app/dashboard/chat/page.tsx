@@ -24,13 +24,23 @@ export default function ChatPage() {
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const unsubscribe = getMessages((newMessages) => {
-            setMessages(newMessages);
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
-    }, []);
+        const fetchMessages = async () => {
+            setLoading(true);
+            try {
+                const initialMessages = await getMessages();
+                setMessages(initialMessages);
+            } catch (error) {
+                 toast({
+                    variant: 'destructive',
+                    title: 'Error',
+                    description: 'Failed to load messages.'
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchMessages();
+    }, [toast]);
     
     useEffect(() => {
         // Auto-scroll to the bottom
@@ -48,6 +58,10 @@ export default function ChatPage() {
         try {
             await sendMessage(user.uid, user.displayName || 'Anonymous', user.photoURL, newMessage);
             setNewMessage('');
+            // Refetch messages after sending
+            const updatedMessages = await getMessages();
+            setMessages(updatedMessages);
+
         } catch (error) {
             toast({
                 variant: 'destructive',
@@ -112,9 +126,9 @@ export default function ChatPage() {
                             placeholder="Type a message..." 
                             value={newMessage}
                             onChange={(e) => setNewMessage(e.target.value)}
-                            disabled={sending}
+                            disabled={sending || !user}
                         />
-                        <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim()}>
+                        <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>
                             {sending ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
                             ) : (
