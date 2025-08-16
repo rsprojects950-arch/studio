@@ -40,30 +40,43 @@ export async function askBot(query: string): Promise<string> {
     const history: AIMessage[] = [{role: 'user', content: [{text: query}]}];
     
     while(true) {
-        const {output} = await prompt(history);
+        const result = await prompt(history);
+        const output = result.output;
 
-        if (output?.content) {
-            let text = '';
-            output.content.forEach((part: Part) => {
-                if(part.text) {
-                    text += part.text;
-                }
-            });
-
-            if(text) {
-                return text;
-            }
+        if (!output) {
+             return "Sorry, I encountered an unexpected error. Please try again.";
         }
-        
-        const toolRequestPart = output?.content.find(part => part.toolRequest);
+
+        const toolRequestPart = output.content.find(part => part.toolRequest);
         if (toolRequestPart?.toolRequest) {
-            const toolResponsePart = toolResponse(toolRequestPart.toolRequest.name, await getResource(toolRequestPart.toolRequest.input.resourceId));
-            history.push(output!);
+            const toolResponsePart = toolResponse(
+                toolRequestPart.toolRequest.name, 
+                // Ensure input is an object with resourceId, even if it's a string.
+                await getResource(
+                    typeof toolRequestPart.toolRequest.input === 'string' 
+                    ? toolRequestPart.toolRequest.input 
+                    : toolRequestPart.toolRequest.input.resourceId
+                )
+            );
+            history.push(output);
             history.push({role: 'tool', content: [toolResponsePart]});
-            continue;
+            // Continue the loop to get the AI's final response after using the tool
+            continue; 
         }
 
+        // If no tool request, we have the final answer.
+        let text = '';
+        output.content.forEach((part: Part) => {
+            if(part.text) {
+                text += part.text;
+            }
+        });
+
+        if(text) {
+            return text;
+        }
+
+        // Fallback if there's no text and no tool request.
         return "I'm not sure how to respond to that. Can you try asking in a different way?";
     }
 }
-
