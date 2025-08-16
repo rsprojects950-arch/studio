@@ -19,6 +19,12 @@ export type ShortTermGoal = {
   isTransferred?: boolean;
 }
 
+export type ResourceLink = {
+  id: string;
+  title: string;
+  type: string;
+};
+
 export type Message = {
   id: string;
   text: string;
@@ -29,6 +35,7 @@ export type Message = {
   replyToId?: string;
   replyToText?: string;
   replyToUsername?: string;
+  resourceLinks?: ResourceLink[];
 };
 
 export type UserProfile = {
@@ -49,4 +56,5 @@ export type Resource = {
   submittedByUsername: string;
   createdAt: Date;
   thumbnailUrl?: string;
+  title_lowercase?: string;
 };

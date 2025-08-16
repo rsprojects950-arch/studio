@@ -3,7 +3,7 @@
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Task, UserProfile, ShortTermGoal, Message } from '@/lib/types';
+import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
 
 export async function createUserProfile(profile: UserProfile): Promise<void> {
@@ -319,13 +319,21 @@ export async function checkAndTransferGoals(userId: string) {
 }
 
 
-export async function getMessages(since?: string | null): Promise<Omit<Message, 'createdAt'>[] & { createdAt: any }> {
+export async function getMessages({ since, lastId }: { since?: string | null, lastId?: string | null }): Promise<Omit<Message, 'createdAt'>[] & { createdAt: any }> {
     let q;
-    if (since) {
+    let baseQuery = collection(db, 'messages');
+    
+    if (lastId) {
+        // "Load More" scenario
+        const lastDocSnap = await getDoc(doc(db, 'messages', lastId));
+        q = query(baseQuery, orderBy('createdAt', 'desc'), limit(20), where('createdAt', '<', lastDocSnap.data()?.createdAt || serverTimestamp()));
+    } else if (since) {
+        // Polling for new messages
         const sinceDate = new Date(since);
-        q = query(collection(db, 'messages'), where('createdAt', '>', Timestamp.fromDate(sinceDate)), orderBy('createdAt', 'asc'));
+        q = query(baseQuery, where('createdAt', '>', Timestamp.fromDate(sinceDate)), orderBy('createdAt', 'asc'));
     } else {
-        q = query(collection(db, 'messages'), orderBy('createdAt', 'desc'), limit(50));
+        // Initial load
+        q = query(baseQuery, orderBy('createdAt', 'desc'), limit(20));
     }
     
     const querySnapshot = await getDocs(q);
@@ -342,16 +350,18 @@ export async function getMessages(since?: string | null): Promise<Omit<Message, 
             replyToId: data.replyToId,
             replyToText: data.replyToText,
             replyToUsername: data.replyToUsername,
+            resourceLinks: data.resourceLinks,
         });
     });
 
-    if (!since) {
+    if (lastId || !since) {
         messages.reverse();
     }
+
     return messages;
 }
 
-export async function addMessage({ text, userId, replyTo }: { text: string; userId: string; replyTo: any }): Promise<Message> {
+export async function addMessage({ text, userId, replyTo, resourceLinks }: { text: string; userId: string; replyTo: any; resourceLinks: ResourceLink[] | null }): Promise<Message> {
     const userProfile = await getUserProfile(userId) as UserProfile | null;
 
     if (!userProfile) {
@@ -372,6 +382,10 @@ export async function addMessage({ text, userId, replyTo }: { text: string; user
         messageData.replyToUsername = replyTo.username;
     }
     
+    if (resourceLinks) {
+        messageData.resourceLinks = resourceLinks;
+    }
+    
     const docRef = await addDoc(collection(db, 'messages'), messageData);
 
     const newMessage: Message = {
@@ -385,7 +399,47 @@ export async function addMessage({ text, userId, replyTo }: { text: string; user
         replyToId: replyTo.id,
         replyToText: replyTo.text,
         replyToUsername: replyTo.username,
-      })
+      }),
+      ...(resourceLinks && { resourceLinks }),
     };
     return newMessage;
+}
+
+export async function searchResources(queryText: string): Promise<Pick<Resource, 'id' | 'title' | 'type'>[]> {
+    if (!queryText) return [];
+
+    const lowerCaseQuery = queryText.toLowerCase();
+    
+    const resourcesRef = collection(db, 'resources');
+    const q = query(resourcesRef, 
+        where('title_lowercase', '>=', lowerCaseQuery),
+        where('title_lowercase', '<=', lowerCaseQuery + '\uf8ff'),
+        limit(10)
+    );
+
+    try {
+        const querySnapshot = await getDocs(q);
+        const resources: Pick<Resource, 'id' | 'title' | 'type'>[] = [];
+        querySnapshot.forEach((doc) => {
+            const data = doc.data();
+            resources.push({
+                id: doc.id,
+                title: data.title,
+                type: data.type
+            });
+        });
+        return resources;
+    } catch (error) {
+        // This likely means the composite index is missing. We will try a client-side filter as a fallback.
+        console.warn("Firestore query failed (likely missing index), falling back to client-side search.");
+        const allResourcesSnap = await getDocs(collection(db, 'resources'));
+        const allResources: Pick<Resource, 'id'|'title'|'type'>[] = [];
+        allResourcesSnap.forEach(doc => {
+            const data = doc.data();
+            if (data.title.toLowerCase().includes(lowerCaseQuery)) {
+                allResources.push({ id: doc.id, title: data.title, type: data.type });
+            }
+        });
+        return allResources.slice(0, 10);
+    }
 }

@@ -78,6 +78,7 @@ export async function createResourceAction(formData: FormData) {
       submittedByUid: userId,
       submittedByUsername: username,
       createdAt: serverTimestamp(),
+      title_lowercase: title.toLowerCase(), // for searching
     });
 
   } catch (error) {
@@ -128,6 +129,7 @@ export async function updateResourceAction(formData: FormData) {
       description,
       category,
       type,
+      title_lowercase: title.toLowerCase(),
     });
   } catch (error) {
     console.error("Error updating resource in Firestore:", error);

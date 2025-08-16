@@ -1,15 +1,16 @@
 
 import { NextResponse } from 'next/server';
 import { getMessages, addMessage } from '@/lib/firebase/firestore';
-import type { Message } from '@/lib/types';
+import type { Message, ResourceLink } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const since = searchParams.get('since');
+    const lastId = searchParams.get('lastId');
     
-    const messages = await getMessages(since);
+    const messages = await getMessages({since, lastId});
 
     const serializableMessages = messages.map(msg => ({
       ...msg,
@@ -25,12 +26,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { text, userId, replyTo } = await request.json();
+    const { text, userId, replyTo, resourceLinks } = await request.json();
     if (!text || !userId) {
       return new NextResponse('Missing required fields', { status: 400 });
     }
 
-    const newMessage = await addMessage({ text, userId, replyTo });
+    const newMessage = await addMessage({ text, userId, replyTo, resourceLinks });
     
     const serializableMessage: Message = {
       ...newMessage,

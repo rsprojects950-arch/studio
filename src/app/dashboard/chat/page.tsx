@@ -3,35 +3,63 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
-import type { Message, UserProfile } from '@/lib/types';
+import type { Message, UserProfile, Resource, ResourceLink } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Send, Loader2, MessageSquareReply, X } from "lucide-react";
+import { Send, Loader2, MessageSquareReply, X, Hash, BookOpen } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { useUnreadCount } from '@/context/unread-count-context';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import Link from 'next/link';
 
-const renderMessageWithMentions = (text: string, currentUserName: string, isSender: boolean) => {
-    if (isSender) {
-        return <span>{text}</span>;
-    }
-    
+const renderMessageWithContent = (
+    text: string, 
+    currentUserName: string, 
+    isSender: boolean,
+    resourceLinks?: ResourceLink[]
+) => {
     const mentionRegex = /(@[a-zA-Z0-9_]+)/g;
-    const parts = text.split(mentionRegex);
+    const resourceRegex = /(#\[[^\]]+\]\([a-zA-Z0-9-]+\))/g; // Matches #[Title](id)
+    const combinedRegex = new RegExp(`(${mentionRegex.source}|${resourceRegex.source})`, 'g');
+    
+    const parts = text.split(combinedRegex).filter(part => part);
 
     return parts.map((part, index) => {
         if (part.match(mentionRegex)) {
+            if (isSender) return part; // Don't style mentions for the sender
             const isCurrentUserMention = part.substring(1).trim().toLowerCase() === currentUserName.toLowerCase();
             return (
                 <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary')}>
                     {part}
                 </strong>
             );
+        }
+        if (part.match(resourceRegex)) {
+            const titleMatch = part.match(/#\[([^\]]+)\]/);
+            const idMatch = part.match(/\(([a-zA-Z0-9-]+)\)/);
+            
+            if (titleMatch && idMatch) {
+                const title = titleMatch[1];
+                const id = idMatch[1];
+                const resource = resourceLinks?.find(r => r.id === id);
+
+                if (resource) {
+                    return (
+                        <Link key={index} href={`/dashboard/resources?highlight=${resource.id}`} passHref>
+                           <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20">
+                                <BookOpen className="h-3 w-3 mr-1" />
+                                {resource.title}
+                           </Badge>
+                        </Link>
+                    )
+                }
+            }
         }
         return part;
     });
@@ -48,8 +76,13 @@ export default function ChatPage() {
     const [sending, setSending] = useState(false);
     
     const [users, setUsers] = useState<Pick<UserProfile, 'uid' | 'username' | 'photoURL'>[]>([]);
+    const [resources, setResources] = useState<Pick<Resource, 'id' | 'title' | 'type'>[]>([]);
+    
     const [mentionSearch, setMentionSearch] = useState('');
     const [isMentionPopoverOpen, setMentionPopoverOpen] = useState(false);
+    
+    const [resourceSearch, setResourceSearch] = useState('');
+    const [isResourcePopoverOpen, setResourcePopoverOpen] = useState(false);
     
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
@@ -139,6 +172,21 @@ export default function ChatPage() {
         if (!user || !newMessage.trim()) return;
 
         setSending(true);
+
+        const resourceTagRegex = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/g;
+        let match;
+        const resourceLinks: ResourceLink[] = [];
+        while((match = resourceTagRegex.exec(newMessage)) !== null) {
+            const resource = resources.find(r => r.id === match[2]);
+            if (resource) {
+                 resourceLinks.push({
+                    id: resource.id,
+                    title: resource.title,
+                    type: resource.type,
+                });
+            }
+        }
+
         try {
             const response = await fetch('/api/messages', {
                 method: 'POST',
@@ -150,7 +198,8 @@ export default function ChatPage() {
                         id: replyingTo.id,
                         text: replyingTo.text,
                         username: replyingTo.username
-                    } : null
+                    } : null,
+                    resourceLinks: resourceLinks.length > 0 ? resourceLinks : null,
                 }),
             });
 
@@ -183,27 +232,75 @@ export default function ChatPage() {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const text = e.target.value;
         setNewMessage(text);
+        setResourcePopoverOpen(false);
+        setMentionPopoverOpen(false);
 
-        const lastWord = text.split(" ").pop() || "";
+        const cursorPosition = e.target.selectionStart || 0;
+        const textUpToCursor = text.substring(0, cursorPosition);
+        const currentWord = textUpToCursor.split(/\s+/).pop() || "";
         
-        if (lastWord.startsWith('@')) {
+        if (currentWord.startsWith('@')) {
             setMentionPopoverOpen(true);
-            setMentionSearch(lastWord.substring(1));
-        } else {
-            setMentionPopoverOpen(false);
+            setMentionSearch(currentWord.substring(1));
+        } else if (currentWord.startsWith('#')) {
+            setResourcePopoverOpen(true);
+            const query = currentWord.substring(1);
+            setResourceSearch(query);
+            if (query) {
+                fetchResources(query);
+            } else {
+                setResources([]);
+            }
         }
     };
 
     const handleMentionSelect = (username: string) => {
-        setNewMessage(current => {
-            const parts = current.trim().split(' ');
-            parts.pop(); // remove the partial @mention
-            return `${parts.join(' ')} @${username} `;
-        });
+        const currentText = newMessage;
+        const cursorPosition = inputRef.current?.selectionStart || 0;
+        const textUpToCursor = currentText.substring(0, cursorPosition);
+        const textAfterCursor = currentText.substring(cursorPosition);
+        
+        const lastWordIndex = textUpToCursor.lastIndexOf('@');
+        const prefix = textUpToCursor.substring(0, lastWordIndex);
+
+        setNewMessage(`${prefix}@${username} ${textAfterCursor}`);
         setMentionPopoverOpen(false);
         setMentionSearch('');
         inputRef.current?.focus();
     };
+    
+    const handleResourceSelect = (resource: Pick<Resource, 'id' | 'title' | 'type'>) => {
+        const currentText = newMessage;
+        const cursorPosition = inputRef.current?.selectionStart || 0;
+        const textUpToCursor = currentText.substring(0, cursorPosition);
+        const textAfterCursor = currentText.substring(cursorPosition);
+        
+        const lastWordIndex = textUpToCursor.lastIndexOf('#');
+        const prefix = textUpToCursor.substring(0, lastWordIndex);
+
+        const tag = `#[${resource.title}](${resource.id}) `;
+
+        setNewMessage(`${prefix}${tag}${textAfterCursor}`);
+        setResourcePopoverOpen(false);
+        setResourceSearch('');
+        setResources([]);
+        inputRef.current?.focus();
+    }
+
+    const fetchResources = useCallback(async(query: string) => {
+        if (!query) {
+            setResources([]);
+            return;
+        }
+        try {
+            const res = await fetch(`/api/resources?q=${query}`);
+            const data = await res.json();
+            setResources(data);
+        } catch(error) {
+            console.error("Failed to fetch resources for tagging", error);
+        }
+
+    }, []);
 
     const handleSetReply = (message: Message) => {
         setReplyingTo(message);
@@ -211,13 +308,14 @@ export default function ChatPage() {
     }
     
     const filteredUsers = users.filter(u => u.username && u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
+    const filteredResources = resources.filter(r => r.title.toLowerCase().includes(resourceSearch.toLowerCase()));
 
     return (
         <div className="flex-1 flex flex-col p-4 md:p-8 pt-6 h-[calc(100vh-4rem)]">
             <Card className="flex-1 flex flex-col">
                 <CardHeader>
                     <CardTitle>Community Discussion</CardTitle>
-                    <CardDescription>Discuss ideas and get support from the community. Mention others with @username.</CardDescription>
+                    <CardDescription>Discuss ideas and get support. Mention users with @username or tag resources with #resourcename.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex-1 overflow-hidden p-0">
                     <ScrollArea className="h-full p-6" ref={scrollAreaRef}>
@@ -245,7 +343,7 @@ export default function ChatPage() {
                                                             <p className="truncate">{msg.replyToText}</p>
                                                         </div>
                                                     )}
-                                                    <p className="whitespace-pre-wrap break-words">{renderMessageWithMentions(msg.text, userProfile?.username || '', user?.uid === msg.userId)}</p>
+                                                    <p className="whitespace-pre-wrap break-words">{renderMessageWithContent(msg.text, userProfile?.username || '', user?.uid === msg.userId, msg.resourceLinks)}</p>
                                                 </div>
                                                 <span className="text-xs text-muted-foreground mt-1">
                                                     {format(new Date(msg.createdAt), 'p')}
@@ -286,48 +384,81 @@ export default function ChatPage() {
                         </div>
                     )}
                     <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
-                        <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
-                            <PopoverTrigger asChild>
-                                <div className="w-full" />
-                            </PopoverTrigger>
-                             <Input
-                                ref={inputRef}
-                                placeholder="Type a message..."
-                                value={newMessage}
-                                onChange={handleInputChange}
-                                autoComplete="off"
-                                disabled={sending || !user}
-                                className="w-full"
-                            />
-                            <PopoverContent className="w-80 p-0" align="start" side="top">
-                                <div className="flex flex-col">
-                                    <div className="p-2 border-b">
-                                        <p className="text-sm font-medium">Mention a user</p>
-                                    </div>
-                                    <ScrollArea className="max-h-48">
-                                        <div className="p-1">
-                                            {filteredUsers.length > 0 ? (
-                                                filteredUsers.map(u => (
-                                                    <div
-                                                        key={u.uid}
-                                                        className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
-                                                        onClick={() => handleMentionSelect(u.username)}
-                                                    >
-                                                        <Avatar className="h-6 w-6">
-                                                            <AvatarImage src={u.photoURL || undefined} />
-                                                            <AvatarFallback>{u.username.charAt(0)}</AvatarFallback>
-                                                        </Avatar>
-                                                        <span className="text-sm">{u.username}</span>
-                                                    </div>
-                                                ))
-                                            ) : (
-                                                <p className="p-2 text-sm text-muted-foreground">No users found.</p>
-                                            )}
+                        <div className="w-full relative">
+                            <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
+                                <PopoverTrigger asChild><div/></PopoverTrigger>
+                                <Input
+                                    ref={inputRef}
+                                    placeholder="Type a message..."
+                                    value={newMessage}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    disabled={sending || !user}
+                                    className="w-full"
+                                />
+                                <PopoverContent className="w-80 p-0" align="start" side="top">
+                                    <div className="flex flex-col">
+                                        <div className="p-2 border-b flex items-center gap-2">
+                                            <Avatar className="h-4 w-4" />
+                                            <p className="text-sm font-medium">Mention a user</p>
                                         </div>
-                                    </ScrollArea>
-                                </div>
-                            </PopoverContent>
-                        </Popover>
+                                        <ScrollArea className="max-h-48">
+                                            <div className="p-1">
+                                                {filteredUsers.length > 0 ? (
+                                                    filteredUsers.map(u => (
+                                                        <div
+                                                            key={u.uid}
+                                                            className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                                                            onClick={() => handleMentionSelect(u.username)}
+                                                        >
+                                                            <Avatar className="h-6 w-6">
+                                                                <AvatarImage src={u.photoURL || undefined} />
+                                                                <AvatarFallback>{u.username.charAt(0)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <span className="text-sm">{u.username}</span>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <p className="p-2 text-sm text-muted-foreground">No users found.</p>
+                                                )}
+                                            </div>
+                                        </ScrollArea>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                            <Popover open={isResourcePopoverOpen} onOpenChange={setResourcePopoverOpen}>
+                                 <PopoverTrigger asChild><div/></PopoverTrigger>
+                                 <PopoverContent className="w-80 p-0" align="start" side="top">
+                                     <div className="flex flex-col">
+                                         <div className="p-2 border-b flex items-center gap-2">
+                                             <Hash className="h-4 w-4" />
+                                             <p className="text-sm font-medium">Tag a resource</p>
+                                         </div>
+                                         <ScrollArea className="max-h-48">
+                                             <div className="p-1">
+                                                 {filteredResources.length > 0 ? (
+                                                     filteredResources.map(r => (
+                                                         <div
+                                                             key={r.id}
+                                                             className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                                                             onClick={() => handleResourceSelect(r)}
+                                                         >
+                                                             <BookOpen className="h-4 w-4 text-muted-foreground" />
+                                                             <div className="flex flex-col">
+                                                                <span className="text-sm">{r.title}</span>
+                                                                <span className="text-xs text-muted-foreground">{r.type}</span>
+                                                             </div>
+                                                         </div>
+                                                     ))
+                                                 ) : (
+                                                     <p className="p-2 text-sm text-muted-foreground">No resources found.</p>
+                                                 )}
+                                             </div>
+                                         </ScrollArea>
+                                     </div>
+                                 </PopoverContent>
+                            </Popover>
+                        </div>
                          <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>
                             {sending ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
