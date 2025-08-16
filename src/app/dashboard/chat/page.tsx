@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -21,42 +20,62 @@ import Link from 'next/link';
 
 const renderMessageWithContent = (
     text: string, 
-    currentUserName: string,
-    resourceLinks?: ResourceLink[]
+    currentUserName: string
 ) => {
-    const combinedRegex = /(@[a-zA-Z0-9_]+)|(#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\))/g;
+    const regex = /(@[a-zA-Z0-9_]+)|(#\[([^\]]+?)\]\(([a-zA-Z0-9-]+)\))/g;
 
-    const parts = text.split(combinedRegex);
-    
-    return parts.filter(Boolean).map((part, index) => {
-        // Check for a resource tag: #[title](id)
-        const resourceMatch = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/.exec(part);
-        if (resourceMatch) {
-            const title = resourceMatch[1];
-            const id = resourceMatch[2];
+    const parts = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+        // Push the text before the match
+        if (match.index > lastIndex) {
+            parts.push(text.substring(lastIndex, match.index));
+        }
+
+        // Check if it's a mention or a resource tag
+        if (match[1]) { // It's a mention (@username)
+            parts.push({ type: 'mention', content: match[1] });
+        } else if (match[2]) { // It's a resource tag (#[title](id))
+            parts.push({ type: 'resource', content: match[3], id: match[4] });
+        }
+
+        lastIndex = regex.lastIndex;
+    }
+
+    // Push the remaining text after the last match
+    if (lastIndex < text.length) {
+        parts.push(text.substring(lastIndex));
+    }
+
+    return parts.map((part, index) => {
+        if (typeof part === 'string') {
+            return <span key={index}>{part}</span>;
+        }
+
+        if (part.type === 'mention') {
+            const mention = part.content.substring(1);
+            const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
             return (
-                 <Link key={index} href={`/dashboard/resources?highlight=${id}`} passHref>
+                <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary')}>
+                    {part.content}
+                </strong>
+            );
+        }
+
+        if (part.type === 'resource') {
+            return (
+                <Link key={index} href={`/dashboard/resources?highlight=${part.id}`} passHref>
                     <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20">
                         <BookOpen className="h-3 w-3 mr-1" />
-                        {title}
+                        {part.content}
                     </Badge>
                 </Link>
             );
         }
         
-        // Check for a mention: @username
-        if (part.startsWith('@')) {
-            const mention = part.substring(1);
-            const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
-            return (
-                <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary')}>
-                    {part}
-                </strong>
-            );
-        }
-
-        // Otherwise, it's plain text
-        return <span key={index}>{part}</span>;
+        return null;
     });
 };
 
@@ -173,15 +192,14 @@ export default function ChatPage() {
         const resourceLinks: ResourceLink[] = [];
         
         const messageTextForRegex = newMessage;
+        // The API doesn't have access to the full list of resources, so we send the links.
+        // This is a bit redundant with the text but ensures data integrity.
         while((match = resourceTagRegex.exec(messageTextForRegex)) !== null) {
-            const resource = allResources.find(r => r.id === match[2]);
-            if (resource) {
-                 resourceLinks.push({
-                    id: resource.id,
-                    title: resource.title,
-                    type: resource.type,
-                });
-            }
+             resourceLinks.push({
+                id: match[2],
+                title: match[1],
+                type: 'resource', // Type info isn't critical here, can be generic
+            });
         }
 
         try {
@@ -226,7 +244,6 @@ export default function ChatPage() {
         }
     };
     
-    const [allResources, setAllResources] = useState<Pick<Resource, 'id' | 'title' | 'type'>[]>([]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const text = e.target.value;
@@ -289,12 +306,6 @@ export default function ChatPage() {
             const res = await fetch(`/api/resources?q=${query}`);
             const data = await res.json();
             setResources(data);
-            // Add to a master list of all resources encountered to ensure we can render tags correctly
-            setAllResources(prev => {
-                const existingIds = new Set(prev.map(r => r.id));
-                const uniqueNew = data.filter((r: Resource) => !existingIds.has(r.id));
-                return [...prev, ...uniqueNew];
-            })
         } catch(error) {
             console.error("Failed to fetch resources for tagging", error);
         }
@@ -342,7 +353,7 @@ export default function ChatPage() {
                                                             <p className="truncate">{msg.replyToText}</p>
                                                         </div>
                                                     )}
-                                                    <div className="whitespace-pre-wrap break-words">{renderMessageWithContent(msg.text, userProfile?.username || '', msg.resourceLinks)}</div>
+                                                    <div className="whitespace-pre-wrap break-words">{renderMessageWithContent(msg.text, userProfile?.username || '')}</div>
                                                 </div>
                                                 <span className="text-xs text-muted-foreground mt-1">
                                                     {format(new Date(msg.createdAt), 'p')}
@@ -472,3 +483,4 @@ export default function ChatPage() {
         </div>
     );
 }
+ 
