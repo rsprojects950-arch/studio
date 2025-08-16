@@ -3,7 +3,7 @@
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Task, UserProfile, ShortTermGoal } from '@/lib/types';
+import type { Task, UserProfile, ShortTermGoal, Message } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
 
 export async function createUserProfile(profile: UserProfile): Promise<void> {
@@ -77,6 +77,30 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     return null;
   }
 }
+
+export async function getUserByUsername(username: string): Promise<UserProfile | null> {
+    const q = query(collection(db, 'users'), where('username', '==', username));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+        return querySnapshot.docs[0].data() as UserProfile;
+    }
+    return null;
+}
+
+export async function getAllUsers(): Promise<Omit<UserProfile, 'email'>[]> {
+    const usersSnapshot = await getDocs(collection(db, 'users'));
+    const users: Omit<UserProfile, 'email'>[] = [];
+    usersSnapshot.forEach((doc) => {
+        const data = doc.data();
+        users.push({
+            uid: data.uid,
+            username: data.username,
+            photoURL: data.photoURL
+        });
+    });
+    return users;
+}
+
 
 async function getAllShortTermGoals(userId: string): Promise<ShortTermGoal[]> {
   if (!userId) return [];
@@ -292,4 +316,76 @@ export async function checkAndTransferGoals(userId: string) {
   } catch (error) {
     console.error("Error transferring goals to tasks:", error);
   }
+}
+
+
+export async function getMessages(since?: string | null): Promise<Omit<Message, 'createdAt'>[] & { createdAt: any }> {
+    let q;
+    if (since) {
+        const sinceDate = new Date(since);
+        q = query(collection(db, 'messages'), where('createdAt', '>', Timestamp.fromDate(sinceDate)), orderBy('createdAt', 'asc'));
+    } else {
+        q = query(collection(db, 'messages'), orderBy('createdAt', 'desc'), limit(50));
+    }
+    
+    const querySnapshot = await getDocs(q);
+    const messages: Omit<Message, 'createdAt'>[] & { createdAt: any } = [];
+    querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        messages.push({
+            id: doc.id,
+            text: data.text,
+            userId: data.userId,
+            username: data.username,
+            userAvatar: data.userAvatar,
+            createdAt: data.createdAt,
+            replyToId: data.replyToId,
+            replyToText: data.replyToText,
+            replyToUsername: data.replyToUsername,
+        });
+    });
+
+    if (!since) {
+        messages.reverse();
+    }
+    return messages;
+}
+
+export async function addMessage({ text, userId, replyTo }: { text: string; userId: string; replyTo: any }): Promise<Message> {
+    const userProfile = await getUserProfile(userId) as UserProfile | null;
+
+    if (!userProfile) {
+        throw new Error('User profile not found');
+    }
+
+    const messageData: { [key: string]: any } = {
+      text,
+      userId,
+      username: userProfile.username,
+      userAvatar: userProfile.photoURL || '',
+      createdAt: serverTimestamp(),
+    };
+    
+    if (replyTo) {
+        messageData.replyToId = replyTo.id;
+        messageData.replyToText = replyTo.text;
+        messageData.replyToUsername = replyTo.username;
+    }
+    
+    const docRef = await addDoc(collection(db, 'messages'), messageData);
+
+    const newMessage: Message = {
+      id: docRef.id,
+      text: text,
+      userId: userId,
+      username: userProfile.username,
+      userAvatar: userProfile.photoURL || '',
+      createdAt: new Date().toISOString(),
+       ...(replyTo && { 
+        replyToId: replyTo.id,
+        replyToText: replyTo.text,
+        replyToUsername: replyTo.username,
+      })
+    };
+    return newMessage;
 }

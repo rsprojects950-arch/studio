@@ -1,20 +1,18 @@
 
 import { NextResponse } from 'next/server';
-import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { getAllUsers, getUserByUsername } from '@/lib/firebase/firestore';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const username = searchParams.get('username');
-  const email = searchParams.get('email');
 
   if (username) {
     try {
-      const q = query(collection(db, 'users'), where('username', '==', username));
-      const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const userData = querySnapshot.docs[0].data();
-        return NextResponse.json({ exists: true, email: userData.email });
+      const user = await getUserByUsername(username);
+      if (user) {
+        return NextResponse.json({ exists: true, email: user.email });
       } else {
         return NextResponse.json({ exists: false });
       }
@@ -24,10 +22,11 @@ export async function GET(request: Request) {
     }
   }
 
-  if (email) {
-    // This part can be used in the future if needed
-    return new NextResponse('Not implemented', { status: 501 });
+  try {
+    const users = await getAllUsers();
+    return NextResponse.json(users);
+  } catch (error) {
+    console.error('Error getting all users:', error);
+    return new NextResponse('Internal Server Error', { status: 500 });
   }
-
-  return new NextResponse('Bad Request: username or email parameter required', { status: 400 });
 }

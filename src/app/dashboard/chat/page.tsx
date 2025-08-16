@@ -116,7 +116,7 @@ export default function ChatPage() {
     useEffect(() => {
         const fetchUsers = async () => {
             try {
-                const res = await fetch('/api/messages?action=get_users');
+                const res = await fetch('/api/users');
                 const data = await res.json();
                 setUsers(data);
             } catch (error) {
