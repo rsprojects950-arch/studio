@@ -1,9 +1,9 @@
 
 import { NextResponse } from 'next/server';
-import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp, getDoc, where, doc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Message, UserProfile } from '@/lib/types';
-import { getUserProfile } from '@/lib/firebase/firestore';
+import { getUserProfile }from '@/lib/firebase/firestore';
 
 export async function GET(request: Request) {
   try {
@@ -12,13 +12,12 @@ export async function GET(request: Request) {
 
     if (action === 'get_users') {
         const usersSnapshot = await getDocs(collection(db, 'users'));
-        const users: UserProfile[] = [];
+        const users: Omit<UserProfile, 'email'>[] = [];
         usersSnapshot.forEach((doc) => {
             const data = doc.data();
             users.push({
                 uid: data.uid,
-                name: data.name,
-                email: data.email,
+                username: data.username,
                 photoURL: data.photoURL
             });
         });
@@ -42,7 +41,7 @@ export async function GET(request: Request) {
             id: doc.id,
             text: data.text,
             userId: data.userId,
-            userName: data.userName,
+            username: data.username,
             userAvatar: data.userAvatar,
             createdAt: data.createdAt,
         });
@@ -80,7 +79,7 @@ export async function POST(request: Request) {
     const messageData = {
       text,
       userId,
-      userName: userProfile.name,
+      username: userProfile.username,
       userAvatar: userProfile.photoURL,
       createdAt: serverTimestamp(),
     };
@@ -91,7 +90,7 @@ export async function POST(request: Request) {
       id: docRef.id,
       text: text,
       userId: userId,
-      userName: userProfile.name,
+      username: userProfile.username,
       userAvatar: userProfile.photoURL,
       createdAt: new Date().toISOString(),
     };

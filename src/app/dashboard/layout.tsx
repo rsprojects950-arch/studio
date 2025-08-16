@@ -21,22 +21,22 @@ export default function DashboardLayout({
   const lastMessageTimestamp = useRef<string | null>(null);
 
   const handleNewMessages = useCallback((newMessages: Message[]) => {
-    if (newMessages.length > 0 && profile?.name) {
-      const mentionRegex = new RegExp(`@${profile.name}(\\s|$)`, 'i');
+    if (newMessages.length > 0 && profile?.username) {
+      const mentionRegex = new RegExp(`@${profile.username}(\\s|$)`, 'i');
       newMessages.forEach(msg => {
         // Don't notify for your own messages or if user is on chat page
         if (msg.userId !== user?.uid && mentionRegex.test(msg.text) && !window.location.pathname.includes('/chat')) {
           toast({
             title: "You were mentioned!",
-            description: `${msg.userName}: "${msg.text.substring(0, 50)}..."`,
+            description: `${msg.username}: "${msg.text.substring(0, 50)}..."`,
           });
         }
       });
     }
-  }, [user?.uid, profile?.name, toast]);
+  }, [user?.uid, profile?.username, toast]);
 
   const pollMessagesForNotifications = useCallback(async () => {
-    if (!user || !profile?.name) return;
+    if (!user || !profile?.username) return;
     
     try {
         const url = `/api/messages?since=${encodeURIComponent(lastMessageTimestamp.current || new Date(Date.now() - 10000).toISOString())}`;
@@ -57,7 +57,7 @@ export default function DashboardLayout({
     } catch (error) {
          // Fail silently
     }
-  }, [user, profile?.name, handleNewMessages]);
+  }, [user, profile?.username, handleNewMessages]);
 
   useEffect(() => {
     const interval = setInterval(() => {

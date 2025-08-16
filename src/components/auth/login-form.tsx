@@ -1,8 +1,8 @@
+
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -25,12 +25,11 @@ import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 const formSchema = z.object({
-  email: z.string().email({ message: "Please enter a valid email." }),
+  identifier: z.string().min(1, { message: "Email or username is required." }),
   password: z.string().min(1, { message: "Password is required." }),
 });
 
 export function LoginForm() {
-  const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -38,15 +37,15 @@ export function LoginForm() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      email: "",
+      identifier: "",
       password: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    const { email, password } = values;
-    const { error } = await signIn(email, password);
+    const { identifier, password } = values;
+    const { error } = await signIn(identifier, password);
 
     if (error) {
       toast({
@@ -54,8 +53,8 @@ export function LoginForm() {
         title: "Login Failed",
         description: (error as Error).message,
       });
-      setIsLoading(false);
     }
+    setIsLoading(false);
   }
 
   const handleGoogleSignIn = async () => {
@@ -67,8 +66,8 @@ export function LoginForm() {
         title: "Login Failed",
         description: (error as Error).message,
       });
-      setIsGoogleLoading(false);
     }
+    setIsGoogleLoading(false);
   };
 
 
@@ -86,12 +85,12 @@ export function LoginForm() {
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="email"
+              name="identifier"
               render={({ field }) => (
                 <FormItem>
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="identifier">Email or Username</Label>
                   <FormControl>
-                    <Input id="email" type="email" placeholder="m@example.com" {...field} />
+                    <Input id="identifier" placeholder="your@email.com or your_username" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

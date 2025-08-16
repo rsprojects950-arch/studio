@@ -37,10 +37,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         let userProfile = await getUserProfile(userAuth.uid);
         if (!userProfile) {
           // If profile doesn't exist, create it. This handles first-time Google sign-ins
-          // or cases where the profile creation after email signup might have failed.
-          const newProfileData = {
+          const newUsername = userAuth.email?.split('@')[0] || `user${Math.floor(Math.random() * 10000)}`;
+          const newProfileData: UserProfile = {
             uid: userAuth.uid,
-            name: userAuth.displayName || userAuth.email?.split('@')[0] || 'Anonymous',
+            username: userAuth.displayName || newUsername,
             email: userAuth.email || '',
             photoURL: userAuth.photoURL || null,
           };

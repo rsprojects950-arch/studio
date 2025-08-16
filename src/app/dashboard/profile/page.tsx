@@ -19,7 +19,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type UserProfile = {
-  name: string;
+  username: string;
   email: string;
   photoURL?: string;
 };
@@ -61,10 +61,10 @@ export default function ProfilePage() {
           ) : profile ? (
             <CardHeader className="items-center text-center p-6">
               <Avatar className="h-24 w-24 mb-4">
-                <AvatarImage src={profile.photoURL || "https://placehold.co/100x100.png"} alt={profile.name} data-ai-hint="user portrait" />
-                <AvatarFallback>{profile.name ? profile.name.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
+                <AvatarImage src={profile.photoURL || "https://placehold.co/100x100.png"} alt={profile.username} data-ai-hint="user portrait" />
+                <AvatarFallback>{profile.username ? profile.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
               </Avatar>
-              <CardTitle>{profile.name}</CardTitle>
+              <CardTitle>{profile.username}</CardTitle>
               <CardDescription>{profile.email}</CardDescription>
             </CardHeader>
           ) : (

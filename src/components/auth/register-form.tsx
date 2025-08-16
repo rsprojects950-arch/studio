@@ -1,8 +1,8 @@
+
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -25,32 +25,45 @@ import { signUp, signInWithGoogle } from "@/lib/firebase/auth";
 import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
-
 const formSchema = z.object({
-  name: z.string().min(1, { message: "Full name is required." }),
+  username: z.string()
+    .min(3, { message: "Username must be at least 3 characters." })
+    .max(20, { message: "Username must be at most 20 characters."})
+    .regex(/^[a-zA-Z0-9_]+$/, { message: "Username can only contain letters, numbers, and underscores." }),
   email: z.string().email({ message: "Please enter a valid email." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
 
 export function RegisterForm() {
-  const router = useRouter();
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
+      username: "",
       email: "",
       password: "",
     },
   });
-
+  
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    const { name, email, password } = values;
-    const { error } = await signUp(name, email, password);
+    setUsernameError(null);
+    
+    // Check if username is taken
+    const res = await fetch(`/api/users?username=${values.username}`);
+    const data = await res.json();
+    if (data.exists) {
+      setUsernameError("This username is already taken.");
+      setIsLoading(false);
+      return;
+    }
+    
+    const { username, email, password } = values;
+    const { error } = await signUp(username, email, password);
 
     if (error) {
       toast({
@@ -58,8 +71,8 @@ export function RegisterForm() {
         title: "Registration Failed",
         description: (error as Error).message,
       });
-      setIsLoading(false);
     }
+    setIsLoading(false);
   }
 
   const handleGoogleSignIn = async () => {
@@ -71,10 +84,9 @@ export function RegisterForm() {
         title: "Login Failed",
         description: (error as Error).message,
       });
-       setIsGoogleLoading(false);
     }
+    setIsGoogleLoading(false);
   };
-
 
   return (
     <Card>
@@ -88,16 +100,16 @@ export function RegisterForm() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
+             <FormField
               control={form.control}
-              name="name"
+              name="username"
               render={({ field }) => (
                 <FormItem>
-                  <Label htmlFor="name">Full Name</Label>
+                  <Label htmlFor="username">Username</Label>
                   <FormControl>
-                    <Input id="name" placeholder="John Doe" {...field} />
+                    <Input id="username" placeholder="your_username" {...field} />
                   </FormControl>
-                  <FormMessage />
+                  <FormMessage>{usernameError}</FormMessage>
                 </FormItem>
               )}
             />

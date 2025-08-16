@@ -22,7 +22,7 @@ const renderMessageWithMentions = (text: string, currentUserName: string) => {
         if (mentionRegex.test(part)) {
             const isCurrentUserMention = part.substring(1).trim().toLowerCase() === currentUserName.toLowerCase();
             return (
-                <strong key={index} className={isCurrentUserMention ? 'bg-primary text-primary-foreground rounded px-1' : 'text-primary font-bold'}>
+                <strong key={index} className={isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary font-bold'}>
                     {part}
                 </strong>
             );
@@ -40,7 +40,7 @@ export default function ChatPage() {
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
     
-    const [users, setUsers] = useState<UserProfile[]>([]);
+    const [users, setUsers] = useState<Pick<UserProfile, 'uid' | 'username' | 'photoURL'>[]>([]);
     const [mentionSearch, setMentionSearch] = useState('');
     const [isMentionPopoverOpen, setMentionPopoverOpen] = useState(false);
 
@@ -182,7 +182,7 @@ export default function ChatPage() {
         inputRef.current?.focus();
     };
     
-    const filteredUsers = users.filter(u => u.name.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
+    const filteredUsers = users.filter(u => u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
 
     return (
         <div className="flex-1 flex flex-col p-4 md:p-8 pt-6 h-[calc(100vh-4rem)]">
@@ -206,14 +206,14 @@ export default function ChatPage() {
                                     <div key={msg.id} className={`flex items-start gap-3 ${user?.uid === msg.userId ? "justify-end" : ""}`}>
                                         {user?.uid !== msg.userId && (
                                             <Avatar>
-                                                <AvatarImage src={msg.userAvatar || 'https://placehold.co/100x100.png'} alt={msg.userName} data-ai-hint="user portrait" />
-                                                <AvatarFallback>{msg.userName.charAt(0).toUpperCase()}</AvatarFallback>
+                                                <AvatarImage src={msg.userAvatar || 'https://placehold.co/100x100.png'} alt={msg.username} data-ai-hint="user portrait" />
+                                                <AvatarFallback>{msg.username.charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
                                         )}
                                         <div className={`flex flex-col ${user?.uid === msg.userId ? "items-end" : "items-start"}`}>
                                             <div className={`p-3 rounded-lg max-w-xs lg:max-w-md ${user?.uid === msg.userId ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                                                {user?.uid !== msg.userId && <p className="font-semibold text-sm mb-1">{msg.userName}</p>}
-                                                <p>{renderMessageWithMentions(msg.text, userProfile?.name || '')}</p>
+                                                {user?.uid !== msg.userId && <p className="font-semibold text-sm mb-1">{msg.username}</p>}
+                                                <p>{renderMessageWithMentions(msg.text, userProfile?.username || '')}</p>
                                             </div>
                                              <span className="text-xs text-muted-foreground mt-1">
                                                 {format(new Date(msg.createdAt), 'p')}
@@ -221,8 +221,8 @@ export default function ChatPage() {
                                         </div>
                                         {user?.uid === msg.userId && (
                                             <Avatar>
-                                                <AvatarImage src={userProfile?.photoURL || 'https://placehold.co/100x100.png'} alt={userProfile?.name || ''} data-ai-hint="user portrait" />
-                                                <AvatarFallback>{(userProfile?.name || 'U').charAt(0).toUpperCase()}</AvatarFallback>
+                                                <AvatarImage src={userProfile?.photoURL || 'https://placehold.co/100x100.png'} alt={userProfile?.username || ''} data-ai-hint="user portrait" />
+                                                <AvatarFallback>{(userProfile?.username || 'U').charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
                                         )}
                                     </div>
@@ -235,17 +235,16 @@ export default function ChatPage() {
                      <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
                         <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
                             <PopoverTrigger asChild>
-                                <div className="flex-1" />
+                                <Input 
+                                    ref={inputRef}
+                                    placeholder="Type a message..." 
+                                    value={newMessage}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    disabled={sending || !user}
+                                    className="w-full"
+                                />
                             </PopoverTrigger>
-                            <Input 
-                                ref={inputRef}
-                                placeholder="Type a message..." 
-                                value={newMessage}
-                                onChange={handleInputChange}
-                                autoComplete="off"
-                                disabled={sending || !user}
-                                className="w-full"
-                            />
                              <PopoverContent className="w-80 p-0" align="start">
                                 <div className="flex flex-col">
                                     <div className="p-2 border-b">
@@ -258,13 +257,13 @@ export default function ChatPage() {
                                             <div 
                                                 key={u.uid} 
                                                 className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
-                                                onClick={() => handleMentionSelect(u.name)}
+                                                onClick={() => handleMentionSelect(u.username)}
                                             >
                                                 <Avatar className="h-6 w-6">
                                                     <AvatarImage src={u.photoURL || undefined} />
-                                                    <AvatarFallback>{u.name.charAt(0)}</AvatarFallback>
+                                                    <AvatarFallback>{u.username.charAt(0)}</AvatarFallback>
                                                 </Avatar>
-                                                <span className="text-sm">{u.name}</span>
+                                                <span className="text-sm">{u.username}</span>
                                             </div>
                                             ))
                                         ) : (
