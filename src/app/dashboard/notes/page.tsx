@@ -108,8 +108,8 @@ export default function NotesPage() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     formData.set('userId', user.uid);
-    // This was the bug: content was not being correctly passed.
-    // It should be read from the form field directly.
+    // This was the bug: content was not being correctly passed from the form.
+    // This explicitly reads the value from the 'content' textarea at submission time.
     formData.set('content', (e.currentTarget.elements.namedItem('content') as HTMLTextAreaElement).value);
 
     try {
@@ -384,5 +384,7 @@ export default function NotesPage() {
     </div>
   );
 }
+
+    
 
     
