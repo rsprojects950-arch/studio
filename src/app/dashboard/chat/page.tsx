@@ -31,18 +31,7 @@ const renderMessageWithContent = (
     const parts = text.split(combinedRegex).filter(Boolean);
 
     return parts.map((part, index) => {
-        const mentionMatch = part.match(mentionRegex);
-        if (mentionMatch) {
-            const mention = mentionMatch[0].substring(1);
-            if (isSender) return `@${mention}`; // Show plain text for the user who sent it
-            const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
-            return (
-                <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary')}>
-                    {`@${mention}`}
-                </strong>
-            );
-        }
-
+        // Check for resource tag first
         const resourceMatch = part.match(/#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/);
         if (resourceMatch) {
             const title = resourceMatch[1];
@@ -57,10 +46,23 @@ const renderMessageWithContent = (
                             {resource.title}
                         </Badge>
                     </Link>
-                )
+                );
             }
         }
+        
+        // Then check for mention
+        if (part.match(mentionRegex)) {
+            const mention = part.substring(1);
+            if (isSender) return `@${mention}`; // Show plain text for the user who sent it
+            const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
+            return (
+                <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary')}>
+                    {`@${mention}`}
+                </strong>
+            );
+        }
 
+        // Otherwise, it's plain text
         return part;
     });
 };
