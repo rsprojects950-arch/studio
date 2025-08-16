@@ -427,7 +427,7 @@ export async function searchResources(queryText: string): Promise<Pick<Resource,
         });
 
         if (!queryText) {
-            return allResources.slice(0, 10); // Return most recent if no query
+            return allResources; // Return all resources if no query
         }
 
         const lowerCaseQuery = queryText.toLowerCase();
@@ -436,7 +436,7 @@ export async function searchResources(queryText: string): Promise<Pick<Resource,
             resource.title.toLowerCase().includes(lowerCaseQuery)
         );
 
-        return filteredResources.slice(0, 10);
+        return filteredResources;
     } catch (error) {
         console.error("Error searching resources:", error);
         return [];
