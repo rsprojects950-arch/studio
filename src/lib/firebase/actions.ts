@@ -5,8 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { addDoc, collection, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
-export async function createTaskAction(formData: FormData) {
-  const userId = formData.get('userId') as string;
+export async function createTaskAction(userId: string, formData: FormData) {
   if (!userId) {
     throw new Error('You must be logged in to create a task.');
   }
@@ -30,7 +29,7 @@ export async function createTaskAction(formData: FormData) {
       createdAt: any; 
       dueDate?: Timestamp;
     } = {
-      userId: userId,
+      userId: userId, // Use the authenticated userId passed as an argument
       title: title,
       status: 'ongoing',
       createdAt: serverTimestamp(),

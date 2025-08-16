@@ -74,10 +74,8 @@ export function TodoList() {
   }, [user, toast]);
 
   useEffect(() => {
-    if (user) {
-      fetchTasks();
-    }
-  }, [user, fetchTasks]);
+    fetchTasks();
+  }, [fetchTasks]);
 
   const sortedTasks = useMemo(() => {
     return [...tasks].sort((a, b) => {
@@ -164,11 +162,9 @@ export function TodoList() {
     if (newDueDate) {
       formData.set('dueDate', newDueDate.toISOString());
     }
-    formData.set('userId', user.uid);
-
 
     try {
-      await createTaskAction(formData);
+      await createTaskAction(user.uid, formData);
       formRef.current?.reset();
       setNewDueDate(undefined);
       setIsDialogOpen(false);
