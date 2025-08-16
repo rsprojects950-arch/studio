@@ -220,17 +220,20 @@ export default function ResourcesPage() {
             ))}
         </div>
         
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-             {loading ? (
-                Array.from({ length: 3 }).map((_, i) => <ResourceSkeleton key={i} />)
-            ) : filteredResources.length > 0 ? (
-                filteredResources.map(r => <ResourceCard key={r.id} resource={r} />)
-            ) : (
-                <NoResults />
-            )}
-        </div>
+        <TabsContent value={activeTab} className="mt-0">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {loading ? (
+                  Array.from({ length: 3 }).map((_, i) => <ResourceSkeleton key={i} />)
+              ) : filteredResources.length > 0 ? (
+                  filteredResources.map(r => <ResourceCard key={r.id} resource={r} />)
+              ) : (
+                  <NoResults />
+              )}
+          </div>
+        </TabsContent>
       </Tabs>
-       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
               <Button className="fixed bottom-8 right-8 h-14 w-14 rounded-full shadow-lg">
                   <Plus className="h-6 w-6" />
