@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -23,7 +24,7 @@ const renderMessageWithContent = (
     currentUserName: string,
     resourceLinks?: ResourceLink[]
 ) => {
-    const combinedRegex = /(#[^#\][]+\]\([a-zA-Z0-9-]+\)|@[a-zA-Z0-9_]+)/g;
+    const combinedRegex = /(#\[.*?\]\(.+?\)|\s*@[a-zA-Z0-9_]+)/g;
     const parts = text.split(combinedRegex);
     
     return parts.map((part, index) => {
@@ -482,3 +483,4 @@ export default function ChatPage() {
         </div>
     );
 }
+
