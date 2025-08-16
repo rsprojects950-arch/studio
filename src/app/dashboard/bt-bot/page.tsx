@@ -24,12 +24,14 @@ export default function BtBotPage() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
   useEffect(() => {
-    // Scroll to the bottom when messages change
-    if (scrollAreaRef.current) {
-      scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
-    }
+    scrollToBottom();
   }, [messages]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -38,15 +40,20 @@ export default function BtBotPage() {
 
     const userMessage: Message = { text: input, sender: 'user', id: Date.now().toString() };
     setMessages(prev => [...prev, userMessage]);
-    const currentInput = input;
+    
+    // Process user input for resource tags like #[title](id)
+    const resourceTagRegex = /#\[([^\]]+?)\]\(([^)]+?)\)/g;
+    const processedInput = input.replace(resourceTagRegex, (match, title, id) => id);
+
     setInput('');
     setIsLoading(true);
 
     try {
-      const botResponseText = await askBot(currentInput);
+      const botResponseText = await askBot(processedInput);
       const botMessage: Message = { text: botResponseText, sender: 'bot', id: (Date.now() + 1).toString() };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
+      console.error(error);
       const errorMessage: Message = {
         text: 'Sorry, something went wrong. Please try again.',
         sender: 'bot',
@@ -58,49 +65,52 @@ export default function BtBotPage() {
     }
   };
   
-    const renderBotMessage = (text: string) => {
-        const resourceTagRegex = /#\[([^\]]+?)\]\(([a-zA-Z0-9-]+)\)/g;
+  const renderBotMessage = (text: string) => {
+    const resourceTagRegex = /#\[([^\]]+?)\]\(([^)]+?)\)/g;
 
-        const parts = [];
-        let lastIndex = 0;
-        let match;
+    const parts = [];
+    let lastIndex = 0;
+    let match;
 
-        while ((match = resourceTagRegex.exec(text)) !== null) {
-            if (match.index > lastIndex) {
-                parts.push(text.substring(lastIndex, match.index));
-            }
-            parts.push({ type: 'resource', content: match[1], id: match[2] });
-            lastIndex = regex.lastIndex;
-        }
+    while ((match = resourceTagRegex.exec(text)) !== null) {
+      // Push text before the match
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      // Push the resource link object
+      parts.push({ type: 'resource', content: match[1], id: match[2] });
+      lastIndex = match.index + match[0].length;
+    }
 
-        if (lastIndex < text.length) {
-            parts.push(text.substring(lastIndex));
-        }
+    // Push remaining text after the last match
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
 
-        return parts.map((part, index) => {
-            if (typeof part === 'string') {
-                return <span key={index}>{part}</span>;
-            }
+    return parts.map((part, index) => {
+      if (typeof part === 'string') {
+        return <span key={index}>{part}</span>;
+      }
 
-            if (part.type === 'resource') {
-                return (
-                    <Link key={index} href={`/dashboard/resources?highlight=${part.id}`} passHref>
-                        <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20">
-                            <BookOpen className="h-3 w-3 mr-1" />
-                            {part.content}
-                        </Badge>
-                    </Link>
-                );
-            }
-            
-            return null;
-        });
-    };
+      if (part.type === 'resource') {
+        return (
+          <Link key={index} href={`/dashboard/resources?highlight=${part.id}`} passHref>
+            <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20">
+              <BookOpen className="h-3 w-3 mr-1" />
+              {part.content}
+            </Badge>
+          </Link>
+        );
+      }
+      
+      return null;
+    });
+  };
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
-      <div className="flex-1 overflow-hidden p-4 md:p-6">
-        <ScrollArea className="h-full" ref={scrollAreaRef}>
+      <div className="flex-1 overflow-hidden">
+         <ScrollArea className="h-full p-4 md:p-6" ref={scrollAreaRef}>
           <div className="space-y-6 pr-4">
             {messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
@@ -138,6 +148,7 @@ export default function BtBotPage() {
                 </div>
               </div>
             )}
+             <div ref={messagesEndRef} />
           </div>
         </ScrollArea>
       </div>
@@ -155,7 +166,7 @@ export default function BtBotPage() {
           </Button>
         </form>
          <p className="text-xs text-muted-foreground mt-2">
-            You can mention a resource using #. For example: <code className="bg-muted px-1 py-0.5 rounded">What is #Next.js?</code>
+            You can mention a resource using #[Resource Title](resource_id). The AI will use the ID to get details.
         </p>
       </div>
     </div>
