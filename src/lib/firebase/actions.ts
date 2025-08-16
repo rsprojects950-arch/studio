@@ -19,11 +19,14 @@ export async function createTaskAction(formData: FormData) {
   const dueDateStr = formData.get('dueDate') as string | null;
 
   try {
+    // The security of this action is enforced by Firestore Security Rules.
+    // The rule `allow create: if request.auth.uid == request.resource.data.userId;`
+    // ensures that a user can only create tasks for themselves.
     const taskData: {
       userId: string;
       title: string;
       status: 'ongoing';
-      createdAt: any; // Use `any` for serverTimestamp
+      createdAt: any; 
       dueDate?: Timestamp;
     } = {
       userId: userId,
@@ -40,7 +43,6 @@ export async function createTaskAction(formData: FormData) {
 
   } catch (error) {
     console.error("Error adding task to Firestore:", error);
-    // This generic error is being thrown. The 'error' object above would contain the root cause.
     throw new Error('Could not create task.');
   }
 

@@ -56,7 +56,7 @@ export function TodoList() {
   const [newDueDate, setNewDueDate] = useState<Date | undefined>(undefined);
 
   const fetchTasks = useCallback(async () => {
-    if (!user) return; // Guard clause
+    if (!user) return;
     setLoading(true);
     try {
       const userTasks = await getTasks(user.uid);
