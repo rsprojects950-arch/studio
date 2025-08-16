@@ -17,16 +17,16 @@ import { useUnreadCount } from '@/context/unread-count-context';
 
 
 const renderMessageWithMentions = (text: string, currentUserName: string, isSender: boolean) => {
-    // If the current user is the sender, just return the plain text
     if (isSender) {
         return text;
     }
     
-    const mentionRegex = /(@[a-zA-Z0-9_ -]+)/g;
+    // This regex will split the text by mentions, keeping the mentions as part of the result array.
+    const mentionRegex = /(@[a-zA-Z0-9_]+)/g;
     const parts = text.split(mentionRegex);
 
     return parts.map((part, index) => {
-        if (mentionRegex.test(part)) {
+        if (part.match(mentionRegex)) {
             const isCurrentUserMention = part.substring(1).trim().toLowerCase() === currentUserName.toLowerCase();
             return (
                 <strong key={index} className={isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary font-bold'}>
@@ -178,24 +178,19 @@ export default function ChatPage() {
         const text = e.target.value;
         setNewMessage(text);
 
-        const lastChar = text[text.length - 1];
         const lastWord = text.split(" ").pop() || "";
         
-        if (lastWord.startsWith('@') && lastWord.length > 1) {
+        if (lastWord.startsWith('@')) {
             setMentionPopoverOpen(true);
             setMentionSearch(lastWord.substring(1));
-        } else if (lastChar === '@') {
-            setMentionPopoverOpen(true);
-            setMentionSearch('');
-        }
-        else {
+        } else {
             setMentionPopoverOpen(false);
         }
     };
 
     const handleMentionSelect = (username: string) => {
         setNewMessage(current => {
-            const parts = current.split(' ');
+            const parts = current.trim().split(' ');
             parts.pop(); // remove the partial @mention
             return `${parts.join(' ')} @${username} `;
         });
@@ -255,22 +250,18 @@ export default function ChatPage() {
                 </CardContent>
                 <CardFooter className="p-4 border-t">
                     <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
-                        <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
+                         <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
                             <PopoverTrigger asChild>
-                                {/* The ancher for the popover is the form itself, not the input. */}
-                                <div className="w-full relative">
-                                     <Input
-                                        ref={inputRef}
-                                        placeholder="Type a message..."
-                                        value={newMessage}
-                                        onChange={handleInputChange}
-                                        autoComplete="off"
-                                        disabled={sending || !user}
-                                        className="w-full"
-                                    />
-                                </div>
+                                 <Input
+                                    ref={inputRef}
+                                    placeholder="Type a message..."
+                                    value={newMessage}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    disabled={sending || !user}
+                                    className="w-full"
+                                />
                             </PopoverTrigger>
-                           
                             <PopoverContent className="w-80 p-0" align="start" side="top">
                                 <div className="flex flex-col">
                                     <div className="p-2 border-b">
