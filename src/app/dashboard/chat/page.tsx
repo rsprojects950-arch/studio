@@ -25,15 +25,16 @@ const renderMessageWithContent = (
     resourceLinks?: ResourceLink[]
 ) => {
     const mentionRegex = /@([a-zA-Z0-9_]+)/g;
-    const resourceRegex = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/g; // Matches #[Title](id)
-    const combinedRegex = new RegExp(`(${mentionRegex.source})|(${resourceRegex.source})`, 'g');
+    const resourceRegex = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/g;
+    const combinedRegex = new RegExp(`(${mentionRegex.source}|${resourceRegex.source})`, 'g');
     
-    const parts = text.split(combinedRegex).filter(part => part);
+    const parts = text.split(combinedRegex).filter(Boolean);
 
     return parts.map((part, index) => {
-        if (part.match(mentionRegex)) {
-            const mention = part.substring(1);
-            if (isSender) return `@${mention}`;
+        const mentionMatch = part.match(mentionRegex);
+        if (mentionMatch) {
+            const mention = mentionMatch[0].substring(1);
+            if (isSender) return `@${mention}`; // Show plain text for the user who sent it
             const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
             return (
                 <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary')}>
@@ -41,27 +42,25 @@ const renderMessageWithContent = (
                 </strong>
             );
         }
-        if (part.match(resourceRegex)) {
-            const titleMatch = part.match(/#\[([^\]]+)\]/);
-            const idMatch = part.match(/\(([a-zA-Z0-9-]+)\)/);
-            
-            if (titleMatch && idMatch) {
-                const title = titleMatch[1];
-                const id = idMatch[1];
-                const resource = resourceLinks?.find(r => r.id === id);
 
-                if (resource) {
-                    return (
-                        <Link key={index} href={`/dashboard/resources?highlight=${resource.id}`} passHref>
-                           <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20">
-                                <BookOpen className="h-3 w-3 mr-1" />
-                                {resource.title}
-                           </Badge>
-                        </Link>
-                    )
-                }
+        const resourceMatch = part.match(/#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/);
+        if (resourceMatch) {
+            const title = resourceMatch[1];
+            const id = resourceMatch[2];
+            const resource = resourceLinks?.find(r => r.id === id);
+
+            if (resource) {
+                return (
+                    <Link key={index} href={`/dashboard/resources?highlight=${resource.id}`} passHref>
+                        <Badge variant="secondary" className="cursor-pointer hover:bg-primary/20">
+                            <BookOpen className="h-3 w-3 mr-1" />
+                            {resource.title}
+                        </Badge>
+                    </Link>
+                )
             }
         }
+
         return part;
     });
 };
@@ -177,8 +176,11 @@ export default function ChatPage() {
         const resourceTagRegex = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/g;
         let match;
         const resourceLinks: ResourceLink[] = [];
-        while((match = resourceTagRegex.exec(newMessage)) !== null) {
-            const resource = resources.find(r => r.id === match[2]);
+        
+        // Create a temporary copy for regex execution
+        const messageTextForRegex = newMessage;
+        while((match = resourceTagRegex.exec(messageTextForRegex)) !== null) {
+            const resource = allResources.find(r => r.id === match[2]);
             if (resource) {
                  resourceLinks.push({
                     id: resource.id,
@@ -230,6 +232,8 @@ export default function ChatPage() {
         }
     };
     
+    const [allResources, setAllResources] = useState<Pick<Resource, 'id' | 'title' | 'type'>[]>([]);
+
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const text = e.target.value;
         setNewMessage(text);
@@ -258,11 +262,12 @@ export default function ChatPage() {
     const handleMentionSelect = (username: string) => {
         const currentText = newMessage;
         const cursorPosition = inputRef.current?.selectionStart || 0;
+        
         const textUpToCursor = currentText.substring(0, cursorPosition);
         const textAfterCursor = currentText.substring(cursorPosition);
         
-        const lastWordIndex = textUpToCursor.lastIndexOf('@');
-        const prefix = textUpToCursor.substring(0, lastWordIndex);
+        const lastAtIndex = textUpToCursor.lastIndexOf('@');
+        const prefix = textUpToCursor.substring(0, lastAtIndex);
 
         setNewMessage(`${prefix}@${username} ${textAfterCursor}`);
         setMentionPopoverOpen(false);
@@ -276,8 +281,8 @@ export default function ChatPage() {
         const textUpToCursor = currentText.substring(0, cursorPosition);
         const textAfterCursor = currentText.substring(cursorPosition);
         
-        const lastWordIndex = textUpToCursor.lastIndexOf('#');
-        const prefix = textUpToCursor.substring(0, lastWordIndex);
+        const lastHashIndex = textUpToCursor.lastIndexOf('#');
+        const prefix = textUpToCursor.substring(0, lastHashIndex);
 
         const tag = `#[${resource.title}](${resource.id}) `;
 
@@ -297,6 +302,11 @@ export default function ChatPage() {
             const res = await fetch(`/api/resources?q=${query}`);
             const data = await res.json();
             setResources(data);
+            setAllResources(prev => {
+                const existingIds = new Set(prev.map(r => r.id));
+                const uniqueNew = data.filter((r: Resource) => !existingIds.has(r.id));
+                return [...prev, ...uniqueNew];
+            })
         } catch(error) {
             console.error("Failed to fetch resources for tagging", error);
         }
@@ -474,3 +484,5 @@ export default function ChatPage() {
         </div>
     );
 }
+
+    
