@@ -206,41 +206,51 @@ export async function checkAndTransferGoals(userId: string) {
   const goalsCol = collection(db, 'shortTermGoals');
   const today = new Date();
   
+  // Simplified query to fetch all non-transferred goals for the user.
   const q = query(
     goalsCol, 
     where('userId', '==', userId), 
-    where('isTransferred', '==', false),
-    where('dueDate', '<=', Timestamp.fromDate(today))
+    where('isTransferred', '==', false)
   );
   
-  const dueGoalsSnapshot = await getDocs(q);
+  const allGoalsSnapshot = await getDocs(q);
 
-  if (dueGoalsSnapshot.empty) {
+  if (allGoalsSnapshot.empty) {
     return;
   }
 
   const batch = writeBatch(db);
+  let hasDueGoals = false;
 
-  dueGoalsSnapshot.forEach(goalDoc => {
-    const goalData = goalDoc.data() as ShortTermGoal;
-    
-    // Create a new task
-    const tasksColRef = collection(db, 'tasks');
-    const newTaskRef = doc(tasksColRef); 
-    batch.set(newTaskRef, {
-      userId: userId,
-      title: goalData.title,
-      status: 'ongoing',
-      createdAt: serverTimestamp(),
-      dueDate: goalData.dueDate,
-      source: 'goal',
-      goalId: goalDoc.id
-    });
-    
-    // Mark goal as transferred
-    const goalRef = doc(db, 'shortTermGoals', goalDoc.id);
-    batch.update(goalRef, { isTransferred: true });
+  allGoalsSnapshot.forEach(goalDoc => {
+    const goalData = goalDoc.data();
+    const dueDate = goalData.dueDate.toDate();
+
+    // Perform the date check in-memory.
+    if (dueDate <= today) {
+      hasDueGoals = true;
+      // Create a new task
+      const tasksColRef = collection(db, 'tasks');
+      const newTaskRef = doc(tasksColRef); 
+      batch.set(newTaskRef, {
+        userId: userId,
+        title: goalData.title,
+        status: 'ongoing',
+        createdAt: serverTimestamp(),
+        dueDate: goalData.dueDate,
+        source: 'goal',
+        goalId: goalDoc.id
+      });
+      
+      // Mark goal as transferred
+      const goalRef = doc(db, 'shortTermGoals', goalDoc.id);
+      batch.update(goalRef, { isTransferred: true });
+    }
   });
+
+  if (!hasDueGoals) {
+    return;
+  }
 
   try {
     await batch.commit();
