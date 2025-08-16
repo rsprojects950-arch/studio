@@ -23,22 +23,23 @@ export default function ChatPage() {
     const [sending, setSending] = useState(false);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
+    const fetchMessages = async () => {
+        setLoading(true);
+        try {
+            const initialMessages = await getMessages();
+            setMessages(initialMessages);
+        } catch (error) {
+             toast({
+                variant: 'destructive',
+                title: 'Error',
+                description: 'Failed to load messages.'
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const fetchMessages = async () => {
-            setLoading(true);
-            try {
-                const initialMessages = await getMessages();
-                setMessages(initialMessages);
-            } catch (error) {
-                 toast({
-                    variant: 'destructive',
-                    title: 'Error',
-                    description: 'Failed to load messages.'
-                });
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchMessages();
     }, [toast]);
     
