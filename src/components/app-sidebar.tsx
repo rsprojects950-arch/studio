@@ -22,15 +22,19 @@ import {
   ListTodo,
   BookOpen,
   MessageSquare,
-  Settings,
   User,
   LogOut,
   Target,
   PanelLeft,
+  Moon,
+  Sun,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import type { UserProfile } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useTheme } from '@/context/theme-context';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -41,7 +45,6 @@ const mainNav = [
 ];
 
 const bottomNav = [
-  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
   { href: '/dashboard/profile', label: 'Profile', icon: User },
 ];
 
@@ -61,6 +64,7 @@ export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProf
   const pathname = usePathname();
   const { signOut } = useAuth();
   const { isMobile, toggleSidebar, state } = useSidebar();
+  const { theme, setTheme } = useTheme();
 
   return (
     <Sidebar collapsible={isMobile ? 'offcanvas' : 'icon'}>
@@ -95,18 +99,18 @@ export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProf
       </SidebarContent>
       <SidebarFooter className="p-2 space-y-2">
         <SidebarMenu>
-            <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => signOut()} tooltip={{ children: 'Logout', side: 'right' }}>
-                <div className="flex items-center gap-2">
-                    <Avatar className="h-6 w-6">
-                    <AvatarImage src={userProfile.photoURL ?? undefined} alt={userProfile.username} data-ai-hint="user portrait" />
-                    <AvatarFallback>{userProfile.username.charAt(0).toUpperCase()}</AvatarFallback>
-                    </Avatar>
-                    <span className="group-data-[collapsible=icon]:hidden">{userProfile.username}</span>
-                </div>
-                <LogOut className="group-data-[collapsible=icon]:hidden ml-auto"/>
-                </SidebarMenuButton>
-            </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={() => signOut()} tooltip={{ children: 'Logout', side: 'right' }}>
+              <div className="flex items-center gap-2">
+                <Avatar className="h-6 w-6">
+                  <AvatarImage src={userProfile.photoURL ?? undefined} alt={userProfile.username} data-ai-hint="user portrait" />
+                  <AvatarFallback>{userProfile.username.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <span className="group-data-[collapsible=icon]:hidden">{userProfile.username}</span>
+              </div>
+              <LogOut className="group-data-[collapsible=icon]:hidden ml-auto"/>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
         
         <Separator />
@@ -126,6 +130,22 @@ export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProf
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+           <SidebarMenuItem>
+             <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center p-2 rounded-md text-sm text-sidebar-foreground">
+                <div className="flex items-center gap-2">
+                    {theme === 'light' ? <Sun /> : <Moon />}
+                    <Label htmlFor="dark-mode-toggle" className="group-data-[collapsible=icon]:hidden">
+                        {theme === 'light' ? 'Light Mode' : 'Dark Mode'}
+                    </Label>
+                </div>
+                <Switch
+                    id="dark-mode-toggle"
+                    className="group-data-[collapsible=icon]:hidden"
+                    checked={theme === 'dark'}
+                    onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+                />
+             </div>
+          </SidebarMenuItem>
         </SidebarMenu>
 
         <Separator />
