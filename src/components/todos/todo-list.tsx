@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { format, isPast, isToday, isFuture } from "date-fns";
 import {
   Table,
@@ -42,6 +43,7 @@ type FilterType = "all" | "overdue" | "ongoing" | "upcoming";
 export function TodoList() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -185,13 +187,14 @@ export function TodoList() {
                   if (newDueDate) {
                     formData.append('dueDate', newDueDate.toISOString());
                   }
+                  
                   try {
                     await createTaskAction(formData);
                     formRef.current?.reset();
                     setNewDueDate(undefined);
                     setIsDialogOpen(false);
-                    await fetchTasks(); // Refetch tasks to show the new one
                     toast({ title: "Task added successfully" });
+                    router.refresh();
                   } catch (error) {
                     console.error(error);
                     toast({
