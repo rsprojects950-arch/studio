@@ -1,3 +1,5 @@
+"use client";
+
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -14,8 +16,6 @@ const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async () => {
   try {
-    // Explicitly use the default project-level authentication
-    auth.tenantId = null; 
     const result = await signInWithPopup(auth, googleProvider);
     const user = result.user;
     
@@ -32,13 +32,9 @@ export const signInWithGoogle = async () => {
     }
     return { result, error: null };
   } catch (error) {
+    console.error("Google Sign-In Error:", error);
     return { result: null, error };
   }
-};
-
-// This function is no longer needed for the popup flow, but we'll keep it for now.
-export const handleRedirectResult = async () => {
-    return { result: null, error: null };
 };
 
 export const signUp = async (name: string, email, password) => {
