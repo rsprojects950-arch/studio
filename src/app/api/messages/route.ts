@@ -70,21 +70,23 @@ export async function POST(request: Request) {
       return new NextResponse('Missing required fields', { status: 400 });
     }
 
-    const docRef = await addDoc(collection(db, 'messages'), {
+    const messageData = {
       text,
       userId,
       userName,
       userAvatar,
       createdAt: serverTimestamp(),
-    });
+    };
+    
+    const docRef = await addDoc(collection(db, 'messages'), messageData);
 
-    const newDoc = await getDoc(docRef);
-    const newMessage = newDoc.data();
-
-    const serializableMessage = {
-      id: newDoc.id,
-      ...newMessage,
-      createdAt: (newMessage?.createdAt as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+    const serializableMessage: Message = {
+      id: docRef.id,
+      text: text,
+      userId: userId,
+      userName: userName,
+      userAvatar: userAvatar,
+      createdAt: new Date().toISOString(),
     };
 
     return NextResponse.json(serializableMessage, { status: 201 });
