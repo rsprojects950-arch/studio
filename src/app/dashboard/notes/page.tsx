@@ -65,26 +65,29 @@ export default function NotesPage() {
   const [resourceSearch, setResourceSearch] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const fetchNotes = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
-    try {
-      const userNotes = await getNotes(user.uid);
-      setNotes(userNotes);
-    } catch (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to load notes.',
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [user, toast]);
-  
   useEffect(() => {
+    const fetchNotes = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+      setLoading(true);
+      try {
+        const userNotes = await getNotes(user.uid);
+        setNotes(userNotes);
+      } catch (error) {
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to load notes.',
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+    
     fetchNotes();
-  }, [fetchNotes]);
+  }, [user, toast]);
   
   useEffect(() => {
     if (editingNote) {
@@ -123,6 +126,7 @@ export default function NotesPage() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     formData.set('userId', user.uid);
+    // Explicitly set content from state because it's controlled
     formData.set('content', content);
 
     try {
@@ -397,5 +401,3 @@ export default function NotesPage() {
     </div>
   );
 }
-
-    
