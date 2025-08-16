@@ -69,7 +69,7 @@ export default function GoalsPage() {
             setNewDueDate(undefined);
             setIsDialogOpen(false);
             toast({ title: "Goal added successfully!" });
-            fetchGoals();
+            await fetchGoals();
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Failed to add goal.";
             toast({ variant: "destructive", title: "Error", description: errorMessage });
@@ -83,7 +83,7 @@ export default function GoalsPage() {
         try {
             await deleteShortTermGoalAction(goalId, user.uid);
             toast({ title: "Goal deleted successfully."});
-            fetchGoals();
+            await fetchGoals();
         } catch(error) {
             const errorMessage = error instanceof Error ? error.message : "Failed to delete goal.";
             toast({ variant: "destructive", title: "Error", description: errorMessage });
