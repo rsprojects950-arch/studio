@@ -13,7 +13,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Book, FileText, Video, ExternalLink, Mic, Plus, Loader2, User } from "lucide-react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { cn } from '@/lib/utils';
 import type { Resource } from '@/lib/types';
