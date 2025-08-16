@@ -27,6 +27,8 @@ import {
   LogOut,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
+import type { UserProfile } from '@/lib/types';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -52,11 +54,10 @@ export function AppSidebarTrigger() {
   return null;
 }
 
-export function AppSidebar({ unreadCount }: { unreadCount: number }) {
+export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProfile, unreadCount: number }) {
   const pathname = usePathname();
   const { signOut } = useAuth();
   const { isMobile } = useSidebar();
-
 
   return (
     <Sidebar collapsible={isMobile ? 'offcanvas' : 'icon'}>
@@ -92,7 +93,7 @@ export function AppSidebar({ unreadCount }: { unreadCount: number }) {
           ))}
         </SidebarMenu>
       </SidebarContent>
-      <SidebarFooter className="p-2">
+      <SidebarFooter className="p-2 space-y-2">
         <SidebarMenu>
           {bottomNav.map((item) => (
             <SidebarMenuItem key={item.href}>
@@ -108,11 +109,21 @@ export function AppSidebar({ unreadCount }: { unreadCount: number }) {
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
-          <Separator className="my-1" />
+        </SidebarMenu>
+
+        <Separator />
+
+        <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton onClick={() => signOut()} tooltip={{ children: 'Logout', side: 'right' }}>
-              <LogOut />
-              <span>Logout</span>
+              <div className="flex items-center gap-2">
+                <Avatar className="h-6 w-6">
+                  <AvatarImage src={userProfile.photoURL ?? undefined} alt={userProfile.username} data-ai-hint="user portrait" />
+                  <AvatarFallback>{userProfile.username.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <span className="group-data-[collapsible=icon]:hidden">{userProfile.username}</span>
+              </div>
+              <LogOut className="group-data-[collapsible=icon]:hidden ml-auto"/>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

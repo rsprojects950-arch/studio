@@ -105,7 +105,7 @@ export default function DashboardLayout({
   return (
     <UnreadCountProvider value={{ resetUnreadCount }}>
       <SidebarProvider>
-        <AppSidebar unreadCount={unreadCount} />
+        <AppSidebar userProfile={profile} unreadCount={unreadCount} />
         <SidebarInset>
           <header className="p-4 md:p-2 flex items-center gap-2 md:hidden sticky top-0 bg-background/80 backdrop-blur-sm z-10 border-b">
             <AppSidebarTrigger />
