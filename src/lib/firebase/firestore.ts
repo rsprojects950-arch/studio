@@ -8,9 +8,7 @@ import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } fr
 
 
 export async function getTasks(userId: string): Promise<Task[]> {
-  console.log(`Fetching tasks for userId: ${userId}`);
   if (!userId) {
-    console.error("Firestore: User ID is required to fetch tasks.");
     return [];
   }
 
@@ -19,7 +17,6 @@ export async function getTasks(userId: string): Promise<Task[]> {
   
   try {
     const querySnapshot = await getDocs(q);
-    console.log(`Firestore returned ${querySnapshot.size} documents.`);
     const tasks: Task[] = [];
     querySnapshot.forEach((doc) => {
       const data = doc.data();
@@ -47,7 +44,6 @@ export async function getTasks(userId: string): Promise<Task[]> {
       });
   } catch (error) {
     console.error("Error fetching tasks from Firestore:", error);
-    // In case of error, return an empty array to prevent app crashes.
     return [];
   }
 }
