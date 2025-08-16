@@ -18,6 +18,8 @@ import { ResourceSkeleton } from '@/components/resources/resource-skeleton';
 import { NoResults } from '@/components/resources/no-results';
 import { ResourceForm } from '@/components/resources/resource-form';
 
+// This is now a client component as it contains hooks and state.
+// We will fetch the initial data inside a useEffect hook.
 export default function ResourcesPage() {
   const { user, profile } = useAuth();
   const { toast } = useToast();

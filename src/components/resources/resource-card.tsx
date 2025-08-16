@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import type { Resource } from '@/lib/types';
 import { useAuth } from '@/context/auth-context';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { formatDistanceToNow } from 'date-fns';
 
 const iconMap: { [key: string]: React.ElementType } = {
   Documentation: FileText,
@@ -31,6 +32,9 @@ export const ResourceCard = forwardRef<
   const Icon = iconMap[resource.type] || FileText;
   
   const canModify = user?.uid === resource.submittedByUid;
+
+  // The 'createdAt' prop is now a string, so we convert it to a Date object here
+  const createdAtDate = new Date(resource.createdAt);
 
   return (
     <Card ref={ref} className="overflow-hidden flex flex-col group relative">
@@ -52,7 +56,7 @@ export const ResourceCard = forwardRef<
       <CardFooter className="p-4 pt-0 flex-col items-start gap-3">
          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <User className="h-3 w-3" />
-            <span>Added by {resource.submittedByUsername}</span>
+            <span>Added by {resource.submittedByUsername} {formatDistanceToNow(createdAtDate, { addSuffix: true })}</span>
         </div>
         <Button asChild variant="outline" className="w-full">
             <a href={resource.url} target="_blank" rel="noopener noreferrer">

@@ -65,7 +65,7 @@ export type Resource = {
   description: string;
   submittedByUid: string;
   submittedByUsername: string;
-  createdAt: Date;
+  createdAt: string; // Changed from Date to string for serialization
   thumbnailUrl?: string;
   title_lowercase?: string;
 };

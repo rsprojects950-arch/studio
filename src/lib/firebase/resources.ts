@@ -16,7 +16,7 @@ export async function getResources(): Promise<Resource[]> {
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       
-      const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
+      const createdAtDate = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
 
       resources.push({
         id: doc.id,
@@ -27,7 +27,7 @@ export async function getResources(): Promise<Resource[]> {
         description: data.description,
         submittedByUid: data.submittedByUid,
         submittedByUsername: data.submittedByUsername,
-        createdAt: createdAt,
+        createdAt: createdAtDate.toISOString(), // Convert to ISO string
       });
     });
     
