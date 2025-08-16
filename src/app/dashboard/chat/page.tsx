@@ -45,6 +45,7 @@ export default function ChatPage() {
     const [isMentionPopoverOpen, setMentionPopoverOpen] = useState(false);
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const lastMessageTimestamp = useRef<string | null>(null);
 
     const fetchMessages = useCallback(async (isInitialLoad = false) => {
@@ -178,6 +179,7 @@ export default function ChatPage() {
         });
         setMentionPopoverOpen(false);
         setMentionSearch('');
+        inputRef.current?.focus();
     };
     
     const filteredUsers = users.filter(u => u.name.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
@@ -232,15 +234,18 @@ export default function ChatPage() {
                 <CardFooter className="p-4 border-t">
                      <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
                         <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
-                            <PopoverTrigger asChild>
-                                <Input 
-                                    placeholder="Type a message..." 
-                                    value={newMessage}
-                                    onChange={handleInputChange}
-                                    autoComplete="off"
-                                    disabled={sending || !user}
-                                />
+                             <PopoverTrigger asChild>
+                                <div className="relative w-full"></div>
                              </PopoverTrigger>
+                             <Input 
+                                ref={inputRef}
+                                placeholder="Type a message..." 
+                                value={newMessage}
+                                onChange={handleInputChange}
+                                autoComplete="off"
+                                disabled={sending || !user}
+                                className="w-full"
+                            />
                              <PopoverContent className="w-80 p-0" align="start">
                                 <div className="flex flex-col">
                                     <div className="p-2 border-b">
@@ -283,4 +288,5 @@ export default function ChatPage() {
             </Card>
         </div>
     );
-}
+
+    
