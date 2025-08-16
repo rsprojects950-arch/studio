@@ -63,6 +63,25 @@ export async function askBot(query: string): Promise<string> {
       return textResponse;
     }
     
+    // This part handles the tool response if there was one, but text() should still work.
+    // The logic above is the primary path. We keep this as a fallback.
+    const toolResponse = result.toolRequest;
+    if (toolResponse) {
+        const toolOutput = result.toolResponse(toolResponse.tool);
+        if (toolOutput) {
+            const finalResult = await botPrompt({
+                input: query,
+                history: [
+                    { role: 'user', content: [{ text: query }] },
+                    { role: 'model', content: [toolResponse] },
+                    { role: 'tool', content: [{_type: 'toolResponse', tool: toolResponse.tool, output: toolOutput }]}
+                ],
+            });
+            const finalText = finalResult.text();
+            if (finalText) return finalText;
+        }
+    }
+    
     return "I'm not sure how to respond to that. Can you try asking in a different way?";
   } catch (error: any) {
     console.error('[askBot] Detailed error:', error);
