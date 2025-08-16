@@ -55,7 +55,7 @@ export async function askBot(query: string): Promise<string> {
                 await getResource(
                     typeof toolRequestPart.toolRequest.input === 'string' 
                     ? toolRequestPart.toolRequest.input 
-                    : toolRequestPart.toolRequest.input.resourceId
+                    : (toolRequestPart.toolRequest.input as any).resourceId
                 )
             );
             history.push(output);
