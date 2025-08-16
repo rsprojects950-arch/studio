@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch } from 'firebase/firestore';
@@ -170,7 +171,8 @@ export async function deleteTask(taskId: string): Promise<void> {
 export async function getShortTermGoals(userId: string): Promise<ShortTermGoal[]> {
   if (!userId) return [];
   const goalsCol = collection(db, 'shortTermGoals');
-  const q = query(goalsCol, where('userId', '==', userId), where('isTransferred', '==', false), orderBy('dueDate', 'asc'));
+  // Query only by userId to avoid needing a composite index.
+  const q = query(goalsCol, where('userId', '==', userId));
 
   try {
     const querySnapshot = await getDocs(q);
@@ -186,7 +188,12 @@ export async function getShortTermGoals(userId: string): Promise<ShortTermGoal[]
         isTransferred: data.isTransferred,
       });
     });
-    return goals;
+
+    // Filter and sort in-memory
+    return goals
+      .filter(goal => goal.isTransferred === false)
+      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+
   } catch (error) {
     console.error("[getShortTermGoals] Error fetching goals from Firestore:", error);
     return [];
