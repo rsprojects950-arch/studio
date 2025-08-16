@@ -23,7 +23,6 @@ export default function ChatPage() {
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
     const fetchMessages = async () => {
-        setLoading(true);
         try {
             const response = await fetch('/api/messages');
             if (!response.ok) throw new Error('Failed to fetch messages');
@@ -41,6 +40,7 @@ export default function ChatPage() {
     };
 
     useEffect(() => {
+        setLoading(true);
         fetchMessages();
         
         // Poll for new messages every 5 seconds
