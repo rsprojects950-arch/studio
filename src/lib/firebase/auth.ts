@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -13,6 +14,9 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
 const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 export const signInWithGoogle = async () => {
   try {
