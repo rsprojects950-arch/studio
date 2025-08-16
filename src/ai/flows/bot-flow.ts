@@ -46,8 +46,9 @@ const prompt = ai.definePrompt({
 
 export async function askBot(query: string): Promise<string> {
     const history: AIMessage[] = [{ role: 'user', content: [{ text: query }] }];
-
-    while (true) {
+    
+    // Use a loop with a max turn count to prevent infinite loops.
+    for (let i = 0; i < 5; i++) {
         const result = await prompt({ history });
         const output = result.output;
         
@@ -57,6 +58,7 @@ export async function askBot(query: string): Promise<string> {
 
         const toolRequestPart = output.content.find(part => part.toolRequest);
 
+        // If there's no tool request, the conversation is done. Return the text.
         if (!toolRequestPart || !toolRequestPart.toolRequest) {
             const textResponse = result.text;
             if (textResponse) {
@@ -65,18 +67,25 @@ export async function askBot(query: string): Promise<string> {
             return "I'm not sure how to respond to that. Can you try asking in a different way?";
         }
 
+        // Add the AI's own message (the tool request) to the history.
         history.push(output);
 
         const toolRequest = toolRequestPart.toolRequest;
         
+        // Ensure input is a string for the tool.
         const toolInput = typeof toolRequest.input === 'string' 
             ? toolRequest.input 
             : (toolRequest.input as { resourceId: string }).resourceId;
 
+        // Call the tool and get the result.
         const toolResult = await getResource(toolInput);
         
+        // Create the tool response part and add it to history.
         const toolResponsePart = toolResponse(toolRequest.name, toolResult);
-        
         history.push({ role: 'tool', content: [toolResponsePart] });
+
+        // Continue the loop to get the AI's final answer.
     }
+    
+    return "Sorry, I seem to be stuck in a loop. Please try rephrasing your question.";
 }
