@@ -44,42 +44,44 @@ const prompt = ai.definePrompt({
 
 
 export async function askBot(query: string): Promise<string> {
-    const history: AIMessage[] = [{role: 'user', content: [{text: query}]}];
-    
-    while(true) {
-        const result = await prompt({history});
+    const history: AIMessage[] = [{ role: 'user', content: [{ text: query }] }];
+
+    while (true) {
+        const result = await prompt({ history });
         const output = result.output;
 
-        if (!output) {
-             return "Sorry, I encountered an unexpected error. Please try again.";
+        if (!output || !output.content) {
+            return "Sorry, I encountered an unexpected error. Please try again.";
         }
         
+        // Add the AI's response (which may include a tool request) to history
         history.push(output);
 
         const toolRequestPart = output.content.find(part => part.toolRequest);
 
         if (toolRequestPart?.toolRequest) {
-            const toolInput = typeof toolRequestPart.toolRequest.input === 'string' 
-                ? { resourceId: toolRequestPart.toolRequest.input } 
-                : toolRequestPart.toolRequest.input as { resourceId: string };
-
-            const toolResponsePart = toolResponse(
-                toolRequestPart.toolRequest.name, 
-                await getResource(toolInput.resourceId)
-            );
+            const toolRequest = toolRequestPart.toolRequest;
             
-            history.push({role: 'tool', content: [toolResponsePart]});
-            continue; 
+            // Ensure input is a plain string for the getResource tool
+            const toolInput = typeof toolRequest.input === 'string' 
+                ? toolRequest.input
+                : (toolRequest.input as { resourceId: string }).resourceId;
+
+            const toolResult = await getResource(toolInput);
+
+            const toolResponsePart = toolResponse(toolRequest.name, toolResult);
+            
+            // Add the tool's response to history
+            history.push({ role: 'tool', content: [toolResponsePart] });
+            
+            // Continue the loop to get the AI's final response
+            continue;
         }
 
-        let text = '';
-        output.content.forEach((part: Part) => {
-            if(part.text) {
-                text += part.text;
-            }
-        });
-
-        if(text) {
+        // If we're here, there was no tool request. Extract the text response.
+        const text = result.text;
+        
+        if (text) {
             return text;
         }
 
