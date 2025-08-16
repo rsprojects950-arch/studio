@@ -8,7 +8,6 @@ import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } fr
 
 
 export async function getTasks(userId: string): Promise<Task[]> {
-  console.log("Fetching tasks for user:", userId);
   if (!userId) {
     return [];
   }
@@ -18,7 +17,6 @@ export async function getTasks(userId: string): Promise<Task[]> {
   
   try {
     const querySnapshot = await getDocs(q);
-    console.log("Tasks fetched:", querySnapshot.docs.map(d => d.data()));
 
     const tasks: Task[] = [];
     querySnapshot.forEach((doc) => {
@@ -56,7 +54,7 @@ export async function getDashboardStats(userId: string) {
   
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((task) => task.status === "completed").length;
-  const overdueTasks = tasks.filter(
+  const missedTasksCount = tasks.filter(
     (task) => task.status !== "completed" && task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate)
   ).length;
 
@@ -65,7 +63,7 @@ export async function getDashboardStats(userId: string) {
   const summary = {
     total: totalTasks.toString(),
     completed: completedTasks.toString(),
-    missed: overdueTasks.toString(),
+    missed: missedTasksCount.toString(),
     accomplishmentRate: `${accomplishmentRate}%`,
   };
 
@@ -99,12 +97,16 @@ export async function getDashboardStats(userId: string) {
   
   const progressChartData = weekData.map(({date, ...rest}) => rest);
 
-  const upcomingTasks = tasks
-    .filter(task => task.status === 'ongoing' && task.dueDate && (isFuture(task.dueDate) || isToday(task.dueDate)))
+  const relevantTasks = tasks
+    .filter(task => {
+      const isMissed = task.status === 'ongoing' && task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate);
+      const isUpcoming = task.status === 'ongoing' && task.dueDate && (isFuture(task.dueDate) || isToday(task.dueDate));
+      return isMissed || isUpcoming;
+    })
     .sort((a, b) => a.dueDate!.getTime() - b.dueDate!.getTime())
     .slice(0, 3);
   
-  return { summary, progressChartData, upcomingTasks };
+  return { summary, progressChartData, relevantTasks };
 }
 
 export async function updateTaskStatus(taskId: string, status: 'ongoing' | 'completed'): Promise<void> {

@@ -41,7 +41,7 @@ type DashboardStats = {
     accomplished: number;
     missed: number;
   }[];
-  upcomingTasks: Task[];
+  relevantTasks: Task[];
 };
 
 
@@ -112,7 +112,7 @@ export function DashboardView() {
 
         <Card className="col-span-4 lg:col-span-3">
           <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Upcoming Tasks</CardTitle>
+            <CardTitle>Relevant Tasks</CardTitle>
             <Button asChild variant="ghost" size="sm">
               <Link href="/dashboard/todos">View All <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
@@ -127,7 +127,7 @@ export function DashboardView() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {memoizedStats.upcomingTasks.length > 0 ? memoizedStats.upcomingTasks.map((task) => (
+                {memoizedStats.relevantTasks.length > 0 ? memoizedStats.relevantTasks.map((task) => (
                   <TableRow key={task.id}>
                     <TableCell><Checkbox disabled /></TableCell>
                     <TableCell className="font-medium">{task.title}</TableCell>
@@ -138,7 +138,7 @@ export function DashboardView() {
                 )) : (
                   <TableRow>
                     <TableCell colSpan={3} className="h-24 text-center">
-                      No upcoming tasks.
+                      No upcoming or missed tasks.
                     </TableCell>
                   </TableRow>
                 )}
