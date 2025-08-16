@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Book, FileText, Video, ExternalLink, Mic, Plus, Loader2, User, Edit } from "lucide-react";
+import { Search, Book, FileText, Video, ExternalLink, Mic, Plus, Loader2, User, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from '@/lib/utils';
 import type { Resource } from '@/lib/types';
@@ -21,10 +21,11 @@ import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { createResourceAction, updateResourceAction } from '@/lib/firebase/actions';
+import { createResourceAction, updateResourceAction, deleteResourceAction } from '@/lib/firebase/actions';
 
 const iconMap: { [key: string]: React.ElementType } = {
   Documentation: FileText,
@@ -34,11 +35,11 @@ const iconMap: { [key: string]: React.ElementType } = {
   Podcast: Mic,
 };
 
-const ResourceCard = ({ resource, onEdit }: { resource: Resource, onEdit: () => void }) => {
+const ResourceCard = ({ resource, onEdit, onDelete }: { resource: Resource, onEdit: () => void, onDelete: () => void }) => {
   const { user } = useAuth();
   const Icon = iconMap[resource.type] || FileText;
   
-  const canEdit = user?.uid === resource.submittedByUid;
+  const canModify = user?.uid === resource.submittedByUid;
 
   return (
     <Card className="overflow-hidden flex flex-col group relative">
@@ -68,12 +69,32 @@ const ResourceCard = ({ resource, onEdit }: { resource: Resource, onEdit: () => 
             </a>
         </Button>
       </CardFooter>
-      {canEdit && (
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      {canModify && (
+        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
           <Button variant="secondary" size="icon" className="h-8 w-8" onClick={onEdit}>
             <Edit className="h-4 w-4" />
             <span className="sr-only">Edit resource</span>
           </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="icon" className="h-8 w-8">
+                    <Trash2 className="h-4 w-4" />
+                    <span className="sr-only">Delete resource</span>
+                </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the resource.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={onDelete}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       )}
     </Card>
@@ -110,8 +131,9 @@ const ResourceForm = forwardRef<
         resource?: Resource | null;
         onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
         isSubmitting: boolean;
+        onClose: () => void;
     }
->(({ resource, onSubmit, isSubmitting }, ref) => {
+>(({ resource, onSubmit, isSubmitting, onClose }, ref) => {
     return (
         <form
             ref={ref}
@@ -162,6 +184,7 @@ const ResourceForm = forwardRef<
                 </div>
             </div>
             <DialogFooter>
+                <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
                 <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     {resource ? 'Save Changes' : 'Add Resource'}
@@ -288,6 +311,22 @@ export default function ResourcesPage() {
       setIsSubmitting(false);
     }
   };
+  
+  const handleDeleteResource = async (resourceId: string) => {
+    if (!user) {
+      toast({ variant: "destructive", title: "You must be logged in."});
+      return;
+    }
+    
+    try {
+        await deleteResourceAction(resourceId, user.uid);
+        toast({ title: "Resource deleted successfully!" });
+        fetchResources();
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to delete resource.";
+        toast({ variant: "destructive", title: "Error", description: errorMessage });
+    }
+  }
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
@@ -334,7 +373,7 @@ export default function ResourcesPage() {
               {loading ? (
                   Array.from({ length: 3 }).map((_, i) => <ResourceSkeleton key={i} />)
               ) : filteredResources.length > 0 ? (
-                  filteredResources.map(r => <ResourceCard key={r.id} resource={r} onEdit={() => handleOpenEditDialog(r)} />)
+                  filteredResources.map(r => <ResourceCard key={r.id} resource={r} onEdit={() => handleOpenEditDialog(r)} onDelete={() => handleDeleteResource(r.id)} />)
               ) : (
                   <NoResults />
               )}
@@ -356,7 +395,7 @@ export default function ResourcesPage() {
                       Share something valuable with the community.
                   </DialogDescription>
               </DialogHeader>
-              <ResourceForm ref={addFormRef} onSubmit={handleAddFormSubmit} isSubmitting={isSubmitting} />
+              <ResourceForm ref={addFormRef} onSubmit={handleAddFormSubmit} isSubmitting={isSubmitting} onClose={() => setIsAddDialogOpen(false)} />
           </DialogContent>
       </Dialog>
       
@@ -373,6 +412,7 @@ export default function ResourcesPage() {
                   resource={editingResource}
                   onSubmit={handleEditFormSubmit}
                   isSubmitting={isSubmitting}
+                  onClose={() => setIsEditDialogOpen(false)}
               />
           </DialogContent>
       </Dialog>

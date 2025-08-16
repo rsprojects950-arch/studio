@@ -2,7 +2,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { addDoc, collection, Timestamp, serverTimestamp, updateDoc, doc, getDoc } from 'firebase/firestore';
+import { addDoc, collection, Timestamp, serverTimestamp, updateDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Resource } from '@/lib/types';
 
@@ -132,5 +132,35 @@ export async function updateResourceAction(formData: FormData) {
     throw new Error('Could not update resource.');
   }
   
+  revalidatePath('/dashboard/resources');
+}
+
+export async function deleteResourceAction(resourceId: string, userId: string) {
+  if (!userId) {
+    throw new Error('You must be logged in to delete a resource.');
+  }
+  if (!resourceId) {
+    throw new Error('Resource ID is missing.');
+  }
+
+  const resourceRef = doc(db, 'resources', resourceId);
+  const resourceSnap = await getDoc(resourceRef);
+
+  if (!resourceSnap.exists()) {
+    throw new Error('Resource not found.');
+  }
+
+  const resourceData = resourceSnap.data() as Resource;
+  if (resourceData.submittedByUid !== userId) {
+    throw new Error('You are not authorized to delete this resource.');
+  }
+
+  try {
+    await deleteDoc(resourceRef);
+  } catch (error) {
+    console.error("Error deleting resource from Firestore:", error);
+    throw new Error('Could not delete resource.');
+  }
+
   revalidatePath('/dashboard/resources');
 }
