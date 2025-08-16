@@ -1,12 +1,25 @@
 
 import { NextResponse } from 'next/server';
-import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp, getDoc, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Message } from '@/lib/types';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const q = query(collection(db, 'messages'), orderBy('createdAt', 'asc'), limit(50));
+    const { searchParams } = new URL(request.url);
+    const since = searchParams.get('since');
+
+    let q;
+    if (since) {
+        // Firestore Timestamps can be tricky, so we'll convert the ISO string from the client
+        // back to a JavaScript Date object, then to a Firestore Timestamp for the query.
+        const sinceDate = new Date(since);
+        q = query(collection(db, 'messages'), where('createdAt', '>', Timestamp.fromDate(sinceDate)), orderBy('createdAt', 'asc'));
+    } else {
+        // Initial load: get the last 50 messages
+        q = query(collection(db, 'messages'), orderBy('createdAt', 'desc'), limit(50));
+    }
+    
     const querySnapshot = await getDocs(q);
     const messages: Omit<Message, 'createdAt'>[] & { createdAt: any } = [];
     querySnapshot.forEach((doc) => {
@@ -20,6 +33,11 @@ export async function GET() {
             createdAt: data.createdAt,
         });
     });
+
+    // For initial load, reverse the array to show newest messages last
+    if (!since) {
+        messages.reverse();
+    }
 
     // Convert Timestamps to ISO strings for JSON serialization
     const serializableMessages = messages.map(msg => ({
@@ -49,11 +67,9 @@ export async function POST(request: Request) {
       createdAt: serverTimestamp(),
     });
 
-    // Fetch the newly created document to get the server-generated timestamp
     const newDoc = await getDoc(docRef);
     const newMessage = newDoc.data();
 
-    // Serialize the new message to be sent back to the client
     const serializableMessage = {
       id: newDoc.id,
       ...newMessage,

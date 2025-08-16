@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
+import { getUserProfile } from '@/lib/firebase/firestore';
 import type { Message } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -20,14 +21,55 @@ export default function ChatPage() {
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(true);
     const [sending, setSending] = useState(false);
-    const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const [userName, setUserName] = useState('');
+    const [userAvatar, setUserAvatar] = useState<string | null>(null);
 
-    const fetchMessages = useCallback(async () => {
+    const scrollAreaRef = useRef<HTMLDivElement>(null);
+    const lastMessageTimestamp = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (user) {
+            getUserProfile(user.uid).then(profile => {
+                if (profile) {
+                    setUserName(profile.name || user.displayName || 'Anonymous');
+                    setUserAvatar(profile.photoURL || user.photoURL || null);
+                } else {
+                    setUserName(user.displayName || 'Anonymous');
+                    setUserAvatar(user.photoURL || null);
+                }
+            });
+        }
+    }, [user]);
+
+    const fetchMessages = useCallback(async (isInitialLoad = false) => {
+        if (!user) return;
+        setLoading(isInitialLoad);
+        
         try {
-            const response = await fetch('/api/messages');
+            const url = isInitialLoad 
+                ? '/api/messages' 
+                : `/api/messages?since=${encodeURIComponent(lastMessageTimestamp.current || new Date(0).toISOString())}`;
+
+            const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch messages');
-            const initialMessages = await response.json();
-            setMessages(initialMessages);
+            
+            const newMessages: Message[] = await response.json();
+
+            if (newMessages.length > 0) {
+                 if (isInitialLoad) {
+                    setMessages(newMessages);
+                } else {
+                    setMessages(prevMessages => {
+                        const existingIds = new Set(prevMessages.map(m => m.id));
+                        const uniqueNewMessages = newMessages.filter(m => !existingIds.has(m.id));
+                        return [...prevMessages, ...uniqueNewMessages];
+                    });
+                }
+                const lastMsg = newMessages[newMessages.length - 1];
+                if (lastMsg) {
+                    lastMessageTimestamp.current = lastMsg.createdAt;
+                }
+            }
         } catch (error) {
              toast({
                 variant: 'destructive',
@@ -35,19 +77,26 @@ export default function ChatPage() {
                 description: 'Failed to load messages.'
             });
         } finally {
-            setLoading(false);
+            if(isInitialLoad) setLoading(false);
         }
-    }, [toast]);
+    }, [user, toast]);
 
     useEffect(() => {
-        setLoading(true);
-        fetchMessages();
+        fetchMessages(true); // Initial fetch
+
+        const interval = setInterval(() => {
+            fetchMessages(false); // Poll for new messages
+        }, 5000); // Poll every 5 seconds
+
+        return () => clearInterval(interval);
     }, [fetchMessages]);
     
     useEffect(() => {
-        // Auto-scroll to the bottom
         if (scrollAreaRef.current) {
-            scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+            const isScrolledToBottom = scrollAreaRef.current.scrollHeight - scrollAreaRef.current.clientHeight <= scrollAreaRef.current.scrollTop + 20;
+            if (isScrolledToBottom) {
+                 scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+            }
         }
     }, [messages]);
 
@@ -63,8 +112,8 @@ export default function ChatPage() {
                 body: JSON.stringify({ 
                     text: newMessage, 
                     userId: user.uid, 
-                    userName: user.displayName || 'Anonymous', 
-                    userAvatar: user.photoURL 
+                    userName: userName, 
+                    userAvatar: userAvatar
                 }),
             });
 
@@ -75,6 +124,9 @@ export default function ChatPage() {
             
             const newlySentMessage: Message = await response.json();
             setMessages(prevMessages => [...prevMessages, newlySentMessage]);
+            if (newlySentMessage.createdAt) {
+                lastMessageTimestamp.current = newlySentMessage.createdAt;
+            }
             setNewMessage('');
 
         } catch (error) {
@@ -126,8 +178,8 @@ export default function ChatPage() {
                                         </div>
                                         {user?.uid === msg.userId && (
                                             <Avatar>
-                                                <AvatarImage src={msg.userAvatar || 'https://placehold.co/100x100.png'} alt={msg.userName} data-ai-hint="user portrait" />
-                                                <AvatarFallback>{(user.displayName || 'U').charAt(0).toUpperCase()}</AvatarFallback>
+                                                <AvatarImage src={userAvatar || 'https://placehold.co/100x100.png'} alt={userName} data-ai-hint="user portrait" />
+                                                <AvatarFallback>{(userName || 'U').charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
                                         )}
                                     </div>

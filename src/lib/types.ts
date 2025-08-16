@@ -14,5 +14,5 @@ export type Message = {
   userId: string;
   userName: string;
   userAvatar: string | null;
-  createdAt: string; // Changed to string to be JSON serializable
+  createdAt: string; // ISO 8601 string format
 };
