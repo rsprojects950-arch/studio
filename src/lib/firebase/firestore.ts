@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch } from 'firebase/firestore';
@@ -87,15 +88,15 @@ export async function getUserByUsername(username: string): Promise<UserProfile |
     return null;
 }
 
-export async function getAllUsers(): Promise<Omit<UserProfile, 'email'>[]> {
+export async function getAllUsers(): Promise<Pick<UserProfile, 'uid' | 'username' | 'photoURL'>[]> {
     const usersSnapshot = await getDocs(collection(db, 'users'));
-    const users: Omit<UserProfile, 'email'>[] = [];
+    const users: Pick<UserProfile, 'uid' | 'username' | 'photoURL'>[] = [];
     usersSnapshot.forEach((doc) => {
         const data = doc.data();
         users.push({
             uid: data.uid,
             username: data.username,
-            photoURL: data.photoURL
+            photoURL: data.photoURL || null
         });
     });
     return users;
@@ -319,7 +320,7 @@ export async function checkAndTransferGoals(userId: string) {
 }
 
 
-export async function getMessages({ since, lastId }: { since?: string | null, lastId?: string | null }): Promise<Omit<Message, 'createdAt'>[] & { createdAt: any }> {
+export async function getMessages({ since, lastId }: { since?: string | null, lastId?: string | null }): Promise<Message[]> {
     let q;
     let baseQuery = collection(db, 'messages');
     
@@ -337,16 +338,17 @@ export async function getMessages({ since, lastId }: { since?: string | null, la
     }
     
     const querySnapshot = await getDocs(q);
-    const messages: Omit<Message, 'createdAt'>[] & { createdAt: any } = [];
+    const messages: Message[] = [];
     querySnapshot.forEach((doc) => {
         const data = doc.data();
+        const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString();
         messages.push({
             id: doc.id,
             text: data.text,
             userId: data.userId,
             username: data.username,
             userAvatar: data.userAvatar,
-            createdAt: data.createdAt,
+            createdAt: createdAt,
             replyToId: data.replyToId,
             replyToText: data.replyToText,
             replyToUsername: data.replyToUsername,
@@ -354,6 +356,7 @@ export async function getMessages({ since, lastId }: { since?: string | null, la
         });
     });
 
+    // Don't reverse for polling since we want them in ascending order
     if (lastId || !since) {
         messages.reverse();
     }
@@ -387,14 +390,17 @@ export async function addMessage({ text, userId, replyTo, resourceLinks }: { tex
     }
     
     const docRef = await addDoc(collection(db, 'messages'), messageData);
-
+    
+    const newDocSnap = await getDoc(docRef);
+    const newDocData = newDocSnap.data();
+    
     const newMessage: Message = {
       id: docRef.id,
       text: text,
       userId: userId,
       username: userProfile.username,
       userAvatar: userProfile.photoURL || '',
-      createdAt: new Date().toISOString(),
+      createdAt: newDocData?.createdAt instanceof Timestamp ? newDocData.createdAt.toDate().toISOString() : new Date().toISOString(),
        ...(replyTo && { 
         replyToId: replyTo.id,
         replyToText: replyTo.text,
@@ -409,37 +415,29 @@ export async function searchResources(queryText: string): Promise<Pick<Resource,
     if (!queryText) return [];
 
     const lowerCaseQuery = queryText.toLowerCase();
-    
-    const resourcesRef = collection(db, 'resources');
-    const q = query(resourcesRef, 
-        where('title_lowercase', '>=', lowerCaseQuery),
-        where('title_lowercase', '<=', lowerCaseQuery + '\uf8ff'),
-        limit(10)
-    );
 
     try {
-        const querySnapshot = await getDocs(q);
-        const resources: Pick<Resource, 'id' | 'title' | 'type'>[] = [];
-        querySnapshot.forEach((doc) => {
+        const resourcesSnapshot = await getDocs(collection(db, 'resources'));
+        const allResources: Pick<Resource, 'id' | 'title' | 'type'>[] = [];
+
+        resourcesSnapshot.forEach(doc => {
             const data = doc.data();
-            resources.push({
-                id: doc.id,
-                title: data.title,
-                type: data.type
-            });
-        });
-        return resources;
-    } catch (error) {
-        // This likely means the composite index is missing. We will try a client-side filter as a fallback.
-        console.warn("Firestore query failed (likely missing index), falling back to client-side search.");
-        const allResourcesSnap = await getDocs(collection(db, 'resources'));
-        const allResources: Pick<Resource, 'id'|'title'|'type'>[] = [];
-        allResourcesSnap.forEach(doc => {
-            const data = doc.data();
-            if (data.title.toLowerCase().includes(lowerCaseQuery)) {
-                allResources.push({ id: doc.id, title: data.title, type: data.type });
+            // Ensure the title exists and is a string before calling toLowerCase
+            if (data.title && typeof data.title === 'string' && data.title.toLowerCase().includes(lowerCaseQuery)) {
+                allResources.push({ 
+                    id: doc.id, 
+                    title: data.title, 
+                    type: data.type 
+                });
             }
         });
+
+        // Limit the results after filtering
         return allResources.slice(0, 10);
+    } catch (error) {
+        console.error("Error searching resources:", error);
+        return [];
     }
 }
+
+    
