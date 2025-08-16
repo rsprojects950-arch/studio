@@ -22,6 +22,8 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+
 
 const passwordFormSchema = z.object({
   currentPassword: z.string().min(1, { message: "Current password is required." }),
@@ -63,9 +65,12 @@ export default function ProfilePage() {
     
     try {
         const credential = EmailAuthProvider.credential(user.email, values.currentPassword);
-        await reauthenticateWithCredential(user, credential);
+        // The user must have recently signed in to update their password.
+        // Re-authenticating here provides that security measure.
+        if (!auth.currentUser) throw new Error("User not found");
+        await reauthenticateWithCredential(auth.currentUser, credential);
 
-        await updatePassword(user, values.newPassword);
+        await updatePassword(auth.currentUser, values.newPassword);
 
         toast({
             title: "Success!",

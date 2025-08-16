@@ -38,8 +38,7 @@ export function RegisterForm() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [usernameError, setUsernameError] = useState<string | null>(null);
-
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -51,13 +50,13 @@ export function RegisterForm() {
   
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    setUsernameError(null);
+    form.clearErrors("username");
     
     // Check if username is taken
     const res = await fetch(`/api/users?username=${values.username}`);
     const data = await res.json();
     if (data.exists) {
-      setUsernameError("This username is already taken.");
+      form.setError("username", { type: "manual", message: "This username is already taken." });
       setIsLoading(false);
       return;
     }
@@ -109,7 +108,7 @@ export function RegisterForm() {
                   <FormControl>
                     <Input id="username" placeholder="your_username" {...field} />
                   </FormControl>
-                  <FormMessage>{usernameError}</FormMessage>
+                  <FormMessage />
                 </FormItem>
               )}
             />

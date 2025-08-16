@@ -30,48 +30,42 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  const fetchUserProfile = useCallback(async (userAuth: User) => {
-    let userProfile = await getUserProfile(userAuth.uid);
-        
-    // This logic ensures every user has a complete profile.
-    if (!userProfile) {
-      // 1. If profile doesn't exist at all, create it.
-      // This handles first-time Google sign-ins or new registrations.
-      const newUsername = userAuth.displayName || userAuth.email?.split('@')[0] || `user${Date.now().toString().slice(-4)}`;
-      const newProfileData: UserProfile = {
-        uid: userAuth.uid,
-        username: newUsername,
-        email: userAuth.email || '',
-        photoURL: userAuth.photoURL || null,
-      };
-      await createUserProfile(newProfileData);
-      userProfile = newProfileData;
-    } else if (!userProfile.username) {
-      // 2. If profile exists but is missing a username (from old data structure)
-      // update it with a generated username.
-      const fallbackUsername = userAuth.displayName || userProfile.email?.split('@')[0] || `user${Date.now().toString().slice(-4)}`;
-      userProfile.username = fallbackUsername;
-      await updateUserProfile(userAuth.uid, { username: fallbackUsername });
+  const handleUserChange = useCallback(async (userAuth: User | null) => {
+    setLoading(true);
+    if (userAuth) {
+      setUser(userAuth);
+      
+      let userProfile = await getUserProfile(userAuth.uid);
+      
+      if (!userProfile) {
+        const newUsername = userAuth.displayName || userAuth.email?.split('@')[0] || `user${Date.now().toString().slice(-4)}`;
+        const newProfileData: UserProfile = {
+          uid: userAuth.uid,
+          username: newUsername,
+          email: userAuth.email || '',
+          photoURL: userAuth.photoURL || null,
+        };
+        await createUserProfile(newProfileData);
+        userProfile = newProfileData;
+      } else if (!userProfile.username) {
+        const fallbackUsername = userAuth.displayName || userProfile.email?.split('@')[0] || `user${Date.now().toString().slice(-4)}`;
+        userProfile.username = fallbackUsername;
+        await updateUserProfile(userAuth.uid, { username: fallbackUsername });
+      }
+      
+      setProfile(userProfile);
+    } else {
+      setUser(null);
+      setProfile(null);
     }
-    
-    setProfile(userProfile);
+    setLoading(false);
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChangedHelper(async (userAuth) => {
-      setLoading(true);
-      if (userAuth) {
-        setUser(userAuth);
-        await fetchUserProfile(userAuth);
-      } else {
-        setUser(null);
-        setProfile(null);
-      }
-      setLoading(false);
-    });
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, handleUserChange);
     return () => unsubscribe();
-  }, [fetchUserProfile]);
+  }, [handleUserChange]);
   
   const signOut = async () => {
     await signOutFirebase();

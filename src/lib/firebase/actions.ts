@@ -3,8 +3,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { addDoc, collection, Timestamp, serverTimestamp, updateDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import type { Resource } from '@/lib/types';
+import { auth } from '@/lib/firebase';
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 
 export async function createTaskAction(formData: FormData) {
