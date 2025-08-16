@@ -8,14 +8,6 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
-// Define a simple prompt for a friendly AI assistant.
-const botPrompt = ai.definePrompt(
-  {
-    name: 'botPrompt',
-    system: 'You are BT-bot, a friendly and helpful AI assistant. Your primary function is to engage in general conversation.',
-  },
-);
-
 /**
  * Handles a user's query by sending it to the AI and returning a text response.
  * This is a simplified, robust version focused on stable conversation.
@@ -24,13 +16,15 @@ const botPrompt = ai.definePrompt(
  */
 export async function askBot(query: string): Promise<string> {
   try {
-    console.log('[askBot] Processing query:', query);
+    console.log('[askBot] Processing query with simple generator:', query);
     
-    // Call the defined prompt with the user's input.
-    const result = await botPrompt({ input: query });
-    
-    // CORRECT WAY to access the text response. The previous code was using
-    // result.text() which was incorrect and caused the crash.
+    // Using a direct generate call for maximum simplicity and stability.
+    const result = await ai.generate({
+      model: 'googleai/gemini-1.5-flash', // A reliable and fast model for conversation
+      prompt: `You are BT-bot, a friendly and helpful AI assistant. Your primary function is to engage in general conversation. Respond to the following query: ${query}`,
+    });
+
+    // Correctly access the 'text' property
     const textResponse = result.text;
 
     if (textResponse) {
@@ -44,7 +38,7 @@ export async function askBot(query: string): Promise<string> {
     
   } catch (error: any) {
     // Log the full error details on the server for debugging.
-    console.error('[askBot] Detailed error:', error);
+    console.error('[askBot] Detailed error in simple generator:', error);
     // Return a user-friendly error message to the frontend.
     return "Sorry, I encountered an unexpected error. Please check the server logs for more details.";
   }
