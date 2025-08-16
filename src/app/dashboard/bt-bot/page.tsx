@@ -48,11 +48,14 @@ export default function BtBotPage() {
     setIsLoading(true);
 
     try {
+      console.log('[handleSendMessage] Sending to bot:', processedInput);
       const botResponseText = await askBot(processedInput);
+      console.log('[handleSendMessage] Bot response:', botResponseText);
+      
       const botMessage: Message = { text: botResponseText, sender: 'bot', id: (Date.now() + 1).toString() };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
-      console.error(error);
+      console.error('[handleSendMessage] Frontend error:', error);
       const errorMessage: Message = {
         text: 'Sorry, something went wrong. Please try again.',
         sender: 'bot',

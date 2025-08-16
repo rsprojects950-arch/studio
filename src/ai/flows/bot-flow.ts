@@ -28,10 +28,15 @@ const getResourceTool = ai.defineTool(
   },
   async (input) => {
     try {
+      console.log('[getResourceTool] Fetching resource:', input.resourceId);
       const id = input.resourceId;
-      if (!id) return null;
-      // The getResource function from firestore is already set up to handle this
-      return await getResource(id);
+      if (!id) {
+        console.log('[getResourceTool] No ID provided');
+        return null;
+      };
+      const result = await getResource(id);
+      console.log('[getResourceTool] Result:', result);
+      return result;
     } catch (error) {
       console.error(`[getResourceTool] Failed to fetch resource:`, error);
       // Return null to the AI, so it can respond gracefully to the user.
@@ -63,9 +68,12 @@ Your secondary function is to fetch details about specific resources.
  */
 export async function askBot(query: string): Promise<string> {
   try {
+    console.log('[askBot] Processing query:', query);
     // The `.generate()` method handles the entire conversation flow,
     // including any necessary tool calls, in a single step.
     const result = await botPrompt({ input: query });
+    console.log('[askBot] Result received:', result);
+
 
     // Return the final text content from the AI's response.
     const textResponse = result.text;
@@ -76,8 +84,10 @@ export async function askBot(query: string): Promise<string> {
     // This is a fallback for the unlikely case that the AI returns no text.
     return "I'm not sure how to respond to that. Can you try asking in a different way?";
 
-  } catch (error) {
-    console.error('[askBot] Error during AI generation:', error);
+  } catch (error: any) {
+    console.error('[askBot] Detailed error:', error);
+    console.error('[askBot] Error stack:', error.stack);
+    console.error('[askBot] Error message:', error.message);
     return "Sorry, I encountered an unexpected error. Please try again.";
   }
 }
