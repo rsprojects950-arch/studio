@@ -12,7 +12,6 @@ import {
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Slider } from '@/components/ui/slider';
 
 export default function SettingsPage() {
   const { theme, setTheme, font, setFont } = useTheme();
@@ -57,33 +56,6 @@ export default function SettingsPage() {
                 checked={theme === 'dark'}
                 onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
               />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Accessibility</CardTitle>
-            <CardDescription>Adjust features to improve your experience.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between space-x-2">
-              <div className="space-y-1">
-                <Label>Text Size</Label>
-                <p className="text-sm text-muted-foreground">Adjust the size of text in the app.</p>
-              </div>
-              <div className="w-[180px] flex items-center gap-2">
-                 <span className="text-sm">A</span>
-                 <Slider defaultValue={[16]} max={20} min={12} step={1} disabled />
-                 <span className="text-xl">A</span>
-              </div>
-            </div>
-            <div className="flex items-center justify-between space-x-2">
-              <div className="space-y-1">
-                <Label>High Contrast Mode</Label>
-                <p className="text-sm text-muted-foreground">Improve visibility with higher contrast colors.</p>
-              </div>
-              <Switch id="high-contrast" disabled />
             </div>
           </CardContent>
         </Card>
