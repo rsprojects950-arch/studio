@@ -12,6 +12,8 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarMenuBadge,
+  SidebarTrigger,
+  useSidebar,
 } from '@/components/ui/sidebar';
 import { AppLogo } from '@/components/icons/logo';
 import { Separator } from '@/components/ui/separator';
@@ -38,19 +40,36 @@ const bottomNav = [
   { href: '/dashboard/profile', label: 'Profile', icon: User },
 ];
 
+export function AppSidebarTrigger() {
+  const { isMobile } = useSidebar();
+  if (isMobile) {
+    return (
+      <SidebarTrigger className="flex items-center gap-2">
+        <AppLogo className="w-6 h-6 text-primary" />
+      </SidebarTrigger>
+    );
+  }
+  return null;
+}
+
 export function AppSidebar({ unreadCount }: { unreadCount: number }) {
   const pathname = usePathname();
   const { signOut } = useAuth();
+  const { isMobile } = useSidebar();
+
 
   return (
-    <Sidebar>
-      <SidebarHeader>
+    <Sidebar collapsible={isMobile ? 'offcanvas' : 'icon'}>
+      <SidebarHeader className="flex items-center justify-between">
         <Link href="/dashboard" className="flex items-center gap-2">
           <AppLogo className="w-8 h-8 text-primary" />
           <span className="font-bold text-lg group-data-[collapsible=icon]:hidden">
             Beyond Theory
           </span>
         </Link>
+        <div className="group-data-[collapsible=icon]:hidden">
+           <SidebarTrigger />
+        </div>
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>

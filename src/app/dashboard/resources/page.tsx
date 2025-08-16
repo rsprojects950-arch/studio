@@ -139,7 +139,7 @@ export default function ResourcesPage() {
     const lowercasedFilter = searchTerm.toLowerCase();
     return allResources.filter(r =>
         r.category === activeTab &&
-        r.title.toLowerCase().includes(lowercasedFilter) &&
+        (r.title.toLowerCase().includes(lowercasedFilter) || r.description.toLowerCase().includes(lowercasedFilter)) &&
         (activeFilter === 'All' || r.type === activeFilter)
       );
   }, [searchTerm, activeFilter, activeTab, allResources]);
@@ -196,85 +196,14 @@ export default function ResourcesPage() {
                 <TabsTrigger value="entrepreneur">Entrepreneur</TabsTrigger>
                 <TabsTrigger value="selfHelp">Self Help</TabsTrigger>
             </TabsList>
-            <div className='flex gap-2'>
-                <div className="relative w-full md:w-80">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input 
-                        placeholder="Search in this category..." 
-                        className="pl-9"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-                 <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" /> Add Resource
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Add a new resource</DialogTitle>
-                            <DialogDescription>
-                                Share something valuable with the community.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <form 
-                            ref={formRef}
-                            onSubmit={handleFormSubmit}
-                            className="space-y-4"
-                        >
-                            <div className="space-y-2">
-                                <Label htmlFor="url">URL</Label>
-                                <Input id="url" name="url" placeholder="https://example.com/resource" required />
-                            </div>
-                             <div className="space-y-2">
-                                <Label htmlFor="title">Title</Label>
-                                <Input id="title" name="title" placeholder="e.g. Awesome React Tutorial" required />
-                            </div>
-                             <div className="space-y-2">
-                                <Label htmlFor="description">Description</Label>
-                                <Textarea id="description" name="description" placeholder="A short summary of what this resource is about." required />
-                            </div>
-                            <div className='grid grid-cols-2 gap-4'>
-                                <div className="space-y-2">
-                                    <Label htmlFor="category">Category</Label>
-                                    <Select name="category" required>
-                                        <SelectTrigger id="category">
-                                            <SelectValue placeholder="Select a category" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="tech">Tech</SelectItem>
-                                            <SelectItem value="entrepreneur">Entrepreneur</SelectItem>
-                                            <SelectItem value="selfHelp">Self Help</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="type">Type</Label>
-                                     <Select name="type" required>
-                                        <SelectTrigger id="type">
-                                            <SelectValue placeholder="Select a type" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="Book">Book</SelectItem>
-                                            <SelectItem value="Video">Video</SelectItem>
-                                            <SelectItem value="Documentation">Documentation</SelectItem>
-                                            <SelectItem value="Online Resource">Online Resource</SelectItem>
-                                            <SelectItem value="Podcast">Podcast</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                </div>
-                            </div>
-                            <DialogFooter>
-                                <Button type="submit" disabled={isSubmitting}>
-                                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                    Add Resource
-                                </Button>
-                            </DialogFooter>
-                        </form>
-                    </DialogContent>
-                </Dialog>
+            <div className="relative w-full md:w-80">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                    placeholder="Search in this category..." 
+                    className="pl-9"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
             </div>
         </div>
 
@@ -301,6 +230,76 @@ export default function ResourcesPage() {
             )}
         </div>
       </Tabs>
+       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+              <Button className="fixed bottom-8 right-8 h-14 w-14 rounded-full shadow-lg">
+                  <Plus className="h-6 w-6" />
+                  <span className="sr-only">Add Resource</span>
+              </Button>
+          </DialogTrigger>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Add a new resource</DialogTitle>
+                  <DialogDescription>
+                      Share something valuable with the community.
+                  </DialogDescription>
+              </DialogHeader>
+              <form 
+                  ref={formRef}
+                  onSubmit={handleFormSubmit}
+                  className="space-y-4"
+              >
+                  <div className="space-y-2">
+                      <Label htmlFor="url">URL</Label>
+                      <Input id="url" name="url" placeholder="https://example.com/resource" required />
+                  </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="title">Title</Label>
+                      <Input id="title" name="title" placeholder="e.g. Awesome React Tutorial" required />
+                  </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description">Description</Label>
+                      <Textarea id="description" name="description" placeholder="A short summary of what this resource is about." required />
+                  </div>
+                  <div className='grid grid-cols-2 gap-4'>
+                      <div className="space-y-2">
+                          <Label htmlFor="category">Category</Label>
+                          <Select name="category" required>
+                              <SelectTrigger id="category">
+                                  <SelectValue placeholder="Select a category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                  <SelectItem value="tech">Tech</SelectItem>
+                                  <SelectItem value="entrepreneur">Entrepreneur</SelectItem>
+                                  <SelectItem value="selfHelp">Self Help</SelectItem>
+                              </SelectContent>
+                          </Select>
+                      </div>
+                      <div className="space-y-2">
+                          <Label htmlFor="type">Type</Label>
+                            <Select name="type" required>
+                              <SelectTrigger id="type">
+                                  <SelectValue placeholder="Select a type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                  <SelectItem value="Book">Book</SelectItem>
+                                  <SelectItem value="Video">Video</SelectItem>
+                                  <SelectItem value="Documentation">Documentation</seminar>
+                                  <SelectItem value="Online Resource">Online Resource</SelectItem>
+                                  <SelectItem value="Podcast">Podcast</SelectItem>
+                              </SelectContent>
+                          </Select>
+                      </div>
+                  </div>
+                  <DialogFooter>
+                      <Button type="submit" disabled={isSubmitting}>
+                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Add Resource
+                      </Button>
+                  </DialogFooter>
+              </form>
+          </DialogContent>
+      </Dialog>
     </div>
   );
 }
