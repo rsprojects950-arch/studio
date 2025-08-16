@@ -14,7 +14,7 @@ import { z } from 'genkit';
 const getResourceTool = ai.defineTool(
   {
     name: 'getResource',
-    description: 'ONLY use this tool if a user explicitly mentions a resource ID (e.g., in the format #[...](...)) and asks for details about it. The tool will return the resource details or null if not found.',
+    description: 'Use this tool ONLY when a user provides a specific resource ID, which looks like #[some-title](some-id), and asks for details. The tool returns the resource details or null if not found.',
     inputSchema: z.object({
       resourceId: z.string().describe('The unique identifier of the resource.'),
     }),
@@ -22,8 +22,7 @@ const getResourceTool = ai.defineTool(
   },
   async (input) => {
     try {
-      // The tool may receive a string or an object, so we handle both cases.
-      const id = typeof input === 'string' ? input : input.resourceId;
+      const id = input.resourceId;
       if (!id) return null;
       return await getResource(id);
     } catch (error) {
@@ -43,7 +42,7 @@ const botPrompt = ai.definePrompt({
     system: `You are BT-bot, a friendly and helpful AI assistant for the 'Beyond Theory' application. Your primary goal is to provide helpful and encouraging responses to users for their productivity and self-improvement questions.
 
 Your secondary function is to fetch details about specific resources.
-- If a user's query contains a resource ID (e.g., in the format #[...](...)), you MUST use the getResource tool to fetch its details.
+- If a user's query contains a resource ID in the format #[...](...), you MUST use the getResource tool to fetch its details.
 - If the tool returns resource details, summarize them for the user and include a tag in the format #[title](id) in your response. For example: "Next.js is a great framework. You can learn more here: #[Next.js](nextjs-id)".
 - If the tool returns null, you MUST inform the user that the resource could not be found. Do not make up information.
 - For all other questions, engage in a friendly, helpful conversation.`,
