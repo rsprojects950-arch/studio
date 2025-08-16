@@ -24,19 +24,20 @@ const renderMessageWithContent = (
     isSender: boolean,
     resourceLinks?: ResourceLink[]
 ) => {
-    const mentionRegex = /(@[a-zA-Z0-9_]+)/g;
-    const resourceRegex = /(#\[[^\]]+\]\([a-zA-Z0-9-]+\))/g; // Matches #[Title](id)
-    const combinedRegex = new RegExp(`(${mentionRegex.source}|${resourceRegex.source})`, 'g');
+    const mentionRegex = /@([a-zA-Z0-9_]+)/g;
+    const resourceRegex = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/g; // Matches #[Title](id)
+    const combinedRegex = new RegExp(`(${mentionRegex.source})|(${resourceRegex.source})`, 'g');
     
     const parts = text.split(combinedRegex).filter(part => part);
 
     return parts.map((part, index) => {
         if (part.match(mentionRegex)) {
-            if (isSender) return part; // Don't style mentions for the sender
-            const isCurrentUserMention = part.substring(1).trim().toLowerCase() === currentUserName.toLowerCase();
+            const mention = part.substring(1);
+            if (isSender) return `@${mention}`;
+            const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
             return (
                 <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary')}>
-                    {part}
+                    {`@${mention}`}
                 </strong>
             );
         }
