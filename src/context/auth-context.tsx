@@ -4,6 +4,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChangedHelper, signOut as signOutFirebase } from '@/lib/firebase/auth';
+import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { getUserProfile, createUserProfile, updateUserProfile } from '@/lib/firebase/firestore';
 import type { UserProfile } from '@/lib/types';
@@ -14,7 +15,6 @@ type AuthContextType = {
   profile: UserProfile | null;
   loading: boolean;
   signOut: () => void;
-  reloadProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -22,7 +22,6 @@ const AuthContext = createContext<AuthContextType>({
   profile: null,
   loading: true,
   signOut: () => {},
-  reloadProfile: async () => {},
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
@@ -81,19 +80,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     router.push('/');
   };
 
-  const reloadProfile = useCallback(async () => {
-    if (user) {
-        await user.reload(); // re-fetches user data from auth
-        const updatedUser = auth.currentUser;
-        if(updatedUser){
-             setUser(updatedUser);
-             await fetchUserProfile(updatedUser); // re-fetches profile from firestore
-        }
-    }
-  }, [user, fetchUserProfile]);
-
-
-  const value = { user, profile, loading, signOut, reloadProfile };
+  const value = { user, profile, loading, signOut };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
