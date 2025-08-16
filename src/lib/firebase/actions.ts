@@ -1,3 +1,4 @@
+
 'use server';
 
 import { revalidatePath } from 'next/cache';
@@ -44,4 +45,42 @@ export async function createTaskAction(formData: FormData) {
 
   revalidatePath('/dashboard/todos');
   revalidatePath('/dashboard');
+}
+
+
+export async function createResourceAction(formData: FormData) {
+  const userId = formData.get('userId') as string;
+  const username = formData.get('username') as string;
+  if (!userId || !username) {
+    throw new Error('You must be logged in to add a resource.');
+  }
+
+  const title = formData.get('title') as string;
+  const url = formData.get('url') as string;
+  const description = formData.get('description') as string;
+  const category = formData.get('category') as string;
+  const type = formData.get('type') as string;
+
+  if (!title || !url || !description || !category || !type) {
+    throw new Error('All fields are required.');
+  }
+  
+  try {
+    await addDoc(collection(db, "resources"), {
+      title,
+      url,
+      description,
+      category,
+      type,
+      submittedByUid: userId,
+      submittedByUsername: username,
+      createdAt: serverTimestamp(),
+    });
+
+  } catch (error) {
+    console.error("Error adding resource to Firestore:", error);
+    throw new Error('Could not add resource.');
+  }
+
+  revalidatePath('/dashboard/resources');
 }

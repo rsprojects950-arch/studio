@@ -26,3 +26,15 @@ export type UserProfile = {
   email: string;
   photoURL: string | null;
 };
+
+export type Resource = {
+  id: string;
+  title: string;
+  url: string;
+  category: 'tech' | 'entrepreneur' | 'selfHelp';
+  type: 'Book' | 'Video' | 'Documentation' | 'Online Resource' | 'Podcast';
+  description: string;
+  submittedByUid: string;
+  submittedByUsername: string;
+  createdAt: Date;
+};
