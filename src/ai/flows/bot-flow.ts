@@ -48,6 +48,10 @@ export async function askBot(query: string): Promise<string> {
         }
 
         const toolRequestPart = output.content.find(part => part.toolRequest);
+        
+        // Add the AI's response (which might contain a tool request) to history
+        history.push(output);
+
         if (toolRequestPart?.toolRequest) {
             const toolResponsePart = toolResponse(
                 toolRequestPart.toolRequest.name, 
@@ -58,7 +62,6 @@ export async function askBot(query: string): Promise<string> {
                     : (toolRequestPart.toolRequest.input as any).resourceId
                 )
             );
-            history.push(output);
             history.push({role: 'tool', content: [toolResponsePart]});
             // Continue the loop to get the AI's final response after using the tool
             continue; 
