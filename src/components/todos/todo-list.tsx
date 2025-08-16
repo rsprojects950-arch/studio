@@ -157,11 +157,16 @@ export function TodoList() {
       return;
     }
     
+    if (!formRef.current) {
+        toast({ variant: "destructive", title: "An unexpected error occurred." });
+        return;
+    }
+
     setIsSubmitting(true);
     
     try {
       const idToken = await user.getIdToken();
-      const formData = new FormData(event.currentTarget);
+      const formData = new FormData(formRef.current);
       formData.append("idToken", idToken);
 
       if (newDueDate) {
