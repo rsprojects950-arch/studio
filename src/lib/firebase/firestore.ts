@@ -2,11 +2,15 @@
 
 'use server';
 
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Task, Message } from '@/lib/types';
+import type { Task, Message, UserProfile } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
 
+export async function createUserProfile(profile: UserProfile): Promise<void> {
+  const userDocRef = doc(db, 'users', profile.uid);
+  await setDoc(userDocRef, profile);
+}
 
 export async function getTasks(userId: string): Promise<Task[]> {
   if (!userId) {
@@ -50,7 +54,7 @@ export async function getTasks(userId: string): Promise<Task[]> {
   }
 }
 
-export async function getUserProfile(userId: string) {
+export async function getUserProfile(userId: string): Promise<UserProfile | null> {
   if (!userId) {
     return null;
   }
@@ -58,7 +62,7 @@ export async function getUserProfile(userId: string) {
     const userDocRef = doc(db, "users", userId);
     const userDoc = await getDoc(userDocRef);
     if (userDoc.exists()) {
-      return userDoc.data();
+      return userDoc.data() as UserProfile;
     }
     return null;
   } catch (error) {

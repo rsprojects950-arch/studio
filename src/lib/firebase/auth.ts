@@ -12,6 +12,7 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
+import { createUserProfile } from './firestore';
 
 const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
@@ -26,10 +27,10 @@ export const signInWithGoogle = async () => {
     const userDocRef = doc(db, 'users', user.uid);
     const userDoc = await getDoc(userDocRef);
     if (!userDoc.exists()) {
-      await setDoc(userDocRef, {
+      await createUserProfile({
         uid: user.uid,
-        name: user.displayName,
-        email: user.email,
+        name: user.displayName || user.email?.split('@')[0] || 'Anonymous',
+        email: user.email || '',
         photoURL: user.photoURL,
       });
     }
@@ -44,11 +45,11 @@ export const signUp = async (name: string, email, password) => {
   try {
     const result = await createUserWithEmailAndPassword(auth, email, password);
     const user = result.user;
-    await setDoc(doc(db, "users", user.uid), {
+    await createUserProfile({
         uid: user.uid,
         name: name,
         email: email,
-        photoURL: user.photoURL,
+        photoURL: null, // Default photoURL for email sign-up
     });
     return { result, error: null };
   } catch (error) {

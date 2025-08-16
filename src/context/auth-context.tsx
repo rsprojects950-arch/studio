@@ -1,11 +1,11 @@
 
-"use client";
+'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChangedHelper, signOut as signOutFirebase } from '@/lib/firebase/auth';
 import { useRouter } from 'next/navigation';
-import { getUserProfile } from '@/lib/firebase/firestore';
+import { getUserProfile, createUserProfile } from '@/lib/firebase/firestore';
 import type { UserProfile } from '@/lib/types';
 
 
@@ -30,12 +30,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChangedHelper(async (user) => {
-      setUser(user);
-      if (user) {
-        const userProfile = await getUserProfile(user.uid);
+    const unsubscribe = onAuthStateChangedHelper(async (userAuth) => {
+      setLoading(true);
+      if (userAuth) {
+        setUser(userAuth);
+        let userProfile = await getUserProfile(userAuth.uid);
+        if (!userProfile) {
+          // If profile doesn't exist, create it. This handles first-time Google sign-ins
+          // or cases where the profile creation after email signup might have failed.
+          const newProfileData = {
+            uid: userAuth.uid,
+            name: userAuth.displayName || userAuth.email?.split('@')[0] || 'Anonymous',
+            email: userAuth.email || '',
+            photoURL: userAuth.photoURL || null,
+          };
+          await createUserProfile(newProfileData);
+          userProfile = newProfileData;
+        }
         setProfile(userProfile);
       } else {
+        setUser(null);
         setProfile(null);
       }
       setLoading(false);

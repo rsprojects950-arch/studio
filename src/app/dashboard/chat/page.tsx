@@ -22,7 +22,7 @@ const renderMessageWithMentions = (text: string, currentUserName: string) => {
         if (mentionRegex.test(part)) {
             const isCurrentUserMention = part.substring(1).trim().toLowerCase() === currentUserName.toLowerCase();
             return (
-                <strong key={index} className={isCurrentUserMention ? 'bg-accent text-accent-foreground rounded px-1' : 'text-primary'}>
+                <strong key={index} className={isCurrentUserMention ? 'bg-primary text-primary-foreground rounded px-1' : 'text-primary font-bold'}>
                     {part}
                 </strong>
             );
@@ -113,7 +113,6 @@ export default function ChatPage() {
     
     useEffect(() => {
         if (scrollAreaRef.current) {
-            // A small delay to allow the new message to render
             setTimeout(() => {
                  scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
             }, 100);
@@ -156,6 +155,7 @@ export default function ChatPage() {
             });
         } finally {
             setSending(false);
+            inputRef.current?.focus();
         }
     };
     
@@ -235,45 +235,43 @@ export default function ChatPage() {
                      <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
                         <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
                             <PopoverTrigger asChild>
-                                <div className="relative w-full">
-                                    <Input 
-                                        ref={inputRef}
-                                        placeholder="Type a message..." 
-                                        value={newMessage}
-                                        onChange={handleInputChange}
-                                        autoComplete="off"
-                                        disabled={sending || !user}
-                                        className="w-full"
-                                    />
-                                </div>
+                                <Input 
+                                    ref={inputRef}
+                                    placeholder="Type a message..." 
+                                    value={newMessage}
+                                    onChange={handleInputChange}
+                                    autoComplete="off"
+                                    disabled={sending || !user}
+                                    className="w-full"
+                                />
                             </PopoverTrigger>
-                            <PopoverContent className="w-80 p-0" align="start">
-                            <div className="flex flex-col">
-                                <div className="p-2 border-b">
-                                    <p className="text-sm font-medium">Mention a user</p>
-                                </div>
-                                <ScrollArea className="max-h-48">
-                                    <div className="p-1">
-                                    {filteredUsers.length > 0 ? (
-                                        filteredUsers.map(u => (
-                                        <div 
-                                            key={u.uid} 
-                                            className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
-                                            onClick={() => handleMentionSelect(u.name)}
-                                        >
-                                            <Avatar className="h-6 w-6">
-                                                <AvatarImage src={u.photoURL || undefined} />
-                                                <AvatarFallback>{u.name.charAt(0)}</AvatarFallback>
-                                            </Avatar>
-                                            <span className="text-sm">{u.name}</span>
-                                        </div>
-                                        ))
-                                    ) : (
-                                        <p className="p-2 text-sm text-muted-foreground">No users found.</p>
-                                    )}
+                             <PopoverContent className="w-80 p-0" align="start">
+                                <div className="flex flex-col">
+                                    <div className="p-2 border-b">
+                                        <p className="text-sm font-medium">Mention a user</p>
                                     </div>
-                                </ScrollArea>
-                            </div>
+                                    <ScrollArea className="max-h-48">
+                                        <div className="p-1">
+                                        {filteredUsers.length > 0 ? (
+                                            filteredUsers.map(u => (
+                                            <div 
+                                                key={u.uid} 
+                                                className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                                                onClick={() => handleMentionSelect(u.name)}
+                                            >
+                                                <Avatar className="h-6 w-6">
+                                                    <AvatarImage src={u.photoURL || undefined} />
+                                                    <AvatarFallback>{u.name.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                                <span className="text-sm">{u.name}</span>
+                                            </div>
+                                            ))
+                                        ) : (
+                                            <p className="p-2 text-sm text-muted-foreground">No users found.</p>
+                                        )}
+                                        </div>
+                                    </ScrollArea>
+                                </div>
                             </PopoverContent>
                         </Popover>
                         <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>
