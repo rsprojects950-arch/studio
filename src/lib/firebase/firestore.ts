@@ -457,9 +457,9 @@ export async function getNotes(userId: string): Promise<Note[]> {
         querySnapshot.forEach((doc) => {
             const data = doc.data();
             
-            // Safe conversion of Timestamps to Date objects
-            const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
-            const updatedAt = data.updatedAt instanceof Timestamp ? data.updatedAt.toDate() : new Date();
+            // Safe conversion of Timestamps to string
+            const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString();
+            const updatedAt = data.updatedAt instanceof Timestamp ? data.updatedAt.toDate().toISOString() : new Date().toISOString();
 
             notes.push({
                 id: doc.id,

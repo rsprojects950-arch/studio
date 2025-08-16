@@ -44,8 +44,8 @@ export type Note = {
   topic: string;
   content: string;
   resourceLinks?: ResourceLink[];
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type UserProfile = {

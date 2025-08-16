@@ -336,7 +336,7 @@ export default function NotesPage() {
                         <CardHeader>
                             <CardTitle>{note.topic}</CardTitle>
                             <CardDescription>
-                                Last updated {formatDistanceToNow(note.updatedAt, { addSuffix: true })}
+                                Last updated {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}
                             </CardDescription>
                         </CardHeader>
                         <CardContent className="flex-grow">
