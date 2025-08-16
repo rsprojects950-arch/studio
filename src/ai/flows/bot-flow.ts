@@ -47,7 +47,7 @@ const getResourceTool = ai.defineTool(
 const botPrompt = ai.definePrompt(
   {
     name: 'botPrompt',
-    system: 'You are BT-bot, a friendly and helpful AI assistant. Your primary function is to engage in general conversation. You have a special tool called getResource that you can use to look up information about specific resources if a user asks about one by providing its ID in the format #[Resource Name](resource-id). Only use the tool if the ID is present.',
+    system: 'You are BT-bot, a friendly and helpful AI assistant. Your primary function is to engage in general conversation. You have a special tool called getResource that you can use to look up information about specific resources if a user asks about one by providing its ID in the format #[Resource Name](resource-id). Only use the tool if the ID is present. When you use the tool, briefly summarize the resource details you received in a conversational way.',
     tools: [getResourceTool],
   },
 );
@@ -56,35 +56,43 @@ export async function askBot(query: string): Promise<string> {
   try {
     console.log('[askBot] Processing query:', query);
     
-    const result = await botPrompt({ input: query });
-    const textResponse = result.text();
+    // Initial call to the AI
+    let result = await botPrompt({ input: query });
 
-    if (textResponse) {
-      return textResponse;
-    }
-    
-    // This part handles the tool response if there was one, but text() should still work.
-    // The logic above is the primary path. We keep this as a fallback.
-    const toolResponse = result.toolRequest;
-    if (toolResponse) {
-        const toolOutput = result.toolResponse(toolResponse.tool);
-        if (toolOutput) {
-            const finalResult = await botPrompt({
+    // Loop to handle potential tool calls
+    while (true) {
+        const textResponse = result.text();
+        if (textResponse) {
+            // If we have a final text response, return it.
+            console.log('[askBot] Returning text response:', textResponse);
+            return textResponse;
+        }
+
+        const toolRequest = result.toolRequest;
+        if (toolRequest) {
+            console.log('[askBot] Tool request received:', toolRequest);
+            // AI wants to use a tool, so we execute it.
+            const toolResponse = await toolRequest.run();
+
+            // Send the tool's response back to the AI for a final summary.
+            result = await botPrompt({
                 input: query,
                 history: [
                     { role: 'user', content: [{ text: query }] },
-                    { role: 'model', content: [toolResponse] },
-                    { role: 'tool', content: [{_type: 'toolResponse', tool: toolResponse.tool, output: toolOutput }]}
+                    { role: 'model', content: [toolRequest] },
+                    { role: 'tool', content: [toolResponse] }
                 ],
             });
-            const finalText = finalResult.text();
-            if (finalText) return finalText;
+            continue; // Continue the loop to process the new result
         }
+
+        // If there's no text and no tool request, it's an unexpected state.
+        console.warn('[askBot] No text or tool request in AI response.');
+        return "I'm not sure how to respond to that. Can you try asking in a different way?";
     }
     
-    return "I'm not sure how to respond to that. Can you try asking in a different way?";
   } catch (error: any) {
     console.error('[askBot] Detailed error:', error);
-    return "Sorry, I encountered an unexpected error. Please check the server logs.";
+    return "Sorry, I encountered an unexpected error. Please check the server logs for more details.";
   }
 }
