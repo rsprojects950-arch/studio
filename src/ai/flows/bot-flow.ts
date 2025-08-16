@@ -40,7 +40,7 @@ export async function askBot(query: string): Promise<string> {
     const history: AIMessage[] = [{role: 'user', content: [{text: query}]}];
     
     while(true) {
-        const result = await prompt(history);
+        const result = await prompt({history});
         const output = result.output;
 
         if (!output) {
@@ -83,4 +83,3 @@ export async function askBot(query: string): Promise<string> {
         return "I'm not sure how to respond to that. Can you try asking in a different way?";
     }
 }
-
