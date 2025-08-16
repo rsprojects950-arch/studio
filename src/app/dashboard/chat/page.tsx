@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/auth-context';
 import type { Message } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,7 +22,7 @@ export default function ChatPage() {
     const [sending, setSending] = useState(false);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
 
-    const fetchMessages = async () => {
+    const fetchMessages = useCallback(async () => {
         try {
             const response = await fetch('/api/messages');
             if (!response.ok) throw new Error('Failed to fetch messages');
@@ -37,22 +37,17 @@ export default function ChatPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [toast]);
 
     useEffect(() => {
         setLoading(true);
         fetchMessages();
-        
-        // Poll for new messages every 5 seconds
-        const intervalId = setInterval(fetchMessages, 5000);
-
-        return () => clearInterval(intervalId);
-    }, [toast]);
+    }, [fetchMessages]);
     
     useEffect(() => {
         // Auto-scroll to the bottom
         if (scrollAreaRef.current) {
-            scrollAreaRef.current.scrollTo(0, scrollAreaRef.current.scrollHeight);
+            scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
         }
     }, [messages]);
 
@@ -65,15 +60,25 @@ export default function ChatPage() {
             const response = await fetch('/api/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: newMessage, userId: user.uid, userName: user.displayName, userAvatar: user.photoURL }),
+                body: JSON.stringify({ 
+                    text: newMessage, 
+                    userId: user.uid, 
+                    userName: user.displayName || 'Anonymous', 
+                    userAvatar: user.photoURL 
+                }),
             });
-            if (!response.ok) throw new Error('Failed to send message');
+
+            if (!response.ok) {
+                 const errorData = await response.text();
+                 throw new Error(`Failed to send message: ${errorData}`);
+            }
             
+            const newlySentMessage: Message = await response.json();
+            setMessages(prevMessages => [...prevMessages, newlySentMessage]);
             setNewMessage('');
-            // Refetch messages immediately after sending
-            await fetchMessages();
 
         } catch (error) {
+            console.error("SendMessageError:", error);
             toast({
                 variant: 'destructive',
                 title: 'Error',
@@ -85,7 +90,7 @@ export default function ChatPage() {
     };
 
     return (
-        <div className="flex-1 flex flex-col p-4 md:p-8 pt-6 h-full">
+        <div className="flex-1 flex flex-col p-4 md:p-8 pt-6 h-[calc(100vh-4rem)]">
             <div className="flex items-center justify-between space-y-2 pb-4">
                 <h2 className="text-3xl font-bold tracking-tight">Public Chat</h2>
             </div>
@@ -122,7 +127,7 @@ export default function ChatPage() {
                                         {user?.uid === msg.userId && (
                                             <Avatar>
                                                 <AvatarImage src={msg.userAvatar || 'https://placehold.co/100x100.png'} alt={msg.userName} data-ai-hint="user portrait" />
-                                                <AvatarFallback>{msg.userName.charAt(0).toUpperCase()}</AvatarFallback>
+                                                <AvatarFallback>{(user.displayName || 'U').charAt(0).toUpperCase()}</AvatarFallback>
                                             </Avatar>
                                         )}
                                     </div>

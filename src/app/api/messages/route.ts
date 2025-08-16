@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp, Timestamp, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Message } from '@/lib/types';
 
@@ -49,7 +49,18 @@ export async function POST(request: Request) {
       createdAt: serverTimestamp(),
     });
 
-    return NextResponse.json({ id: docRef.id });
+    // Fetch the newly created document to get the server-generated timestamp
+    const newDoc = await getDoc(docRef);
+    const newMessage = newDoc.data();
+
+    // Serialize the new message to be sent back to the client
+    const serializableMessage = {
+      id: newDoc.id,
+      ...newMessage,
+      createdAt: (newMessage?.createdAt as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+    };
+
+    return NextResponse.json(serializableMessage, { status: 201 });
   } catch (error) {
     console.error('Error sending message:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
