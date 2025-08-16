@@ -1,10 +1,11 @@
 
-
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import type { Task, Message, UserProfile, ShortTermGoal } from '@/lib/types';
+import { db, storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { updateProfile, type User } from 'firebase/auth';
+import type { Task, UserProfile, ShortTermGoal } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
 
 export async function createUserProfile(profile: UserProfile): Promise<void> {
@@ -16,6 +17,33 @@ export async function updateUserProfile(userId: string, profileData: Partial<Use
   const userDocRef = doc(db, 'users', userId);
   await updateDoc(userDocRef, profileData);
 }
+
+export async function uploadProfilePhoto(user: User, file: File): Promise<void> {
+    if (!user) throw new Error("User not authenticated");
+    if (!file) throw new Error("File not provided");
+
+    const filePath = `profile-pictures/${user.uid}/${file.name}`;
+    const storageRef = ref(storage, filePath);
+
+    try {
+        // Upload file to Firebase Storage
+        const snapshot = await uploadBytes(storageRef, file);
+        
+        // Get the public URL of the uploaded file
+        const photoURL = await getDownloadURL(snapshot.ref);
+
+        // Update the user's profile in Firebase Auth
+        await updateProfile(user, { photoURL });
+
+        // Update the user's profile in Firestore
+        await updateUserProfile(user.uid, { photoURL });
+        
+    } catch(error) {
+        console.error("Error uploading profile photo:", error);
+        throw new Error("Failed to upload photo.");
+    }
+}
+
 
 export async function getTasks(userId: string): Promise<Task[]> {
   if (!userId) {
