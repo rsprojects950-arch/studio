@@ -28,6 +28,7 @@ export async function getResources(): Promise<Resource[]> {
         submittedByUid: data.submittedByUid,
         submittedByUsername: data.submittedByUsername,
         createdAt: createdAt,
+        thumbnailUrl: data.thumbnailUrl || null,
       });
     });
     

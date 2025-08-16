@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useCallback, useRef, forwardRef } from 'react';
+import Image from 'next/image';
 import {
   Card,
   CardContent,
@@ -44,8 +45,18 @@ const ResourceCard = ({ resource, onEdit, onDelete }: { resource: Resource, onEd
   return (
     <Card className="overflow-hidden flex flex-col group relative">
       <CardHeader className="p-0">
-        <div className="aspect-video bg-muted flex items-center justify-center">
-          <Icon className="w-16 h-16 text-muted-foreground" />
+        <div className="aspect-video bg-muted flex items-center justify-center relative">
+          {resource.thumbnailUrl ? (
+             <Image
+                src={resource.thumbnailUrl}
+                alt={resource.title}
+                layout="fill"
+                objectFit="cover"
+                className="transition-transform group-hover:scale-105"
+              />
+          ) : (
+            <Icon className="w-16 h-16 text-muted-foreground" />
+          )}
         </div>
       </CardHeader>
       <CardContent className="p-4 flex-grow">
