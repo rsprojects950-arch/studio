@@ -1,3 +1,7 @@
+
+'use client';
+
+import { useTheme } from '@/context/theme-context';
 import {
   Card,
   CardContent,
@@ -7,10 +11,11 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 
 export default function SettingsPage() {
+  const { theme, setTheme, font, setFont } = useTheme();
+
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
       <div className="space-y-2 mb-6">
@@ -30,7 +35,7 @@ export default function SettingsPage() {
                 <Label>App Font</Label>
                 <p className="text-sm text-muted-foreground">Change the font used across the app.</p>
               </div>
-              <Select defaultValue="inter">
+              <Select value={font} onValueChange={setFont}>
                 <SelectTrigger className="w-[180px]">
                   <SelectValue placeholder="Select font" />
                 </SelectTrigger>
@@ -46,7 +51,11 @@ export default function SettingsPage() {
                 <Label>Dark Mode</Label>
                 <p className="text-sm text-muted-foreground">Enable a darker color scheme.</p>
               </div>
-              <Switch id="dark-mode" />
+              <Switch
+                id="dark-mode"
+                checked={theme === 'dark'}
+                onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+              />
             </div>
           </CardContent>
         </Card>
@@ -54,26 +63,26 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle>Accessibility</CardTitle>
-            <CardDescription>Recommended functions to improve your experience.</CardDescription>
+            <CardDescription>These features are currently unavailable.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="flex items-center justify-between space-x-2">
+            <div className="flex items-center justify-between space-x-2 opacity-50">
               <div className="space-y-1">
                 <Label>Text Size</Label>
                 <p className="text-sm text-muted-foreground">Adjust the size of text in the app.</p>
               </div>
               <div className="w-[180px] flex items-center gap-2">
-                <span className="text-sm">A</span>
-                <Slider defaultValue={[50]} max={100} step={1} />
-                <span className="text-xl">A</span>
+                 <span className="text-sm">A</span>
+                 <div className="w-full h-2 rounded-full bg-muted" />
+                 <span className="text-xl">A</span>
               </div>
             </div>
-            <div className="flex items-center justify-between space-x-2">
+            <div className="flex items-center justify-between space-x-2 opacity-50">
               <div className="space-y-1">
                 <Label>High Contrast Mode</Label>
                 <p className="text-sm text-muted-foreground">Improve visibility with higher contrast colors.</p>
               </div>
-              <Switch id="high-contrast" />
+              <Switch id="high-contrast" disabled />
             </div>
           </CardContent>
         </Card>
