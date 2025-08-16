@@ -24,6 +24,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from "firebase/auth";
+
 
 type UserProfile = {
   username: string;
@@ -72,31 +74,47 @@ export default function ProfilePage() {
   }, [user]);
 
   async function onSubmit(values: z.infer<typeof passwordFormSchema>) {
-    if (!user) return;
+    if (!user || !user.email) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "You must be logged in to change your password.",
+      });
+      return;
+    };
     setIsSubmitting(true);
     
     try {
-        const result = await updatePasswordAction(
-            user.uid,
-            user.email!,
-            values.currentPassword,
-            values.newPassword
-        );
-        
-        if (result.success) {
-            toast({
-                title: "Success!",
-                description: "Your password has been updated.",
-            });
-            form.reset();
-        } else {
-            throw new Error(result.error || "An unknown error occurred.");
-        }
+        const credential = EmailAuthProvider.credential(user.email, values.currentPassword);
+        await reauthenticateWithCredential(user, credential);
+
+        // If re-authentication is successful, update the password
+        await updatePassword(user, values.newPassword);
+
+        toast({
+            title: "Success!",
+            description: "Your password has been updated.",
+        });
+        form.reset();
+
     } catch (error) {
+         let errorMessage = "An unknown error occurred.";
+         if (error instanceof Error) {
+            switch ((error as any).code) {
+                case 'auth/wrong-password':
+                    errorMessage = "The current password you entered is incorrect.";
+                    break;
+                case 'auth/too-many-requests':
+                    errorMessage = "Too many attempts. Please try again later.";
+                    break;
+                default:
+                    errorMessage = error.message;
+            }
+         }
          toast({
             variant: "destructive",
             title: "Password Update Failed",
-            description: (error as Error).message,
+            description: errorMessage,
         });
     } finally {
         setIsSubmitting(false);
@@ -195,4 +213,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-
