@@ -108,7 +108,9 @@ export default function NotesPage() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     formData.set('userId', user.uid);
-    formData.set('content', content);
+    // This was the bug: content was not being correctly passed.
+    // It should be read from the form field directly.
+    formData.set('content', (e.currentTarget.elements.namedItem('content') as HTMLTextAreaElement).value);
 
     try {
       if (editingNote) {
@@ -382,3 +384,5 @@ export default function NotesPage() {
     </div>
   );
 }
+
+    
