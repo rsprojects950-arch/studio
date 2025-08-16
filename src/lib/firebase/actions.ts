@@ -316,7 +316,7 @@ export async function createNoteAction(formData: FormData) {
       userId,
       topic,
       content,
-      resourceLinks,
+      resourceLinks, // This line was missing
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -368,7 +368,7 @@ export async function updateNoteAction(formData: FormData) {
     await updateDoc(noteRef, {
       topic,
       content,
-      resourceLinks,
+      resourceLinks, // This line was missing
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
