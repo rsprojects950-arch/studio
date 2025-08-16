@@ -1,13 +1,12 @@
 
 'use client';
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useAuth } from "@/context/auth-context";
 import { getUserProfile } from "@/lib/firebase/firestore";
-import { updatePasswordAction } from "@/lib/firebase/actions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,10 +43,8 @@ const passwordFormSchema = z.object({
 
 
 export default function ProfilePage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   const form = useForm<z.infer<typeof passwordFormSchema>>({
@@ -58,20 +55,6 @@ export default function ProfilePage() {
       confirmPassword: "",
     },
   });
-
-  useEffect(() => {
-    async function fetchProfile() {
-      if (user) {
-        setLoading(true);
-        const userProfile = await getUserProfile(user.uid);
-        if (userProfile) {
-          setProfile(userProfile as UserProfile);
-        }
-        setLoading(false);
-      }
-    }
-    fetchProfile();
-  }, [user]);
 
   async function onSubmit(values: z.infer<typeof passwordFormSchema>) {
     if (!user || !user.email) {
@@ -129,7 +112,7 @@ export default function ProfilePage() {
 
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="md:col-span-1">
-          {loading ? (
+          {!profile ? (
             <CardHeader className="items-center text-center p-6">
               <Skeleton className="h-24 w-24 rounded-full mb-4" />
               <Skeleton className="h-6 w-32" />

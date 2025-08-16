@@ -275,30 +275,3 @@ export async function deleteShortTermGoalAction(goalId: string, userId: string) 
 
   revalidatePath('/dashboard/goals');
 }
-
-export async function updatePasswordAction(userId: string, email: string, currentPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> {
-  if (!userId || !email) {
-    return { success: false, error: 'User not properly identified.' };
-  }
-
-  // This action requires the user to be authenticated on the client.
-  // The client will pass the necessary info to this server action.
-  // We can't directly access the current user here as this is a server context.
-  
-  // NOTE: Firebase Admin SDK would be better here, but for this setup, we rely on the client's current user state.
-  // The re-authentication flow must be handled carefully. The client should manage the user object.
-  // This server action is a placeholder for the logic that needs to be implemented with proper authentication context.
-  
-  // Due to the architecture, a pure server action cannot re-authenticate a user without the user object from the client SDK.
-  // The client should perform re-authentication and then call a function to update the password.
-  // However, for the purpose of this exercise, we will simulate the check.
-  // A true implementation would use the Firebase Admin SDK to manage users without re-authentication, or a client-side flow.
-  
-  console.log(`Attempting to update password for user ${userId}`);
-
-  // This is a simplified example. In a real app, you would have a more secure way to handle this, likely involving the Firebase Admin SDK
-  // or having the client-side code perform the reauthentication and then calling updatePassword.
-  // For now, we will return an error to highlight this complexity.
-
-  return { success: false, error: "Password update functionality requires a more complex client-side re-authentication flow which is not yet implemented." };
-}
