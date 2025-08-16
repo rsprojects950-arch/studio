@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -66,26 +65,26 @@ export default function NotesPage() {
   const [resourceSearch, setResourceSearch] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-
-  useEffect(() => {
-    const fetchNotes = async () => {
-        if (!user) return;
-        setLoading(true);
-        try {
-          const userNotes = await getNotes(user.uid);
-          setNotes(userNotes);
-        } catch (error) {
-          toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Failed to load notes.',
-          });
-        } finally {
-          setLoading(false);
-        }
-    };
-    fetchNotes();
+  const fetchNotes = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const userNotes = await getNotes(user.uid);
+      setNotes(userNotes);
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Failed to load notes.',
+      });
+    } finally {
+      setLoading(false);
+    }
   }, [user, toast]);
+  
+  useEffect(() => {
+    fetchNotes();
+  }, [fetchNotes]);
   
   useEffect(() => {
     if (editingNote) {
@@ -124,7 +123,7 @@ export default function NotesPage() {
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     formData.set('userId', user.uid);
-    formData.set('content', (e.currentTarget.elements.namedItem('content') as HTMLTextAreaElement).value);
+    formData.set('content', content);
 
     try {
       if (editingNote) {
