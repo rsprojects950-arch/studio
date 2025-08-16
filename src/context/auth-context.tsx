@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { User } from 'firebase/auth';
-import { onAuthStateChangedHelper, signOut as signOutFirebase } from '@/lib/firebase/auth';
+import { onAuthStateChanged, signOut as signOutFirebase } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { getUserProfile, createUserProfile, updateUserProfile } from '@/lib/firebase/firestore';
@@ -68,7 +68,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [handleUserChange]);
   
   const signOut = async () => {
-    await signOutFirebase();
+    await signOutFirebase(auth);
     setUser(null);
     setProfile(null);
     router.push('/');

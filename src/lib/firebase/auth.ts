@@ -5,8 +5,6 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut as signOutFirebase,
-  onAuthStateChanged,
-  type User,
   GoogleAuthProvider,
   signInWithPopup,
   updateProfile,
@@ -87,8 +85,4 @@ export const signIn = async (identifier: string, password: string) => {
 
 export const signOut = () => {
   return signOutFirebase(auth);
-};
-
-export const onAuthStateChangedHelper = (callback: (user: User | null) => void) => {
-  return onAuthStateChanged(auth, callback);
 };
