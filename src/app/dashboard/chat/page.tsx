@@ -182,7 +182,7 @@ export default function ChatPage() {
         inputRef.current?.focus();
     };
     
-    const filteredUsers = users.filter(u => u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
+    const filteredUsers = users.filter(u => u.username && u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
 
     return (
         <div className="flex-1 flex flex-col p-4 md:p-8 pt-6 h-[calc(100vh-4rem)]">
