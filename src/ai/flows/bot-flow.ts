@@ -19,9 +19,11 @@ const getResourceTool = ai.defineTool(
   },
   async (input) => {
     try {
-        return await getResource(input.resourceId);
+        // The AI might pass the whole object or just the string.
+        const id = typeof input === 'string' ? input : input.resourceId;
+        return await getResource(id);
     } catch (error) {
-        console.error(`[getResourceTool] Failed to fetch resource ${input.resourceId}:`, error);
+        console.error(`[getResourceTool] Failed to fetch resource:`, error);
         // Return null to the AI, so it can respond gracefully to the user.
         return null;
     }
@@ -62,7 +64,7 @@ export async function askBot(query: string): Promise<string> {
         if (toolRequestPart?.toolRequest) {
             const toolRequest = toolRequestPart.toolRequest;
             
-            // Ensure input is a plain string for the getResource tool
+            // The AI might pass the whole object or just the string ID.
             const toolInput = typeof toolRequest.input === 'string' 
                 ? toolRequest.input
                 : (toolRequest.input as { resourceId: string }).resourceId;
@@ -71,20 +73,21 @@ export async function askBot(query: string): Promise<string> {
 
             const toolResponsePart = toolResponse(toolRequest.name, toolResult);
             
-            // Add the tool's response to history
+            // Add the tool's response to history for the next turn
             history.push({ role: 'tool', content: [toolResponsePart] });
             
-            // Continue the loop to get the AI's final response
+            // Continue the loop to let the AI generate a final response based on the tool's output
             continue;
         }
 
-        // If we're here, there was no tool request. Extract the text response.
+        // If we're here, there was no tool request. We can exit the loop.
         const text = result.text;
         
         if (text) {
             return text;
         }
 
+        // Fallback response if no text is found, though it's unlikely with a valid output.
         return "I'm not sure how to respond to that. Can you try asking in a different way?";
     }
 }
