@@ -74,11 +74,8 @@ export function TodoList() {
   }, [user, toast]);
 
   useEffect(() => {
-    // Only fetch tasks if the user is loaded.
-    if (user) {
-      fetchTasks();
-    }
-  }, [user, fetchTasks]);
+    fetchTasks();
+  }, [fetchTasks]);
 
   const sortedTasks = useMemo(() => {
     return [...tasks].sort((a, b) => {
@@ -165,7 +162,6 @@ export function TodoList() {
     if (newDueDate) {
       formData.set('dueDate', newDueDate.toISOString());
     }
-    // Set userId on the form data
     formData.set('userId', user.uid);
 
 
@@ -324,5 +320,3 @@ export function TodoList() {
     </div>
   );
 }
-
-    
