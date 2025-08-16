@@ -14,16 +14,23 @@ import { z } from 'genkit';
 const getResourceTool = ai.defineTool(
   {
     name: 'getResource',
-    description: 'Use this tool ONLY when a user provides a specific resource ID, which looks like #[some-title](some-id), and asks for details. The tool returns the resource details or null if not found.',
+    description: 'Use this tool ONLY when a user provides a specific resource ID in the format #[...](...) and asks for details. The tool returns the resource details or null if not found.',
     inputSchema: z.object({
       resourceId: z.string().describe('The unique identifier of the resource.'),
     }),
-    outputSchema: z.any(),
+    outputSchema: z.object({
+        title: z.string(),
+        description: z.string(),
+        url: z.string(),
+        type: z.string(),
+        category: z.string(),
+    }).nullable(),
   },
   async (input) => {
     try {
       const id = input.resourceId;
       if (!id) return null;
+      // The getResource function from firestore is already set up to handle this
       return await getResource(id);
     } catch (error) {
       console.error(`[getResourceTool] Failed to fetch resource:`, error);
