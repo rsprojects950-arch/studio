@@ -68,7 +68,8 @@ export async function getDashboardStats(userId: string) {
   };
 
   const today = new Date();
-  const startOfThisWeek = startOfWeek(today, { weekStartsOn: 1 });
+  // Set week to start on Sunday (0) to align with standard calendars
+  const startOfThisWeek = startOfWeek(today, { weekStartsOn: 0 });
 
   const weekData = Array.from({ length: 7 }).map((_, i) => {
       const day = addDays(startOfThisWeek, i);
