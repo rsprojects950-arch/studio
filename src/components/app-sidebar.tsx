@@ -26,6 +26,7 @@ import {
   User,
   LogOut,
   Target,
+  PanelLeft,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import type { UserProfile } from '@/lib/types';
@@ -59,20 +60,17 @@ export function AppSidebarTrigger() {
 export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProfile, unreadCount: number }) {
   const pathname = usePathname();
   const { signOut } = useAuth();
-  const { isMobile } = useSidebar();
+  const { isMobile, toggleSidebar, state } = useSidebar();
 
   return (
     <Sidebar collapsible={isMobile ? 'offcanvas' : 'icon'}>
-      <SidebarHeader className="flex items-center justify-between">
+      <SidebarHeader>
         <Link href="/dashboard" className="flex items-center gap-2">
           <AppLogo className="w-8 h-8 text-primary" />
           <span className="font-bold text-lg group-data-[collapsible=icon]:hidden">
             Beyond Theory
           </span>
         </Link>
-        <div className="group-data-[collapsible=icon]:hidden">
-           <SidebarTrigger />
-        </div>
       </SidebarHeader>
       <SidebarContent className="p-2">
         <SidebarMenu>
@@ -128,6 +126,17 @@ export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProf
               </SidebarMenuButton>
             </SidebarMenuItem>
           ))}
+        </SidebarMenu>
+
+        <Separator />
+
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={toggleSidebar} tooltip={{ children: state === 'expanded' ? 'Collapse' : 'Expand', side: 'right' }}>
+              <PanelLeft />
+              <span className="group-data-[collapsible=icon]:hidden">Collapse</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
