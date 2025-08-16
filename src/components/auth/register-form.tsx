@@ -57,8 +57,6 @@ export function RegisterForm() {
         description: (error as Error).message,
       });
     } else {
-      // Create the user profile document in Firestore upon successful registration
-      const { user } = error ? { user: null } : await signUp(name, email, password);
       router.push("/dashboard");
     }
     setIsLoading(false);
