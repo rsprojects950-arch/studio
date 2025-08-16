@@ -1,200 +1,21 @@
 
 'use client';
 
-import { useState, useMemo, useEffect, useCallback, useRef, forwardRef } from 'react';
-import Image from 'next/image';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Book, FileText, Video, ExternalLink, Mic, Plus, Loader2, User, Edit, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from '@/lib/utils';
-import type { Resource } from '@/lib/types';
-import { getResources } from '@/lib/firebase/resources';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useToast } from '@/hooks/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, Search } from "lucide-react";
+import type { Resource } from '@/lib/types';
+import { getResources } from '@/lib/firebase/resources';
 import { createResourceAction, updateResourceAction, deleteResourceAction } from '@/lib/firebase/actions';
-
-const iconMap: { [key: string]: React.ElementType } = {
-  Documentation: FileText,
-  Video: Video,
-  Book: Book,
-  'Online Resource': FileText,
-  Podcast: Mic,
-};
-
-const ResourceCard = ({ resource, onEdit, onDelete }: { resource: Resource, onEdit: () => void, onDelete: () => void }) => {
-  const { user } = useAuth();
-  const Icon = iconMap[resource.type] || FileText;
-  
-  const canModify = user?.uid === resource.submittedByUid;
-
-  return (
-    <Card className="overflow-hidden flex flex-col group relative">
-      <CardHeader className="p-0">
-        <div className="aspect-video bg-muted flex items-center justify-center relative">
-          <Icon className="w-16 h-16 text-muted-foreground" />
-        </div>
-      </CardHeader>
-      <CardContent className="p-4 flex-grow">
-        <div className="flex items-start gap-3">
-          <Icon className="w-5 h-5 mt-1 text-muted-foreground shrink-0" />
-          <div>
-            <CardTitle className="text-lg">{resource.title}</CardTitle>
-            <CardDescription>{resource.type}</CardDescription>
-            <p className="text-sm text-muted-foreground mt-2">{resource.description}</p>
-          </div>
-        </div>
-      </CardContent>
-      <CardFooter className="p-4 pt-0 flex-col items-start gap-3">
-         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <User className="h-3 w-3" />
-            <span>Added by {resource.submittedByUsername}</span>
-        </div>
-        <Button asChild variant="outline" className="w-full">
-            <a href={resource.url} target="_blank" rel="noopener noreferrer">
-             View Resource <ExternalLink className="ml-2 h-4 w-4" />
-            </a>
-        </Button>
-      </CardFooter>
-      {canModify && (
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-          <Button variant="secondary" size="icon" className="h-8 w-8" onClick={onEdit}>
-            <Edit className="h-4 w-4" />
-            <span className="sr-only">Edit resource</span>
-          </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="icon" className="h-8 w-8">
-                    <Trash2 className="h-4 w-4" />
-                    <span className="sr-only">Delete resource</span>
-                </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete the resource.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={onDelete}>Delete</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      )}
-    </Card>
-  );
-};
-
-const NoResults = () => (
-    <div className="text-center text-muted-foreground col-span-full py-12">
-        <p className="text-lg font-semibold">No results found</p>
-        <p>Try adjusting your search or filters. Or, add a new resource!</p>
-    </div>
-);
-
-const ResourceSkeleton = () => (
-    <Card className="overflow-hidden">
-      <CardHeader className="p-0">
-        <Skeleton className="aspect-video w-full" />
-      </CardHeader>
-      <CardContent className="p-4 space-y-2">
-        <Skeleton className="h-5 w-3/4" />
-        <Skeleton className="h-4 w-1/2" />
-        <Skeleton className="h-4 w-full" />
-        <Skeleton className="h-4 w-full" />
-      </CardContent>
-      <CardFooter className="p-4 pt-0">
-        <Skeleton className="h-10 w-full" />
-      </CardFooter>
-    </Card>
-);
-
-const ResourceForm = forwardRef<
-    HTMLFormElement,
-    {
-        resource?: Resource | null;
-        onSubmit: (event: React.FormEvent<HTMLFormElement>) => Promise<void>;
-        isSubmitting: boolean;
-        onClose: () => void;
-    }
->(({ resource, onSubmit, isSubmitting, onClose }, ref) => {
-    return (
-        <form
-            ref={ref}
-            onSubmit={onSubmit}
-            className="space-y-4"
-        >
-            {resource && <input type="hidden" name="resourceId" value={resource.id} />}
-            <div className="space-y-2">
-                <Label htmlFor="url">URL</Label>
-                <Input id="url" name="url" placeholder="https://example.com/resource" required defaultValue={resource?.url} />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input id="title" name="title" placeholder="e.g. Awesome React Tutorial" required defaultValue={resource?.title} />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea id="description" name="description" placeholder="A short summary of what this resource is about." required defaultValue={resource?.description} />
-            </div>
-            <div className='grid grid-cols-2 gap-4'>
-                <div className="space-y-2">
-                    <Label htmlFor="category">Category</Label>
-                    <Select name="category" required defaultValue={resource?.category}>
-                        <SelectTrigger id="category">
-                            <SelectValue placeholder="Select a category" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="tech">Tech</SelectItem>
-                            <SelectItem value="entrepreneur">Entrepreneur</SelectItem>
-                            <SelectItem value="selfHelp">Self Help</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-2">
-                    <Label htmlFor="type">Type</Label>
-                    <Select name="type" required defaultValue={resource?.type}>
-                        <SelectTrigger id="type">
-                            <SelectValue placeholder="Select a type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="Book">Book</SelectItem>
-                            <SelectItem value="Video">Video</SelectItem>
-                            <SelectItem value="Documentation">Documentation</SelectItem>
-                            <SelectItem value="Online Resource">Online Resource</SelectItem>
-                            <SelectItem value="Podcast">Podcast</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
-            <DialogFooter>
-                <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-                <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {resource ? 'Save Changes' : 'Add Resource'}
-                </Button>
-            </DialogFooter>
-        </form>
-    );
-});
-ResourceForm.displayName = 'ResourceForm';
+import { ResourceCard } from '@/components/resources/resource-card';
+import { ResourceSkeleton } from '@/components/resources/resource-skeleton';
+import { NoResults } from '@/components/resources/no-results';
+import { ResourceForm } from '@/components/resources/resource-form';
 
 export default function ResourcesPage() {
   const { user, profile } = useAuth();
