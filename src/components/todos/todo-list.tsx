@@ -102,6 +102,8 @@ export function TodoList() {
         return true;
       })
   }, [sortedTasks, searchTerm, filter]);
+
+  console.log("Filtered tasks:", filteredTasks);
   
   const toggleTaskStatus = async (taskId: string, currentStatus: 'ongoing' | 'completed') => {
     const newStatus = currentStatus === 'ongoing' ? 'completed' : 'ongoing';
