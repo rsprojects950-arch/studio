@@ -46,11 +46,11 @@ export async function askBot(query: string): Promise<string> {
         if (!output) {
              return "Sorry, I encountered an unexpected error. Please try again.";
         }
-
-        const toolRequestPart = output.content.find(part => part.toolRequest);
         
         // Add the AI's response (which might contain a tool request) to history
         history.push(output);
+
+        const toolRequestPart = output.content.find(part => part.toolRequest);
 
         if (toolRequestPart?.toolRequest) {
             const toolResponsePart = toolResponse(
@@ -83,3 +83,4 @@ export async function askBot(query: string): Promise<string> {
         return "I'm not sure how to respond to that. Can you try asking in a different way?";
     }
 }
+
