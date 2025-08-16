@@ -151,6 +151,34 @@ export function TodoList() {
     return { variant: "secondary", label: "N/A" };
   };
 
+  const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setIsSubmitting(true);
+    
+    const formData = new FormData(event.currentTarget);
+    if (newDueDate) {
+      formData.set('dueDate', newDueDate.toISOString());
+    }
+
+    try {
+      await createTaskAction(formData);
+      formRef.current?.reset();
+      setNewDueDate(undefined);
+      setIsDialogOpen(false);
+      toast({ title: "Task added successfully" });
+      router.refresh(); // This will trigger a refetch of all data on the page
+    } catch (error) {
+      console.error(error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to add the new task."
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row justify-between gap-4">
@@ -182,30 +210,7 @@ export function TodoList() {
               </DialogHeader>
               <form 
                 ref={formRef}
-                action={async (formData) => {
-                  setIsSubmitting(true);
-                  if (newDueDate) {
-                    formData.append('dueDate', newDueDate.toISOString());
-                  }
-                  
-                  try {
-                    await createTaskAction(formData);
-                    formRef.current?.reset();
-                    setNewDueDate(undefined);
-                    setIsDialogOpen(false);
-                    toast({ title: "Task added successfully" });
-                    router.refresh();
-                  } catch (error) {
-                    console.error(error);
-                    toast({
-                      variant: "destructive",
-                      title: "Error",
-                      description: "Failed to add the new task."
-                    });
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }}
+                onSubmit={handleFormSubmit}
               >
                 <div className="grid gap-4 py-4">
                   {user && <input type="hidden" name="userId" value={user.uid} />}
