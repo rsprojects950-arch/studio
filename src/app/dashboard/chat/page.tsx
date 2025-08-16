@@ -214,9 +214,6 @@ export default function ChatPage() {
 
     return (
         <div className="flex-1 flex flex-col p-4 md:p-8 pt-6 h-[calc(100vh-4rem)]">
-            <div className="flex items-center justify-between space-y-2 pb-4">
-                <h2 className="text-3xl font-bold tracking-tight">Public Chat</h2>
-            </div>
             <Card className="flex-1 flex flex-col">
                 <CardHeader>
                     <CardTitle>Community Discussion</CardTitle>
