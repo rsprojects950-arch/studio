@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A bot that can answer questions about resources.
@@ -41,7 +42,7 @@ export async function askBot(query: string): Promise<string> {
     while(true) {
         const {output} = await prompt(history);
 
-        if (output.content) {
+        if (output?.content) {
             let text = '';
             output.content.forEach((part: Part) => {
                 if(part.text) {
@@ -54,10 +55,10 @@ export async function askBot(query: string): Promise<string> {
             }
         }
         
-        const toolRequestPart = output.content.find(part => part.toolRequest);
+        const toolRequestPart = output?.content.find(part => part.toolRequest);
         if (toolRequestPart?.toolRequest) {
             const toolResponsePart = toolResponse(toolRequestPart.toolRequest.name, await getResource(toolRequestPart.toolRequest.input.resourceId));
-            history.push(output);
+            history.push(output!);
             history.push({role: 'tool', content: [toolResponsePart]});
             continue;
         }
@@ -65,3 +66,4 @@ export async function askBot(query: string): Promise<string> {
         return "I'm not sure how to respond to that. Can you try asking in a different way?";
     }
 }
+
