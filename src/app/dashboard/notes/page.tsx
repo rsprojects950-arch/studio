@@ -384,7 +384,3 @@ export default function NotesPage() {
     </div>
   );
 }
-
-    
-
-    
