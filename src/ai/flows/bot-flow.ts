@@ -59,9 +59,9 @@ export async function askBot(query: string): Promise<string> {
     // Initial call to the AI
     let result = await botPrompt({ input: query });
 
-    // Loop to handle potential tool calls
+    // This loop correctly handles the back-and-forth for tool use.
     while (true) {
-        const textResponse = result.text();
+        const textResponse = result.text;
         if (textResponse) {
             // If we have a final text response, return it.
             console.log('[askBot] Returning text response:', textResponse);
@@ -76,14 +76,13 @@ export async function askBot(query: string): Promise<string> {
 
             // Send the tool's response back to the AI for a final summary.
             result = await botPrompt({
-                input: query,
                 history: [
                     { role: 'user', content: [{ text: query }] },
                     { role: 'model', content: [toolRequest] },
                     { role: 'tool', content: [toolResponse] }
                 ],
             });
-            continue; // Continue the loop to process the new result
+            continue; // Continue the loop to process the new result from the tool call.
         }
 
         // If there's no text and no tool request, it's an unexpected state.
