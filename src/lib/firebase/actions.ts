@@ -1,14 +1,37 @@
-
 'use server';
 
 import { revalidatePath } from 'next/cache';
 import { addDoc, collection, Timestamp, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import admin from 'firebase-admin';
 
-export async function createTaskAction(userId: string, formData: FormData) {
-  if (!userId) {
-    throw new Error('You must be logged in to create a task.');
+// Initialize Firebase Admin SDK if not already initialized.
+// This is safe to run on every server action invocation.
+if (!admin.apps.length) {
+  admin.initializeApp({
+    // Use application default credentials in a managed environment
+    credential: admin.credential.applicationDefault(),
+  });
+}
+
+
+export async function createTaskAction(formData: FormData) {
+  const idToken = formData.get("idToken") as string;
+  if (!idToken) {
+    throw new Error("Authentication token is missing. Please log in again.");
   }
+
+  let uid: string;
+  try {
+    // Verify the ID token with the Firebase Admin SDK.
+    // This securely confirms the user's identity.
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    uid = decodedToken.uid;
+  } catch (error) {
+    console.error("Error verifying ID token:", error);
+    throw new Error("Invalid authentication token.");
+  }
+
 
   const title = formData.get('title') as string;
   if (!title) {
@@ -18,10 +41,6 @@ export async function createTaskAction(userId: string, formData: FormData) {
   const dueDateStr = formData.get('dueDate') as string | null;
 
   try {
-    // The security of this action is enforced by Firestore Security Rules.
-    // The rule `allow create: if request.auth.uid == request.resource.data.userId;`
-    // ensures that a user can only create tasks for themselves. The `userId` is
-    // passed from the client and validated by this rule on the backend.
     const taskData: {
       userId: string;
       title: string;
@@ -29,7 +48,7 @@ export async function createTaskAction(userId: string, formData: FormData) {
       createdAt: any; 
       dueDate?: Timestamp;
     } = {
-      userId: userId, // Use the authenticated userId passed as an argument
+      userId: uid,   // 👈 Always use the UID from the verified token
       title: title,
       status: 'ongoing',
       createdAt: serverTimestamp(),

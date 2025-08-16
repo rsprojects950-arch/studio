@@ -156,26 +156,32 @@ export function TodoList() {
       toast({ variant: "destructive", title: "You must be logged in."});
       return;
     }
+    
     setIsSubmitting(true);
     
-    const formData = new FormData(event.currentTarget);
-    if (newDueDate) {
-      formData.set('dueDate', newDueDate.toISOString());
-    }
-
     try {
-      await createTaskAction(user.uid, formData);
+      const idToken = await user.getIdToken();
+      const formData = new FormData(event.currentTarget);
+      formData.append("idToken", idToken);
+
+      if (newDueDate) {
+        formData.set('dueDate', newDueDate.toISOString());
+      }
+
+      await createTaskAction(formData);
+
       formRef.current?.reset();
       setNewDueDate(undefined);
       setIsDialogOpen(false);
       toast({ title: "Task added successfully" });
-      router.refresh(); 
+      fetchTasks(); // Manually re-fetch tasks instead of relying on router.refresh
     } catch (error) {
       console.error(error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to add the new task.";
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to add the new task."
+        description: errorMessage,
       });
     } finally {
       setIsSubmitting(false);
