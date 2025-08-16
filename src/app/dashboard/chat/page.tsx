@@ -31,10 +31,8 @@ const renderMessageWithContent = (
     const parts = text.split(combinedRegex).filter(Boolean);
 
     return parts.map((part, index) => {
-        // Check for resource tag first
-        const resourceMatch = part.match(/#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/);
+        const resourceMatch = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/.exec(part);
         if (resourceMatch) {
-            const title = resourceMatch[1];
             const id = resourceMatch[2];
             const resource = resourceLinks?.find(r => r.id === id);
 
@@ -48,12 +46,12 @@ const renderMessageWithContent = (
                     </Link>
                 );
             }
+             return part; // Return the raw tag if resource not found
         }
         
-        // Then check for mention
-        if (part.match(mentionRegex)) {
-            const mention = part.substring(1);
-            if (isSender) return `@${mention}`; // Show plain text for the user who sent it
+        const mentionMatch = /@([a-zA-Z0-9_]+)/.exec(part);
+        if (mentionMatch) {
+            const mention = mentionMatch[1];
             const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
             return (
                 <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : 'text-primary')}>
@@ -63,7 +61,7 @@ const renderMessageWithContent = (
         }
 
         // Otherwise, it's plain text
-        return part;
+        return <span key={index}>{part}</span>;
     });
 };
 
@@ -239,17 +237,17 @@ export default function ChatPage() {
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const text = e.target.value;
         setNewMessage(text);
-        setResourcePopoverOpen(false);
-        setMentionPopoverOpen(false);
-
+        
         const cursorPosition = e.target.selectionStart || 0;
         const textUpToCursor = text.substring(0, cursorPosition);
         const currentWord = textUpToCursor.split(/\s+/).pop() || "";
         
         if (currentWord.startsWith('@')) {
+            setResourcePopoverOpen(false);
             setMentionPopoverOpen(true);
             setMentionSearch(currentWord.substring(1));
         } else if (currentWord.startsWith('#')) {
+            setMentionPopoverOpen(false);
             setResourcePopoverOpen(true);
             const query = currentWord.substring(1);
             setResourceSearch(query);
@@ -258,6 +256,9 @@ export default function ChatPage() {
             } else {
                 setResources([]);
             }
+        } else {
+            setResourcePopoverOpen(false);
+            setMentionPopoverOpen(false);
         }
     };
 
@@ -266,12 +267,11 @@ export default function ChatPage() {
         const cursorPosition = inputRef.current?.selectionStart || 0;
         
         const textUpToCursor = currentText.substring(0, cursorPosition);
-        const textAfterCursor = currentText.substring(cursorPosition);
         
         const lastAtIndex = textUpToCursor.lastIndexOf('@');
         const prefix = textUpToCursor.substring(0, lastAtIndex);
 
-        setNewMessage(`${prefix}@${username} ${textAfterCursor}`);
+        setNewMessage(`${prefix}@${username} `);
         setMentionPopoverOpen(false);
         setMentionSearch('');
         inputRef.current?.focus();
@@ -281,14 +281,13 @@ export default function ChatPage() {
         const currentText = newMessage;
         const cursorPosition = inputRef.current?.selectionStart || 0;
         const textUpToCursor = currentText.substring(0, cursorPosition);
-        const textAfterCursor = currentText.substring(cursorPosition);
         
         const lastHashIndex = textUpToCursor.lastIndexOf('#');
         const prefix = textUpToCursor.substring(0, lastHashIndex);
 
         const tag = `#[${resource.title}](${resource.id}) `;
 
-        setNewMessage(`${prefix}${tag}${textAfterCursor}`);
+        setNewMessage(`${prefix}${tag}`);
         setResourcePopoverOpen(false);
         setResourceSearch('');
         setResources([]);
@@ -356,7 +355,7 @@ export default function ChatPage() {
                                                             <p className="truncate">{msg.replyToText}</p>
                                                         </div>
                                                     )}
-                                                    <p className="whitespace-pre-wrap break-words">{renderMessageWithContent(msg.text, userProfile?.username || '', user?.uid === msg.userId, msg.resourceLinks)}</p>
+                                                    <div className="whitespace-pre-wrap break-words">{renderMessageWithContent(msg.text, userProfile?.username || '', user?.uid === msg.userId, msg.resourceLinks)}</div>
                                                 </div>
                                                 <span className="text-xs text-muted-foreground mt-1">
                                                     {format(new Date(msg.createdAt), 'p')}
@@ -398,17 +397,17 @@ export default function ChatPage() {
                     )}
                     <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
                         <div className="w-full relative">
+                             <Input
+                                ref={inputRef}
+                                placeholder="Type a message..."
+                                value={newMessage}
+                                onChange={handleInputChange}
+                                autoComplete="off"
+                                disabled={sending || !user}
+                                className="w-full"
+                            />
                             <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
                                 <PopoverTrigger asChild><div/></PopoverTrigger>
-                                <Input
-                                    ref={inputRef}
-                                    placeholder="Type a message..."
-                                    value={newMessage}
-                                    onChange={handleInputChange}
-                                    autoComplete="off"
-                                    disabled={sending || !user}
-                                    className="w-full"
-                                />
                                 <PopoverContent className="w-80 p-0" align="start" side="top">
                                     <div className="flex flex-col">
                                         <div className="p-2 border-b flex items-center gap-2">
@@ -486,5 +485,3 @@ export default function ChatPage() {
         </div>
     );
 }
-
-    
