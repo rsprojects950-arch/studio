@@ -21,7 +21,8 @@ export async function createTaskAction(formData: FormData) {
   try {
     // The security of this action is enforced by Firestore Security Rules.
     // The rule `allow create: if request.auth.uid == request.resource.data.userId;`
-    // ensures that a user can only create tasks for themselves.
+    // ensures that a user can only create tasks for themselves. The `userId` is
+    // passed from the client and validated by this rule on the backend.
     const taskData: {
       userId: string;
       title: string;
