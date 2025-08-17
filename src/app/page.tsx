@@ -19,7 +19,7 @@ export default function LoginPage() {
   // While loading, or if user is logged in, don't show the form
   // to prevent flicker. The useEffect will handle the redirect.
   if (loading || user) {
-    return null;
+    return <div />; // Use a placeholder to prevent rendering null
   }
 
   return (
