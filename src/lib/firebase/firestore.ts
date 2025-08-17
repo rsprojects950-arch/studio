@@ -96,6 +96,20 @@ export async function getShortTermGoals(userId: string): Promise<ShortTermGoal[]
   return goals.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 }
 
+async function getAllShortTermGoals(userId: string): Promise<ShortTermGoal[]> {
+  if (!userId) return [];
+  const goalsCol = collection(db, 'shortTermGoals');
+  const q = query(goalsCol, where('userId', '==', userId));
+  const querySnapshot = await getDocs(q);
+  const goals = querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+    dueDate: doc.data().dueDate.toDate(),
+    createdAt: doc.data().createdAt.toDate(),
+  } as ShortTermGoal));
+  return goals;
+}
+
 export async function checkAndTransferGoals(userId: string) {
   if (!userId) return;
   const goalsCol = collection(db, 'shortTermGoals');
