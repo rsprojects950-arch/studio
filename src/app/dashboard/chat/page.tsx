@@ -3,25 +3,20 @@
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useAuth } from '@/context/auth-context';
-import type { Message, UserProfile, Resource, ResourceLink, Conversation } from '@/lib/types';
+import type { Message, UserProfile, Resource, ResourceLink } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Send, Loader2, MessageSquareReply, X, Hash, BookOpen, UserPlus, Trash2, MessageSquare } from "lucide-react";
+import { Send, Loader2, BookOpen, MessageSquare } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { useUnreadCount } from '@/context/unread-count-context';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { ConversationList } from '@/components/chat/conversation-list';
-import { NewConversationDialog } from '@/components/chat/new-conversation-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-
 
 const renderMessageWithContent = (
     text: string, 
@@ -86,7 +81,6 @@ const renderMessageWithContent = (
 function ChatPageContent() {
     const { user, profile: userProfile } = useAuth();
     const { toast } = useToast();
-    const { refreshUnreadCount } = useUnreadCount();
     
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
@@ -102,38 +96,14 @@ function ChatPageContent() {
     const [resourceSearch, setResourceSearch] = useState('');
     const [isResourcePopoverOpen, setResourcePopoverOpen] = useState(false);
     
-    const [replyingTo, setReplyingTo] = useState<Message | null>(null);
-    const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
-    const [isNewConvoDialogOpen, setNewConvoDialogOpen] = useState(false);
-
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const lastMessageTimestamp = useRef<string | null>(null);
 
-    const handleSelectConversation = useCallback(async (conversation: Conversation | null) => {
-        if (!conversation) {
-            setSelectedConversation(null);
-            setMessages([]);
-            return;
-        }
-
-        if (user && conversation.id !== 'public' && conversation.unreadCount && conversation.unreadCount > 0) {
-            try {
-                await fetch('/api/conversations', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action: 'markAsRead', userId: user.uid, conversationId: conversation.id }),
-                });
-                refreshUnreadCount?.();
-            } catch (error) {
-                console.error("Failed to mark conversation as read", error);
-            }
-        }
-        setSelectedConversation(conversation);
-    }, [user, refreshUnreadCount]);
+    const PUBLIC_CONVERSATION_ID = 'public';
 
     const fetchMessages = useCallback(async (isInitialLoad = false) => {
-        if (!user || !selectedConversation) return;
+        if (!user) return;
         if (isInitialLoad) {
             setLoading(true);
             setMessages([]);
@@ -141,7 +111,7 @@ function ChatPageContent() {
         }
         
         try {
-            const baseUrl = `/api/messages?conversationId=${selectedConversation.id}`;
+            const baseUrl = `/api/messages?conversationId=${PUBLIC_CONVERSATION_ID}`;
             const url = isInitialLoad 
                 ? baseUrl 
                 : `${baseUrl}&since=${encodeURIComponent(lastMessageTimestamp.current || new Date(0).toISOString())}`;
@@ -175,19 +145,13 @@ function ChatPageContent() {
         } finally {
             if(isInitialLoad) setLoading(false);
         }
-    }, [user, selectedConversation, toast]);
+    }, [user, toast]);
     
     useEffect(() => {
-        if (selectedConversation) {
-            fetchMessages(true); // Initial fetch for selected convo
-            
-            const interval = setInterval(() => {
-                fetchMessages(false); // Poll for new messages
-            }, 5000); // Poll every 5 seconds
-    
-            return () => clearInterval(interval);
-        }
-    }, [selectedConversation, fetchMessages]);
+        fetchMessages(true); // Initial fetch
+        const interval = setInterval(() => fetchMessages(false), 5000); // Poll for new messages
+        return () => clearInterval(interval);
+    }, [fetchMessages]);
 
     useEffect(() => {
         const fetchUsers = async () => {
@@ -212,7 +176,7 @@ function ChatPageContent() {
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !newMessage.trim() || !selectedConversation) return;
+        if (!user || !newMessage.trim()) return;
 
         setSending(true);
 
@@ -229,14 +193,10 @@ function ChatPageContent() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
-                    conversationId: selectedConversation.id,
+                    conversationId: PUBLIC_CONVERSATION_ID,
                     text: newMessage, 
                     userId: user.uid,
-                    replyTo: replyingTo ? {
-                        id: replyingTo.id,
-                        text: replyingTo.text,
-                        username: replyingTo.username
-                    } : null,
+                    replyTo: null,
                     resourceLinks: resourceLinks.length > 0 ? resourceLinks : null,
                 }),
             });
@@ -260,7 +220,6 @@ function ChatPageContent() {
                 lastMessageTimestamp.current = newlySentMessage.createdAt;
             }
             setNewMessage('');
-            setReplyingTo(null);
 
         } catch (error) {
             console.error("SendMessageError:", error);
@@ -335,71 +294,20 @@ function ChatPageContent() {
         }
     }, []);
 
-    const handleSetReply = (message: Message) => {
-        setReplyingTo(message);
-        inputRef.current?.focus();
-    }
-    
-    const handleDeleteMessage = async (messageId: string) => {
-        if (!user || !selectedConversation) return;
-
-        setMessages(prev => prev.filter(m => m.id !== messageId));
-
-        try {
-            const res = await fetch(`/api/messages?conversationId=${selectedConversation.id}&messageId=${messageId}&userId=${user.uid}`, {
-                method: 'DELETE',
-            });
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(errorText || 'Failed to delete message');
-            }
-            toast({ title: "Message deleted" });
-            fetchMessages(true); // Refetch messages to get last message update
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: error.message });
-            fetchMessages(true); // Refetch to restore state on error
-        }
-    };
-
     const filteredUsers = users.filter(u => u.username && u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
     const filteredResources = resources.filter(r => r.title.toLowerCase().includes(resourceSearch.toLowerCase()));
 
-    const otherParticipant = selectedConversation?.participantsDetails?.find(p => p.uid !== user?.uid);
-    const cardTitle = selectedConversation?.isPublic
-        ? "Community Discussion" 
-        : otherParticipant?.username || "Direct Message";
-
     return (
         <div className="flex-1 flex h-[calc(100vh-4rem)]">
-            <ConversationList
-                selectedConversation={selectedConversation}
-                onSelectConversation={handleSelectConversation}
-                onNewConversation={() => setNewConvoDialogOpen(true)}
-            />
-            <NewConversationDialog
-                isOpen={isNewConvoDialogOpen}
-                onOpenChange={setNewConvoDialogOpen}
-                onConversationStarted={setSelectedConversation}
-            />
-            <Card className="flex-1 flex flex-col rounded-l-none">
+            <Card className="flex-1 flex flex-col rounded-none">
                 <CardHeader>
                     <div className="flex items-center gap-3">
-                        {selectedConversation && !selectedConversation.isPublic && otherParticipant && (
-                             <Avatar>
-                                <AvatarImage src={otherParticipant.photoURL || undefined} alt={otherParticipant.username} />
-                                <AvatarFallback>{otherParticipant.username.charAt(0).toUpperCase()}</AvatarFallback>
-                            </Avatar>
-                        )}
-                         {selectedConversation && selectedConversation.isPublic && (
-                             <Avatar>
-                                <AvatarFallback><MessageSquare/></AvatarFallback>
-                            </Avatar>
-                        )}
+                         <Avatar>
+                            <AvatarFallback><MessageSquare/></AvatarFallback>
+                        </Avatar>
                         <div>
-                            <CardTitle>{cardTitle}</CardTitle>
-                             {selectedConversation && (
-                                <CardDescription>Discuss ideas and get support. Mention users with @username or tag resources with #resourcename.</CardDescription>
-                             )}
+                            <CardTitle>Community Discussion</CardTitle>
+                            <CardDescription>Discuss ideas and get support. Mention users with @username or tag resources with #resourcename.</CardDescription>
                         </div>
                     </div>
                 </CardHeader>
@@ -408,13 +316,6 @@ function ChatPageContent() {
                         {loading ? (
                             <div className="flex items-center justify-center h-full">
                                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                            </div>
-                        ) : !selectedConversation ? (
-                            <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                                <div>
-                                    <p className="text-lg font-semibold">Welcome to Chat</p>
-                                    <p>Select a conversation or start a new one to begin.</p>
-                                </div>
                             </div>
                         ) : messages.length === 0 ? (
                              <div className="flex items-center justify-center h-full text-muted-foreground text-center">
@@ -434,12 +335,6 @@ function ChatPageContent() {
                                             <div className={`flex flex-col ${user?.uid === msg.userId ? "items-end" : "items-start"}`}>
                                                 <div className={`p-3 rounded-lg max-w-xs lg:max-w-md ${user?.uid === msg.userId ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                                                     {user?.uid !== msg.userId && <p className="font-semibold text-sm mb-1 text-primary">{msg.username || 'Anonymous'}</p>}
-                                                    {msg.replyToId && msg.replyToUsername && (
-                                                        <div className="p-2 mb-2 rounded-md bg-black/10 dark:bg-white/10 text-sm opacity-80 border-l-2 border-primary/50">
-                                                            <p className="font-semibold text-xs">{msg.replyToUsername}</p>
-                                                            <p className="truncate">{msg.replyToText}</p>
-                                                        </div>
-                                                    )}
                                                     <div className="whitespace-pre-wrap break-words">{renderMessageWithContent(msg.text, userProfile?.username || '', user?.uid === msg.userId)}</div>
                                                 </div>
                                                 <span className="text-xs text-muted-foreground mt-1">
@@ -453,38 +348,6 @@ function ChatPageContent() {
                                                 </Avatar>
                                             )}
                                         </div>
-                                         {user && (
-                                            <div className={cn("absolute top-1/2 -translate-y-1/2 opacity-0 group-hover/message:opacity-100 transition-opacity",
-                                                user.uid === msg.userId ? 'left-0' : 'right-0'
-                                            )}>
-                                                <div className="flex bg-background rounded-full border shadow-sm">
-                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleSetReply(msg)}>
-                                                        <MessageSquareReply className="h-4 w-4" />
-                                                    </Button>
-                                                    {user.uid === msg.userId && (
-                                                         <AlertDialog>
-                                                            <AlertDialogTrigger asChild>
-                                                                <Button variant="ghost" size="icon" className="h-7 w-7">
-                                                                    <Trash2 className="h-4 w-4" />
-                                                                </Button>
-                                                            </AlertDialogTrigger>
-                                                            <AlertDialogContent>
-                                                                <AlertDialogHeader>
-                                                                    <AlertDialogTitle>Delete this message?</AlertDialogTitle>
-                                                                    <AlertDialogDescription>
-                                                                        This will permanently delete this message. This action cannot be undone.
-                                                                    </AlertDialogDescription>
-                                                                </AlertDialogHeader>
-                                                                <AlertDialogFooter>
-                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                                    <AlertDialogAction onClick={() => handleDeleteMessage(msg.id)}>Delete</AlertDialogAction>
-                                                                </AlertDialogFooter>
-                                                            </AlertDialogContent>
-                                                        </AlertDialog>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 ))}
                             </div>
@@ -492,17 +355,6 @@ function ChatPageContent() {
                     </ScrollArea>
                 </CardContent>
                 <CardFooter className="p-4 border-t flex flex-col items-start gap-2">
-                    {replyingTo && (
-                        <div className="w-full bg-muted p-2 rounded-md flex items-center justify-between animate-in fade-in-50">
-                            <div className="text-sm">
-                                <p className="font-semibold">Replying to {replyingTo.username}</p>
-                                <p className="text-muted-foreground truncate max-w-xs">{replyingTo.text}</p>
-                            </div>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setReplyingTo(null)}>
-                                <X className="h-4 w-4" />
-                            </Button>
-                        </div>
-                    )}
                     <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
                         <div className="w-full relative">
                              <Input
@@ -511,7 +363,7 @@ function ChatPageContent() {
                                 value={newMessage}
                                 onChange={handleInputChange}
                                 autoComplete="off"
-                                disabled={sending || !user || !selectedConversation}
+                                disabled={sending || !user}
                                 className="w-full"
                             />
                             <>
@@ -541,7 +393,7 @@ function ChatPageContent() {
                                 </Popover>
                             </>
                         </div>
-                         <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user || !selectedConversation}>
+                         <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>
                             {sending ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
                             ) : (
@@ -563,5 +415,3 @@ export default function ChatPage() {
         </Suspense>
     )
 }
-
-    

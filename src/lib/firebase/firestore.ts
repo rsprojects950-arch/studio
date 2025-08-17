@@ -1,10 +1,9 @@
 
-
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId, count } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink, Note, Conversation, ParticipantDetails } from '@/lib/types';
+import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink, Note } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
 
 // Helper to safely convert a Firestore timestamp, a raw object, or a string to an ISO string
@@ -226,158 +225,11 @@ export async function getDashboardStats(userId: string) {
   return { summary, progressChartData: weekData.map(({date, ...rest}) => rest), relevantTasks };
 }
 
-// CHAT AND CONVERSATION FUNCTIONS
-
-export async function getConversations(userId: string): Promise<Conversation[]> {
-    if (!userId) return [];
-
-    const currentUserProfile = await getUserProfile(userId);
-    if (!currentUserProfile) return [];
-
-    const conversationsQuery = query(collection(db, 'conversations'), where('participants', 'array-contains', userId));
-    const conversationsSnapshot = await getDocs(conversationsQuery);
-    
-    const participantIds = new Set<string>();
-    conversationsSnapshot.docs.forEach(doc => {
-        const participants = doc.data().participants as string[];
-        participants.forEach(id => {
-            if (id !== userId) participantIds.add(id);
-        });
-    });
-
-    let participantDetails: Record<string, ParticipantDetails> = {};
-    if (participantIds.size > 0) {
-        const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', Array.from(participantIds)));
-        const usersSnapshot = await getDocs(usersQuery);
-        usersSnapshot.forEach(doc => {
-            const data = doc.data() as UserProfile;
-            participantDetails[doc.id] = { uid: data.uid, username: data.username, photoURL: data.photoURL || null };
-        });
-    }
-
-    const conversationPromises = conversationsSnapshot.docs.map(async (doc) => {
-        const data = doc.data();
-        
-        let unreadCount = 0;
-        if (data.lastMessage && data.lastMessage.senderId !== userId) {
-            let lastReadTimestamp: Timestamp;
-            try {
-                const lastReadISO = currentUserProfile.lastRead?.[doc.id];
-                lastReadTimestamp = lastReadISO ? Timestamp.fromDate(new Date(lastReadISO)) : new Timestamp(0, 0);
-            } catch (e) {
-                lastReadTimestamp = new Timestamp(0, 0);
-            }
-            
-            const messagesRef = collection(db, 'conversations', doc.id, 'messages');
-            // This query is safe and doesn't require a composite index.
-            const unreadQuery = query(messagesRef, where('createdAt', '>', lastReadTimestamp));
-            const unreadSnapshot = await getDocs(unreadQuery);
-            
-            // We filter for senderId in the code instead of in the query.
-            unreadCount = unreadSnapshot.docs.filter(d => d.data().userId !== userId).length;
-        }
-        
-        const convo: Conversation = {
-            id: doc.id,
-            participants: data.participants,
-            isPublic: data.isPublic || false,
-            participantsDetails: data.participants.map((id: string) => participantDetails[id]).filter(Boolean),
-            unreadCount: unreadCount,
-            createdAt: toISOString(data.createdAt),
-            lastMessage: data.lastMessage ? {
-                text: data.lastMessage.text,
-                senderId: data.lastMessage.senderId,
-                timestamp: toISOString(data.lastMessage.timestamp),
-            } : null,
-        };
-
-        return convo;
-    });
-
-    const conversations = await Promise.all(conversationPromises);
-
-    const publicChatExists = conversations.some(c => c.id === 'public');
-    if (!publicChatExists) {
-        const publicChat: Conversation = {
-            id: 'public',
-            participants: [],
-            participantsDetails: [],
-            isPublic: true,
-            lastMessage: null,
-            unreadCount: 0,
-            createdAt: new Date(0).toISOString(),
-        };
-        conversations.push(publicChat);
-    }
-
-    conversations.sort((a, b) => {
-        if (a.isPublic) return -1;
-        if (b.isPublic) return 1;
-        const aTime = a.lastMessage?.timestamp ? new Date(a.lastMessage.timestamp).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-        const bTime = b.lastMessage?.timestamp ? new Date(b.lastMessage.timestamp).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
-        return bTime - aTime;
-    });
-
-    return conversations;
-}
-
-export async function startConversation(currentUserId: string, otherUserId: string): Promise<Conversation> {
-    const participants = [currentUserId, otherUserId].sort();
-    const conversationId = participants.join('_');
-    const conversationRef = doc(db, 'conversations', conversationId);
-    
-    const conversationSnap = await getDoc(conversationRef);
-
-    if (conversationSnap.exists()) {
-        const data = conversationSnap.data();
-        const [user1Profile, user2Profile] = await Promise.all([
-            getUserProfile(participants[0]),
-            getUserProfile(participants[1])
-        ]);
-
-        return {
-            id: conversationSnap.id,
-            participants: data.participants,
-            isPublic: data.isPublic || false,
-            createdAt: toISOString(data.createdAt),
-            lastMessage: data.lastMessage ? {
-                ...data.lastMessage,
-                timestamp: toISOString(data.lastMessage.timestamp),
-            } : null,
-            participantsDetails: [user1Profile, user2Profile].filter(Boolean).map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
-        } as Conversation;
-    }
-
-    const batch = writeBatch(db);
-    const newConversationData = {
-        participants: participants,
-        createdAt: serverTimestamp(),
-        lastMessage: null
-    };
-    batch.set(conversationRef, newConversationData);
-    await batch.commit();
-
-    const newSnap = await getDoc(conversationRef);
-    const newData = newSnap.data();
-
-    const [user1Profile, user2Profile] = await Promise.all([
-        getUserProfile(participants[0]),
-        getUserProfile(participants[1])
-    ]);
-    
-    return {
-        id: conversationId,
-        participants: newData?.participants,
-        isPublic: newData?.isPublic || false,
-        createdAt: toISOString(newData?.createdAt),
-        lastMessage: null,
-        participantsDetails: [user1Profile, user2Profile].filter(Boolean).map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
-    } as Conversation;
-}
-
 export async function getMessages({ conversationId, since, lastId }: { conversationId: string, since?: string | null, lastId?: string | null }): Promise<Message[]> {
-    const collectionPath = conversationId === 'public' ? 'messages' : `conversations/${conversationId}/messages`;
-    const messagesCol = collection(db, collectionPath);
+    if (conversationId !== 'public') {
+        return [];
+    }
+    const messagesCol = collection(db, 'messages');
     let q;
 
     if (lastId) {
@@ -402,11 +254,13 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
 }
 
 export async function addMessage({ conversationId, text, userId, replyTo, resourceLinks }: { conversationId: string, text: string; userId: string; replyTo: any; resourceLinks: ResourceLink[] | null }): Promise<Message> {
+    if (conversationId !== 'public') {
+        throw new Error("Can only send messages to public chat.");
+    }
     const userProfile = await getUserProfile(userId);
     if (!userProfile) throw new Error('User profile not found');
 
-    const collectionPath = conversationId === 'public' ? 'messages' : `conversations/${conversationId}/messages`;
-    const messagesColRef = collection(db, collectionPath);
+    const messagesColRef = collection(db, 'messages');
     
     const messageData: { [key: string]: any } = {
       text,
@@ -420,18 +274,6 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
     
     const docRef = await addDoc(messagesColRef, messageData);
     
-    // Update last message on private conversation
-    if (conversationId !== 'public') {
-        const conversationRef = doc(db, 'conversations', conversationId);
-        await updateDoc(conversationRef, {
-            lastMessage: {
-                text: text,
-                senderId: userId,
-                timestamp: serverTimestamp() // Use server timestamp for consistency
-            }
-        });
-    }
-
     const newDocSnap = await getDoc(docRef);
     const newDocData = newDocSnap.data();
     
@@ -450,8 +292,7 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
 
 
 export async function deleteMessage(conversationId: string, messageId: string, userId: string): Promise<void> {
-    const collectionPath = conversationId === 'public' ? 'messages' : `conversations/${conversationId}/messages`;
-    const messageRef = doc(db, collectionPath, messageId);
+    const messageRef = doc(db, 'messages', messageId);
 
     const messageSnap = await getDoc(messageRef);
     if (!messageSnap.exists() || messageSnap.data().userId !== userId) {
@@ -459,28 +300,6 @@ export async function deleteMessage(conversationId: string, messageId: string, u
     }
     
     await deleteDoc(messageRef);
-
-    // If it's a private chat, update the conversation's lastMessage
-    if (conversationId !== 'public') {
-        const conversationRef = doc(db, 'conversations', conversationId);
-        const conversationSnap = await getDoc(conversationRef);
-        
-        // Check if the deleted message was the last message
-        const lastMessageTimestamp = toISOString(conversationSnap.data()?.lastMessage?.timestamp);
-        const deletedMessageTimestamp = toISOString(messageSnap.data()?.createdAt);
-
-        if (conversationSnap.exists() && lastMessageTimestamp === deletedMessageTimestamp) {
-            // Find the new last message
-            const messagesQuery = query(collection(db, collectionPath), orderBy('createdAt', 'desc'), limit(1));
-            const messagesSnap = await getDocs(messagesQuery);
-            const newLastMessage = messagesSnap.empty ? null : {
-                text: messagesSnap.docs[0].data().text,
-                senderId: messagesSnap.docs[0].data().userId,
-                timestamp: messagesSnap.docs[0].data().createdAt,
-            };
-            await updateDoc(conversationRef, { lastMessage: newLastMessage });
-        }
-    }
 }
 
 // RESOURCE FUNCTIONS
@@ -523,13 +342,4 @@ export async function getResource(resourceId: string): Promise<Resource | null> 
     const resourceRef = doc(db, 'resources', resourceId);
     const resourceSnap = await getDoc(resourceRef);
     return resourceSnap.exists() ? resourceSnap.data() as Resource : null;
-}
-
-export async function markConversationAsRead(userId: string, conversationId: string): Promise<void> {
-    if (!userId || !conversationId) return;
-    const userRef = doc(db, 'users', userId);
-    // We use dot notation to update a specific field in the map
-    await updateDoc(userRef, {
-        [`lastRead.${conversationId}`]: new Date().toISOString(),
-    });
 }

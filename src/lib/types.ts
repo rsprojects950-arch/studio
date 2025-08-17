@@ -1,5 +1,4 @@
 
-
 export type Task = {
   id: string;
   userId: string;
@@ -70,24 +69,4 @@ export type Resource = {
   createdAt: string; // Changed from Date to string for serialization
   thumbnailUrl?: string;
   title_lowercase?: string;
-};
-
-export type ParticipantDetails = {
-  uid: string;
-  username: string;
-  photoURL: string | null;
-}
-
-export type Conversation = {
-    id: string;
-    participants: string[];
-    participantsDetails: ParticipantDetails[];
-    createdAt?: string; // ISO string, optional for older convos
-    lastMessage: {
-        text: string;
-        senderId: string;
-        timestamp: string; // Should be ISO string
-    } | null;
-    isPublic?: boolean;
-    unreadCount?: number;
 };

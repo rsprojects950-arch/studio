@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -45,7 +46,7 @@ const bottomNav = [
   { href: '/dashboard/profile', label: 'Profile', icon: User },
 ];
 
-export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProfile, unreadCount: number }) {
+export function AppSidebar({ userProfile }: { userProfile: UserProfile }) {
   const pathname = usePathname();
   const { signOut } = useAuth();
   const { isMobile, toggleSidebar, state } = useSidebar();
@@ -72,9 +73,6 @@ export function AppSidebar({ userProfile, unreadCount }: { userProfile: UserProf
                 <Link href={item.href}>
                   <item.icon />
                   <span>{item.label}</span>
-                  {item.id === 'chat' && unreadCount > 0 && (
-                     <SidebarMenuBadge>{unreadCount}</SidebarMenuBadge>
-                  )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
