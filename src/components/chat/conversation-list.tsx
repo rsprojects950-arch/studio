@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -145,7 +144,7 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
                                 <div className="flex-1 truncate">
                                     <div className="flex justify-between items-center">
                                         <p className={cn("font-semibold truncate", convo.unreadCount && convo.unreadCount > 0 ? "font-bold" : "")}>{displayName}</p>
-                                        {convo.lastMessage && (
+                                        {convo.lastMessage && convo.lastMessage.timestamp && (
                                             <p className="text-xs text-muted-foreground">
                                                 {formatDistanceToNow(new Date(convo.lastMessage.timestamp), { addSuffix: true })}
                                             </p>
@@ -185,3 +184,5 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
         </div>
     );
 }
+
+    

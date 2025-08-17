@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId, count } from 'firebase/firestore';
@@ -302,8 +301,8 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
     const privateConversations = conversations.filter(c => !c.isPublic);
     
     privateConversations.sort((a, b) => {
-        const aTime = a.lastMessage ? new Date(a.lastMessage.timestamp as string).getTime() : new Date(a.createdAt!).getTime();
-        const bTime = b.lastMessage ? new Date(b.lastMessage.timestamp as string).getTime() : new Date(b.createdAt!).getTime();
+        const aTime = a.lastMessage && a.lastMessage.timestamp ? new Date(a.lastMessage.timestamp).getTime() : a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.lastMessage && b.lastMessage.timestamp ? new Date(b.lastMessage.timestamp).getTime() : b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return bTime - aTime;
     });
 
@@ -332,7 +331,7 @@ export async function startConversation(currentUserId: string, otherUserId: stri
                 ...data.lastMessage,
                 timestamp: toISOString(data.lastMessage.timestamp)!,
             } : null,
-            participantsDetails: [user1Profile, user2Profile].map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
+            participantsDetails: [user1Profile, user2Profile].filter(Boolean).map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
         } as Conversation;
     }
 
@@ -358,7 +357,7 @@ export async function startConversation(currentUserId: string, otherUserId: stri
         id: conversationId,
         ...newData,
         createdAt: toISOString(newData?.createdAt),
-        participantsDetails: [user1Profile, user2Profile].map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
+        participantsDetails: [user1Profile, user2Profile].filter(Boolean).map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
     } as Conversation;
 }
 
@@ -471,22 +470,32 @@ export async function deleteConversation(conversationId: string, userId: string)
     if (!conversationSnap.exists() || !conversationSnap.data().participants.includes(userId)) {
         throw new Error("You are not part of this conversation.");
     }
-
-    // Firestore does not support deleting subcollections from the server SDK directly.
-    // We must fetch all message documents and delete them in a batch.
-    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
-    const messagesQuery = query(messagesRef);
-    const messagesSnap = await getDocs(messagesQuery);
-
-    const batch = writeBatch(db);
-
-    messagesSnap.docs.forEach(doc => {
-        batch.delete(doc.ref);
-    });
     
-    batch.delete(conversationRef);
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+    
+    // Firestore does not support deleting subcollections from the server SDK directly in one operation.
+    // We must fetch all message documents and delete them in batches to avoid memory issues with large conversations.
+    const deleteBatch = async () => {
+        const messagesQuery = query(messagesRef, limit(500)); // Process in batches of 500
+        const messagesSnap = await getDocs(messagesQuery);
+        
+        if (messagesSnap.size === 0) {
+            return;
+        }
 
-    await batch.commit();
+        const batch = writeBatch(db);
+        messagesSnap.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+
+        // Recurse until all messages are deleted
+        await deleteBatch();
+    };
+
+    await deleteBatch(); // Delete all messages in the subcollection
+
+    await deleteDoc(conversationRef); // Delete the parent conversation document
 }
 
 
@@ -531,3 +540,5 @@ export async function markConversationAsRead(userId: string, conversationId: str
         [`lastRead.${conversationId}`]: new Date().toISOString(),
     });
 }
+
+    

@@ -1,5 +1,4 @@
 
-
 import { NextResponse } from 'next/server';
 import { getConversations, startConversation, markConversationAsRead, deleteConversation } from '@/lib/firebase/firestore';
 import { auth } from '@/lib/firebase';
@@ -69,3 +68,5 @@ export async function DELETE(request: Request) {
         return new NextResponse(error.message || 'Internal Server Error', { status: 500 });
     }
 }
+
+    
