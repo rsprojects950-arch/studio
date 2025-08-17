@@ -354,7 +354,7 @@ function ChatPageContent() {
                         )}
                         <div>
                             <CardTitle>{cardTitle}</CardTitle>
-                             {selectedConversation?.id === 'public' && (
+                             {selectedConversation && (
                                 <CardDescription>Discuss ideas and get support. Mention users with @username or tag resources with #resourcename.</CardDescription>
                              )}
                         </div>
@@ -445,7 +445,6 @@ function ChatPageContent() {
                                 disabled={sending || !user || !selectedConversation}
                                 className="w-full"
                             />
-                            {selectedConversation?.id === 'public' && (
                             <>
                                 <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
                                     <PopoverTrigger asChild><div/></PopoverTrigger>
@@ -472,7 +471,6 @@ function ChatPageContent() {
                                      </PopoverContent>
                                 </Popover>
                             </>
-                            )}
                         </div>
                          <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user || !selectedConversation}>
                             {sending ? (
