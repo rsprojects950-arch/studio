@@ -8,28 +8,25 @@ import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink,
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
 
 // Helper to safely convert a Firestore timestamp, a raw object, or a string to an ISO string
-const toISOString = (date: any): string | undefined => {
-  if (!date) return undefined;
-  if (date instanceof Timestamp) {
-    return date.toDate().toISOString();
-  }
-  // Handle raw { seconds, nanoseconds } objects
-  if (typeof date === 'object' && date !== null && typeof date.seconds === 'number' && typeof date.nanoseconds === 'number') {
-    return new Timestamp(date.seconds, date.nanoseconds).toDate().toISOString();
-  }
-  // Handle existing ISO strings or other date strings
-  if (typeof date === 'string') {
-    const d = new Date(date);
-    if (!isNaN(d.getTime())) {
-      return d.toISOString();
+const toISOString = (date: any): string => {
+    if (!date) return new Date(0).toISOString(); // Return epoch if null/undefined to avoid crashes
+    if (date instanceof Timestamp) {
+        return date.toDate().toISOString();
     }
-  }
-  // Fallback for any other valid Date constructor input
-  const d = new Date(date);
-  if (!isNaN(d.getTime())) {
-    return d.toISOString();
-  }
-  return undefined;
+    // Handle raw { seconds, nanoseconds } objects that can come from Firestore
+    if (typeof date === 'object' && date !== null && typeof date.seconds === 'number' && typeof date.nanoseconds === 'number') {
+        return new Timestamp(date.seconds, date.nanoseconds).toDate().toISOString();
+    }
+    // Handle existing ISO strings or other date strings
+    if (typeof date === 'string') {
+        const d = new Date(date);
+        if (!isNaN(d.getTime())) {
+            return d.toISOString();
+        }
+    }
+    // Fallback for any other valid Date constructor input, or return epoch if invalid
+    const d = new Date(date);
+    return !isNaN(d.getTime()) ? d.toISOString() : new Date(0).toISOString();
 };
 
 
@@ -282,7 +279,7 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
             lastMessage: data.lastMessage ? {
                 text: data.lastMessage.text,
                 senderId: data.lastMessage.senderId,
-                timestamp: toISOString(data.lastMessage.timestamp)!,
+                timestamp: toISOString(data.lastMessage.timestamp),
             } : null,
         };
 
@@ -341,7 +338,7 @@ export async function startConversation(currentUserId: string, otherUserId: stri
             createdAt: toISOString(data.createdAt),
             lastMessage: data.lastMessage ? {
                 ...data.lastMessage,
-                timestamp: toISOString(data.lastMessage.timestamp)!,
+                timestamp: toISOString(data.lastMessage.timestamp),
             } : null,
             participantsDetails: [user1Profile, user2Profile].filter(Boolean).map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
         } as Conversation;
@@ -393,7 +390,7 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
     const messages: Message[] = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        createdAt: toISOString(doc.data().createdAt) || new Date().toISOString(),
+        createdAt: toISOString(doc.data().createdAt),
     } as Message));
 
     if (!since) messages.reverse();
@@ -442,7 +439,7 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
       username: userProfile.username,
       userAvatar: userProfile.photoURL || '',
       conversationId: conversationId,
-      createdAt: toISOString(newDocData?.createdAt) || new Date().toISOString(),
+      createdAt: toISOString(newDocData?.createdAt),
       ...(replyTo && { replyToId: replyTo.id, replyToText: replyTo.text, replyToUsername: replyTo.username }),
       ...(resourceLinks && { resourceLinks }),
     };
@@ -543,8 +540,8 @@ export async function getNotes(userId: string): Promise<Note[]> {
         return {
             id: doc.id,
             ...data,
-            createdAt: toISOString(data.createdAt) || new Date(0).toISOString(),
-            updatedAt: toISOString(data.updatedAt) || new Date(0).toISOString(),
+            createdAt: toISOString(data.createdAt),
+            updatedAt: toISOString(data.updatedAt),
         } as Note;
     });
 }
