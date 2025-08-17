@@ -29,7 +29,7 @@ export async function GET(request: Request) {
         if (serializableConvo.createdAt) {
             if (serializableConvo.createdAt instanceof Timestamp) {
                 serializableConvo.createdAt = serializableConvo.createdAt.toDate().toISOString();
-            } else if (typeof serializableConvo.createdAt === 'object' && 'seconds' in serializableConvo.createdAt) {
+            } else if (typeof serializableConvo.createdAt === 'object' && 'seconds' in serializableConvo.createdAt && serializableConvo.createdAt.seconds !== undefined) {
                  const ts = serializableConvo.createdAt;
                  serializableConvo.createdAt = new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
             }
@@ -89,7 +89,10 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
     try {
-        const { conversationId, userId } = await request.json();
+        const { searchParams } = new URL(request.url);
+        const conversationId = searchParams.get('conversationId');
+        const userId = searchParams.get('userId');
+
         if (!conversationId || !userId) {
             return new NextResponse('Missing conversationId or userId', { status: 400 });
         }
