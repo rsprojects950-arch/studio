@@ -6,20 +6,19 @@ import { headers } from 'next/headers';
 import type { Conversation } from '@/lib/types';
 
 export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-    
-    if (!userId) {
-      return new NextResponse('Missing userId', { status: 400 });
-    }
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get('userId');
 
+  if (!userId) {
+    return NextResponse.json({ message: "Missing userId parameter" }, { status: 400 });
+  }
+
+  try {
     const conversations: Conversation[] = await getConversations(userId);
     return NextResponse.json(conversations);
-
   } catch (error) {
-    console.error('Error in GET /api/conversations:', error);
-    return new NextResponse('Internal Server Error', { status: 500 });
+    console.error('Error fetching conversations from Firestore:', error);
+    return NextResponse.json({ message: 'Internal Server Error: Failed to fetch conversations from database.' }, { status: 500 });
   }
 }
 
