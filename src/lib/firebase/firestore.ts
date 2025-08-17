@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId, count } from 'firebase/firestore';
@@ -537,12 +538,15 @@ export async function getNotes(userId: string): Promise<Note[]> {
     const notesCol = collection(db, 'notes');
     const q = query(notesCol, where('userId', '==', userId), orderBy('updatedAt', 'desc'));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt.toDate().toISOString(),
-        updatedAt: doc.data().updatedAt.toDate().toISOString(),
-    } as Note));
+    return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            createdAt: toISOString(data.createdAt) || new Date(0).toISOString(),
+            updatedAt: toISOString(data.updatedAt) || new Date(0).toISOString(),
+        } as Note;
+    });
 }
 
 // GENERIC GETTERS
