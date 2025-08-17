@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Send, Loader2, MessageSquareReply, X, Hash, BookOpen, UserPlus, Trash2 } from "lucide-react";
+import { Send, Loader2, MessageSquareReply, X, Hash, BookOpen, UserPlus, Trash2, MessageSquare } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { useUnreadCount } from '@/context/unread-count-context';
@@ -563,3 +563,5 @@ export default function ChatPage() {
         </Suspense>
     )
 }
+
+    
