@@ -12,7 +12,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import type { Message, Conversation } from '@/lib/types';
 import { UnreadCountProvider } from '@/context/unread-count-context';
-import { getConversations } from '@/lib/firebase/firestore';
 
 export default function DashboardLayout({
   children,
@@ -28,7 +27,10 @@ export default function DashboardLayout({
   const fetchConversations = useCallback(async () => {
     if (!user) return;
     try {
-        const userConversations = await getConversations(user.uid);
+        const res = await fetch(`/api/conversations?userId=${user.uid}`);
+        if (!res.ok) throw new Error('Could not fetch conversation data.');
+        
+        const userConversations: Conversation[] = await res.json();
         setConversations(userConversations);
     } catch (error) {
         console.error("Failed to fetch conversations for unread counts", error);
@@ -87,3 +89,5 @@ export default function DashboardLayout({
     </UnreadCountProvider>
   );
 }
+
+    

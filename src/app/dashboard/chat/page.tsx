@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
@@ -21,7 +20,6 @@ import Link from 'next/link';
 import { ConversationList } from '@/components/chat/conversation-list';
 import { NewConversationDialog } from '@/components/chat/new-conversation-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { markConversationAsRead } from '@/lib/firebase/firestore';
 
 
 const renderMessageWithContent = (
@@ -114,7 +112,12 @@ function ChatPageContent() {
     const handleSelectConversation = useCallback(async (conversation: Conversation) => {
         if (user && conversation.id !== 'public' && conversation.unreadCount && conversation.unreadCount > 0) {
             try {
-                await markConversationAsRead(user.uid, conversation.id);
+                // Use the API route to mark as read
+                await fetch('/api/conversations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'markAsRead', userId: user.uid, conversationId: conversation.id }),
+                });
                 // After marking as read, refresh the global unread counts
                 refreshUnreadCount?.();
             } catch (error) {
@@ -503,3 +506,5 @@ export default function ChatPage() {
         </Suspense>
     )
 }
+
+    

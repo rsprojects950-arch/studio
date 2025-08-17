@@ -33,11 +33,21 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
             const res = await fetch(`/api/conversations?userId=${user.uid}`);
             if (!res.ok) throw new Error('Failed to fetch conversations');
             const data: Conversation[] = await res.json();
-            setConversations(data);
-
-            if (!selectedConversation && data.length > 0) {
-                onSelectConversation(data[0]); // Select public chat by default
-            }
+            
+            setConversations(prevConvos => {
+                // Create a map for quick lookups
+                const prevConvosMap = new Map(prevConvos.map(c => [c.id, c]));
+                // Update or add new conversations
+                data.forEach(newConvo => {
+                    prevConvosMap.set(newConvo.id, newConvo);
+                });
+                const updatedConvos = Array.from(prevConvosMap.values());
+                
+                if (!selectedConversation && updatedConvos.length > 0) {
+                     onSelectConversation(updatedConvos[0]); // Select public chat by default
+                }
+                return updatedConvos;
+            });
 
         } catch (error) {
             console.error(error);
@@ -47,15 +57,22 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
     }, [user, onSelectConversation, selectedConversation]);
 
     useEffect(() => {
-        fetchConversations();
-        const interval = setInterval(fetchConversations, 30000); // Refresh every 30s
-        return () => clearInterval(interval);
-    }, [fetchConversations]);
+        if (user) {
+            fetchConversations();
+            const interval = setInterval(fetchConversations, 5000); // Refresh every 5s
+            return () => clearInterval(interval);
+        }
+    }, [user, fetchConversations]);
     
      useEffect(() => {
-        // This effect listens for the global refresh signal
         if (refreshUnreadCount) {
-            fetchConversations();
+             const handleRefresh = () => {
+                fetchConversations();
+            };
+            // This is a bit of a hack to tie into the provider's value changing
+            // A more robust solution might use a dedicated event emitter or callback system
+            // But for this context, it will work.
+            handleRefresh();
         }
     }, [refreshUnreadCount, fetchConversations]);
 
@@ -68,7 +85,7 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
                 </Button>
             </div>
             <ScrollArea className="flex-1">
-                {loading ? (
+                {loading && conversations.length === 0 ? (
                     <div className="p-2 space-y-2">
                         {Array.from({ length: 5 }).map((_, i) => (
                            <div key={i} className="flex items-center gap-3 p-2">
@@ -128,3 +145,5 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
         </div>
     );
 }
+
+    
