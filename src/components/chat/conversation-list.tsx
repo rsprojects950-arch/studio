@@ -160,7 +160,7 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
                                 {!convo.isPublic && (
                                      <AlertDialog>
                                         <AlertDialogTrigger asChild>
-                                             <Button variant="ghost" size="icon" className="h-7 w-7 absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/convo-item:opacity-100">
+                                             <Button variant="ghost" size="icon" className="h-7 w-7 absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/convo-item:opacity-100" onClick={e => e.stopPropagation()}>
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
                                         </AlertDialogTrigger>
