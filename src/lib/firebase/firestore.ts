@@ -1,8 +1,4 @@
 
-
-
-
-
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId, count } from 'firebase/firestore';
@@ -244,7 +240,6 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
              const messagesRef = collection(db, 'conversations', doc.id, 'messages');
              const unreadQuery = query(messagesRef, where('createdAt', '>', lastReadTimestamp), where('userId', '!=', userId));
              const unreadSnapshot = await getDocs(unreadQuery);
-             // Using getCountFromServer might be more efficient for very large chats, but getDocs is fine here.
              unreadCount = unreadSnapshot.size;
         }
 
@@ -419,7 +414,6 @@ export async function deleteMessage(conversationId: string, messageId: string, u
         const conversationRef = doc(db, 'conversations', conversationId);
         const conversationSnap = await getDoc(conversationRef);
         if (conversationSnap.exists()) {
-             // Find the new last message
             const messagesQuery = query(collection(db, collectionPath), orderBy('createdAt', 'desc'), limit(1));
             const messagesSnap = await getDocs(messagesQuery);
             const newLastMessage = messagesSnap.empty ? null : {

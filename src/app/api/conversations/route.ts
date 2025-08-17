@@ -7,6 +7,21 @@ import { headers } from 'next/headers';
 import type { Conversation } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 
+// Helper to safely convert a Firestore timestamp or a raw object to an ISO string
+const toISOString = (date: any): string => {
+  if (!date) return new Date(0).toISOString(); // Fallback for null/undefined
+  if (date instanceof Timestamp) {
+    return date.toDate().toISOString();
+  }
+  if (typeof date === 'string') {
+    return new Date(date).toISOString();
+  }
+  if (typeof date === 'object' && date.seconds !== undefined) {
+    return new Timestamp(date.seconds, date.nanoseconds).toDate().toISOString();
+  }
+  return new Date(date).toISOString(); // Final attempt for other types
+};
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -18,24 +33,14 @@ export async function GET(request: Request) {
 
     const conversations: Conversation[] = await getConversations(userId);
 
-    // Serialize Timestamps to plain strings before sending to client
-    const serializableConversations = conversations.map(convo => {
-        const serializableConvo = { ...convo } as any;
-        if (serializableConvo.lastMessage && serializableConvo.lastMessage.timestamp) {
-            const ts = serializableConvo.lastMessage.timestamp;
-            serializableConvo.lastMessage.timestamp = (ts instanceof Timestamp ? ts.toDate() : new Date(ts)).toISOString();
-        }
-        // Handle both actual Timestamps and raw Firestore objects
-        if (serializableConvo.createdAt) {
-            if (serializableConvo.createdAt instanceof Timestamp) {
-                serializableConvo.createdAt = serializableConvo.createdAt.toDate().toISOString();
-            } else if (typeof serializableConvo.createdAt === 'object' && 'seconds' in serializableConvo.createdAt && serializableConvo.createdAt.seconds !== undefined) {
-                 const ts = serializableConvo.createdAt;
-                 serializableConvo.createdAt = new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
-            }
-        }
-        return serializableConvo;
-    });
+    const serializableConversations = conversations.map(convo => ({
+        ...convo,
+        createdAt: convo.createdAt ? toISOString(convo.createdAt) : undefined,
+        lastMessage: convo.lastMessage ? {
+            ...convo.lastMessage,
+            timestamp: toISOString(convo.lastMessage.timestamp),
+        } : null,
+    }));
 
     return NextResponse.json(serializableConversations);
 
@@ -62,22 +67,15 @@ export async function POST(request: Request) {
     }
     
     const conversation = await startConversation(currentUserId, otherUserId);
-
-    // Serialize Timestamps to plain strings before sending to client
-    const serializableConversation = { ...conversation } as any;
-    if (serializableConversation.lastMessage && serializableConversation.lastMessage.timestamp) {
-        const ts = serializableConversation.lastMessage.timestamp;
-        serializableConversation.lastMessage.timestamp = (ts instanceof Timestamp ? ts.toDate() : new Date(ts)).toISOString();
-    }
-     // Also handle the top-level createdAt if it exists from a fresh creation
-    if (serializableConversation.createdAt) {
-      if (serializableConversation.createdAt instanceof Timestamp) {
-        serializableConversation.createdAt = serializableConversation.createdAt.toDate().toISOString();
-      } else if (typeof serializableConversation.createdAt === 'object' && 'seconds' in serializableConversation.createdAt) {
-           const ts = serializableConversation.createdAt;
-           serializableConversation.createdAt = new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
-      }
-    }
+    
+    const serializableConversation = {
+        ...conversation,
+        createdAt: conversation.createdAt ? toISOString(conversation.createdAt) : undefined,
+        lastMessage: conversation.lastMessage ? {
+            ...conversation.lastMessage,
+            timestamp: toISOString(conversation.lastMessage.timestamp),
+        } : null,
+    };
 
     return NextResponse.json(serializableConversation, { status: 201 });
 
