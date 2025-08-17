@@ -35,12 +35,17 @@ export async function getUserByUsername(username: string): Promise<UserProfile |
     return !querySnapshot.empty ? querySnapshot.docs[0].data() as UserProfile : null;
 }
 
-export async function getAllUsers(): Promise<Pick<UserProfile, 'uid' | 'username' | 'photoURL'>[]> {
+export async function getAllUsers(): Promise<UserProfile[]> {
     const usersSnapshot = await getDocs(collection(db, 'users'));
     return usersSnapshot.docs.map(doc => {
-        const { uid, username, photoURL } = doc.data() as UserProfile;
-        return { uid, username, photoURL: photoURL || null };
-    });
+        const data = doc.data();
+        return {
+            uid: data.uid,
+            username: data.username,
+            email: data.email,
+            photoURL: data.photoURL || null
+        }
+    }) as UserProfile[];
 }
 
 // TASK & GOAL FUNCTIONS
