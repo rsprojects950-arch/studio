@@ -9,10 +9,9 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { MessageSquare, UserPlus, Trash2 } from 'lucide-react';
+import { MessageSquare, UserPlus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useUnreadCount } from '@/context/unread-count-context';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 
 interface ConversationListProps {
@@ -75,37 +74,6 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
         }
     }, [refreshUnreadCount, fetchConversations]);
 
-    const handleDeleteConversation = async (e: React.MouseEvent, conversationId: string) => {
-        e.stopPropagation();
-        if (!user) return;
-        
-        try {
-            const res = await fetch(`/api/conversations?conversationId=${conversationId}&userId=${user.uid}`, {
-                method: 'DELETE',
-            });
-
-            if (!res.ok) {
-                const errorData = await res.text();
-                throw new Error(errorData || 'Failed to delete conversation');
-            }
-
-            toast({ title: 'Conversation deleted.' });
-            
-            // Refetch the list, and if the deleted one was selected, clear the view
-            await fetchConversations(selectedConversation?.id === conversationId);
-            if (selectedConversation?.id === conversationId) {
-                 onSelectConversation(null);
-                 // After clearing, select the public chat by default if it exists
-                 const publicChat = conversations.find(c => c.id === 'public');
-                 if(publicChat) onSelectConversation(publicChat);
-            }
-
-        } catch (error: any) {
-            toast({ variant: 'destructive', title: 'Error', description: error.message });
-        }
-    };
-
-
     return (
         <div className="w-1/4 min-w-[250px] max-w-[300px] border-r flex flex-col bg-muted/50">
             <div className="p-4 border-b">
@@ -166,27 +134,6 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
                                 </div>
                                  {convo.unreadCount && convo.unreadCount > 0 && !isSelected && (
                                     <div className="absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-primary rounded-full" />
-                                )}
-                                {!convo.isPublic && (
-                                     <AlertDialog>
-                                        <AlertDialogTrigger asChild>
-                                             <Button variant="ghost" size="icon" className="h-7 w-7 absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/convo-item:opacity-100" onClick={e => e.stopPropagation()}>
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
-                                        </AlertDialogTrigger>
-                                        <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                                <AlertDialogTitle>Delete this conversation?</AlertDialogTitle>
-                                                <AlertDialogDescription>
-                                                    This will permanently delete this entire conversation. This action cannot be undone.
-                                                </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                <AlertDialogAction onClick={(e) => handleDeleteConversation(e, convo.id)}>Delete</AlertDialogAction>
-                                            </AlertDialogFooter>
-                                        </AlertDialogContent>
-                                    </AlertDialog>
                                 )}
                             </div>
                         );

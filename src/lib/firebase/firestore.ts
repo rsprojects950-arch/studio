@@ -480,44 +480,6 @@ export async function deleteMessage(conversationId: string, messageId: string, u
     }
 }
 
-export async function deleteConversation(conversationId: string, userId: string): Promise<void> {
-    const conversationRef = doc(db, 'conversations', conversationId);
-    const conversationSnap = await getDoc(conversationRef);
-
-    if (!conversationSnap.exists() || !conversationSnap.data().participants.includes(userId)) {
-        throw new Error("You are not part of this conversation.");
-    }
-    
-    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
-    
-    // Batch delete messages to handle large conversations
-    const deleteBatch = async () => {
-        const messagesQuery = query(messagesRef, limit(500)); 
-        const messagesSnap = await getDocs(messagesQuery);
-        
-        if (messagesSnap.size === 0) {
-            return; // No more messages to delete
-        }
-
-        const batch = writeBatch(db);
-        messagesSnap.docs.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        await batch.commit();
-
-        // Recursively call until all messages are deleted
-        if (messagesSnap.size > 0) {
-           await deleteBatch();
-        }
-    };
-
-    await deleteBatch(); 
-
-    // Finally, delete the conversation document itself
-    await deleteDoc(conversationRef);
-}
-
-
 // RESOURCE FUNCTIONS
 export async function searchResources(queryText: string): Promise<(Resource & { id: string })[]> {
     const resourcesCol = collection(db, 'resources');
