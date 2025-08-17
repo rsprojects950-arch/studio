@@ -1,31 +1,7 @@
 
 import { NextResponse } from 'next/server';
-import { getConversations, startConversation, markConversationAsRead } from '@/lib/firebase/firestore';
+import { getConversations, startConversation, markConversationAsRead, deleteConversation } from '@/lib/firebase/firestore';
 import type { Conversation } from '@/lib/types';
-import { Timestamp } from 'firebase/firestore';
-
-// Helper to safely convert Firestore Timestamps or other date formats to ISO strings
-const toISOString = (date: any): string => {
-    if (!date) return new Date(0).toISOString(); // Return epoch if null/undefined
-    if (date instanceof Timestamp) {
-        return date.toDate().toISOString();
-    }
-    // Handle raw { seconds, nanoseconds } objects that can come from Firestore
-    if (typeof date === 'object' && date !== null && typeof date.seconds === 'number' && typeof date.nanoseconds === 'number') {
-        return new Timestamp(date.seconds, date.nanoseconds).toDate().toISOString();
-    }
-    // Handle existing ISO strings or other date strings
-    if (typeof date === 'string') {
-        const d = new Date(date);
-        if (!isNaN(d.getTime())) {
-            return d.toISOString();
-        }
-    }
-    // Fallback for any other valid Date constructor input, or return epoch if invalid
-    const d = new Date(date);
-    return !isNaN(d.getTime()) ? d.toISOString() : new Date(0).toISOString();
-};
-
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -38,9 +14,9 @@ export async function GET(request: Request) {
   try {
     const conversations: Conversation[] = await getConversations(userId);
     return NextResponse.json(conversations);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching conversations from Firestore:', error);
-    return NextResponse.json({ message: 'Internal Server Error: Failed to fetch conversations from database.' }, { status: 500 });
+    return NextResponse.json({ message: error.message || 'Internal Server Error: Failed to fetch conversations from database.' }, { status: 500 });
   }
 }
 
@@ -62,19 +38,28 @@ export async function POST(request: Request) {
     
     const conversation = await startConversation(currentUserId, otherUserId);
     
-    // Ensure the returned conversation is fully serializable
-    const serializableConversation = {
-        ...conversation,
-        createdAt: toISOString(conversation.createdAt),
-        lastMessage: conversation.lastMessage
-            ? { ...conversation.lastMessage, timestamp: toISOString(conversation.lastMessage.timestamp) }
-            : null,
-    };
-    
-    return NextResponse.json(serializableConversation, { status: 201 });
+    return NextResponse.json(conversation, { status: 201 });
 
   } catch (error) {
     console.error('Error in POST /api/conversations:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
+}
+
+export async function DELETE(request: Request) {
+    const { searchParams } = new URL(request.url);
+    const conversationId = searchParams.get('conversationId');
+    const userId = searchParams.get('userId');
+
+    if (!conversationId || !userId) {
+        return NextResponse.json({ message: "Missing conversationId or userId parameter" }, { status: 400 });
+    }
+
+    try {
+        await deleteConversation(conversationId, userId);
+        return NextResponse.json({ message: "Conversation deleted successfully" }, { status: 200 });
+    } catch (error: any) {
+        console.error('Error deleting conversation:', error);
+        return NextResponse.json({ message: error.message || 'Internal Server Error' }, { status: 500 });
+    }
 }

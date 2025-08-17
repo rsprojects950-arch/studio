@@ -9,10 +9,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { MessageSquare, UserPlus } from 'lucide-react';
+import { MessageSquare, UserPlus, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useUnreadCount } from '@/context/unread-count-context';
 import { useToast } from '@/hooks/use-toast';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface ConversationListProps {
     selectedConversation: Conversation | null;
@@ -28,7 +29,7 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
     const [loading, setLoading] = useState(true);
 
     const fetchConversations = useCallback(async (shouldSelectDefault = false) => {
-        if (!user?.uid) return; // Guard against undefined user
+        if (!user?.uid) return;
         setLoading(true);
         try {
             const res = await fetch(`/api/conversations?userId=${user.uid}`);
@@ -42,7 +43,7 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
             
             if (shouldSelectDefault && !selectedConversation && data.length > 0) {
                  const publicChat = data.find(c => c.isPublic);
-                 onSelectConversation(publicChat || data[0]); // Select public chat or first conversation by default
+                 onSelectConversation(publicChat || data[0]);
             }
 
         } catch (error) {
@@ -57,11 +58,11 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
         if (user) {
             fetchConversations(true); // Select default on initial load
         }
-    }, [user]); // Only depends on user now
+    }, [user]);
 
      useEffect(() => {
         if (user) {
-            const interval = setInterval(() => fetchConversations(false), 15000); // Just refresh list, don't re-select
+            const interval = setInterval(() => fetchConversations(false), 15000);
             return () => clearInterval(interval);
         }
     }, [user, fetchConversations]);
@@ -69,10 +70,31 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
      useEffect(() => {
         if (refreshUnreadCount) {
             const handleRefresh = () => fetchConversations(false);
-            // This allows the layout to trigger a refresh
             handleRefresh();
         }
     }, [refreshUnreadCount, fetchConversations]);
+    
+    const handleDeleteConversation = async (conversationId: string) => {
+        if (!user) return;
+        
+        try {
+            const res = await fetch(`/api/conversations?conversationId=${conversationId}&userId=${user.uid}`, {
+                method: 'DELETE',
+            });
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'Failed to delete conversation');
+            }
+            toast({ title: 'Conversation deleted' });
+            if (selectedConversation?.id === conversationId) {
+                onSelectConversation(null);
+            }
+            fetchConversations(true); // Refetch and select default
+        } catch (error) {
+            toast({ variant: 'destructive', title: 'Error', description: (error as Error).message });
+        }
+    };
+
 
     return (
         <div className="w-1/4 min-w-[250px] max-w-[300px] border-r flex flex-col bg-muted/50">
@@ -134,7 +156,28 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
                                 </div>
                                  {convo.unreadCount && convo.unreadCount > 0 && !isSelected && (
                                     <div className="absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-primary rounded-full" />
-                                )}
+                                 )}
+                                 {!convo.isPublic && (
+                                     <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                             <Button variant="ghost" size="icon" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 opacity-0 group-hover/convo-item:opacity-100" onClick={(e) => e.stopPropagation()}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Delete this conversation?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will permanently delete all messages in this conversation. This action cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteConversation(convo.id)}>Delete</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                 )}
                             </div>
                         );
                     })

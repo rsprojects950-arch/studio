@@ -257,18 +257,25 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
 
     const conversationPromises = conversationsSnapshot.docs.map(async (doc) => {
         const data = doc.data();
-        const lastReadTimestamp = currentUserProfile.lastRead?.[doc.id] ? Timestamp.fromDate(new Date(currentUserProfile.lastRead[doc.id])) : new Timestamp(0, 0);
+        
+        let lastReadTimestamp: Timestamp;
+        try {
+            // Ensure lastRead is a valid timestamp for the query
+            const lastReadISO = currentUserProfile.lastRead?.[doc.id];
+            lastReadTimestamp = lastReadISO ? Timestamp.fromDate(new Date(lastReadISO)) : new Timestamp(0, 0);
+        } catch (e) {
+            // Fallback if the date string is invalid for some reason
+            lastReadTimestamp = new Timestamp(0, 0);
+        }
         
         let unreadCount = 0;
-        // Only calculate unread for messages not sent by the current user
         if (data.lastMessage && data.lastMessage.senderId !== userId) {
              const messagesRef = collection(db, 'conversations', doc.id, 'messages');
              const unreadQuery = query(messagesRef, where('createdAt', '>', lastReadTimestamp), where('userId', '!=', userId));
-             const unreadSnapshot = await getDocs(unreadQuery); // Using getDocs to get the full snapshot
-             unreadCount = unreadSnapshot.size; // .size gives the count of documents
+             const unreadSnapshot = await getDocs(unreadQuery);
+             unreadCount = unreadSnapshot.size;
         }
         
-        // Safely construct the conversation object
         const convo: Conversation = {
             id: doc.id,
             participants: data.participants,
@@ -288,7 +295,6 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
 
     const conversations = await Promise.all(conversationPromises);
 
-    // Add public chat placeholder if it doesn't exist
     const publicChatExists = conversations.some(c => c.id === 'public');
     if (!publicChatExists) {
         const publicChat: Conversation = {
@@ -303,12 +309,9 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
         conversations.push(publicChat);
     }
 
-    // Sort all conversations (including public chat) by last message timestamp
     conversations.sort((a, b) => {
-        // Treat public chat as always active but sort it to the top
         if (a.isPublic) return -1;
         if (b.isPublic) return 1;
-
         const aTime = a.lastMessage?.timestamp ? new Date(a.lastMessage.timestamp).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
         const bTime = b.lastMessage?.timestamp ? new Date(b.lastMessage.timestamp).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
         return bTime - aTime;
@@ -353,7 +356,6 @@ export async function startConversation(currentUserId: string, otherUserId: stri
     batch.set(conversationRef, newConversationData);
     await batch.commit();
 
-    // Fetch the just-created doc to get the server timestamp and serialize it
     const newSnap = await getDoc(conversationRef);
     const newData = newSnap.data();
 
@@ -523,4 +525,33 @@ export async function markConversationAsRead(userId: string, conversationId: str
     await updateDoc(userRef, {
         [`lastRead.${conversationId}`]: new Date().toISOString(),
     });
+}
+
+export async function deleteConversation(conversationId: string, userId: string): Promise<void> {
+    if (!userId) {
+        throw new Error('You must be logged in.');
+    }
+    if (!conversationId || conversationId === 'public') {
+        throw new Error('Cannot delete this conversation.');
+    }
+
+    const conversationRef = doc(db, 'conversations', conversationId);
+    const conversationSnap = await getDoc(conversationRef);
+
+    if (!conversationSnap.exists() || !conversationSnap.data().participants.includes(userId)) {
+        throw new Error('You are not a participant of this conversation.');
+    }
+
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+    const messagesSnap = await getDocs(messagesRef);
+
+    const batch = writeBatch(db);
+
+    messagesSnap.docs.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+
+    batch.delete(conversationRef);
+
+    await batch.commit();
 }
