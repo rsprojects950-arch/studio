@@ -1,10 +1,11 @@
 
+
 'use client';
 
 import React, { createContext, useContext } from 'react';
 
 type UnreadCountContextType = {
-  resetUnreadCount?: (conversationId?: string) => void;
+  refreshUnreadCount?: () => void;
 };
 
 const UnreadCountContext = createContext<UnreadCountContextType>({});

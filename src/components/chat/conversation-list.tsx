@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -11,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { MessageSquare, UserPlus } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useUnreadCount } from '@/context/unread-count-context';
 
 interface ConversationListProps {
     selectedConversation: Conversation | null;
@@ -20,6 +22,7 @@ interface ConversationListProps {
 
 export function ConversationList({ selectedConversation, onSelectConversation, onNewConversation }: ConversationListProps) {
     const { user } = useAuth();
+    const { refreshUnreadCount } = useUnreadCount();
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -48,6 +51,13 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
         const interval = setInterval(fetchConversations, 30000); // Refresh every 30s
         return () => clearInterval(interval);
     }, [fetchConversations]);
+    
+     useEffect(() => {
+        // This effect listens for the global refresh signal
+        if (refreshUnreadCount) {
+            fetchConversations();
+        }
+    }, [refreshUnreadCount, fetchConversations]);
 
     return (
         <div className="w-1/4 min-w-[250px] max-w-[300px] border-r flex flex-col bg-muted/50">
@@ -75,13 +85,14 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
                         const otherParticipant = convo.participantsDetails?.find(p => p.uid !== user?.uid);
                         const displayName = convo.isPublic ? "Community Discussion" : otherParticipant?.username || 'Unknown User';
                         const lastMessageText = convo.lastMessage?.text || 'No messages yet...';
+                        const isSelected = selectedConversation?.id === convo.id;
 
                         return (
                             <div
                                 key={convo.id}
                                 className={cn(
-                                    "flex items-start gap-3 p-3 cursor-pointer hover:bg-background transition-colors",
-                                    selectedConversation?.id === convo.id && "bg-background"
+                                    "flex items-start gap-3 p-3 cursor-pointer hover:bg-background transition-colors relative",
+                                    isSelected && "bg-background"
                                 )}
                                 onClick={() => onSelectConversation(convo)}
                             >
@@ -97,7 +108,7 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
                                 </Avatar>
                                 <div className="flex-1 truncate">
                                     <div className="flex justify-between items-center">
-                                        <p className="font-semibold truncate">{displayName}</p>
+                                        <p className={cn("font-semibold truncate", convo.unreadCount && convo.unreadCount > 0 ? "font-bold" : "")}>{displayName}</p>
                                         {convo.lastMessage && (
                                             <p className="text-xs text-muted-foreground">
                                                 {formatDistanceToNow(new Date(convo.lastMessage.timestamp), { addSuffix: true })}
@@ -106,6 +117,9 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
                                     </div>
                                     <p className="text-sm text-muted-foreground truncate">{lastMessageText}</p>
                                 </div>
+                                 {convo.unreadCount && convo.unreadCount > 0 && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-primary rounded-full" />
+                                )}
                             </div>
                         );
                     })

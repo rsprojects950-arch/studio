@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
@@ -20,6 +21,7 @@ import Link from 'next/link';
 import { ConversationList } from '@/components/chat/conversation-list';
 import { NewConversationDialog } from '@/components/chat/new-conversation-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { markConversationAsRead } from '@/lib/firebase/firestore';
 
 
 const renderMessageWithContent = (
@@ -85,7 +87,7 @@ const renderMessageWithContent = (
 function ChatPageContent() {
     const { user, profile: userProfile } = useAuth();
     const { toast } = useToast();
-    const { resetUnreadCount } = useUnreadCount();
+    const { refreshUnreadCount } = useUnreadCount();
     
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
@@ -109,11 +111,18 @@ function ChatPageContent() {
     const inputRef = useRef<HTMLInputElement>(null);
     const lastMessageTimestamp = useRef<string | null>(null);
 
-    useEffect(() => {
-      if (resetUnreadCount && selectedConversation?.id !== 'public') {
-        resetUnreadCount(selectedConversation?.id);
-      }
-    }, [selectedConversation, resetUnreadCount]);
+    const handleSelectConversation = useCallback(async (conversation: Conversation) => {
+        if (user && conversation.id !== 'public' && conversation.unreadCount && conversation.unreadCount > 0) {
+            try {
+                await markConversationAsRead(user.uid, conversation.id);
+                // After marking as read, refresh the global unread counts
+                refreshUnreadCount?.();
+            } catch (error) {
+                console.error("Failed to mark conversation as read", error);
+            }
+        }
+        setSelectedConversation(conversation);
+    }, [user, refreshUnreadCount]);
 
     const fetchMessages = useCallback(async (isInitialLoad = false) => {
         if (!user || !selectedConversation) return;
@@ -335,7 +344,7 @@ function ChatPageContent() {
         <div className="flex-1 flex h-[calc(100vh-4rem)]">
             <ConversationList
                 selectedConversation={selectedConversation}
-                onSelectConversation={setSelectedConversation}
+                onSelectConversation={handleSelectConversation}
                 onNewConversation={() => setNewConvoDialogOpen(true)}
             />
             <NewConversationDialog

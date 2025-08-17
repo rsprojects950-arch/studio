@@ -55,6 +55,7 @@ export type UserProfile = {
   username: string;
   email: string;
   photoURL: string | null;
+  lastRead?: Record<string, string>; // Maps conversationId to ISO timestamp string
 };
 
 export type Resource = {
@@ -87,4 +88,5 @@ export type Conversation = {
         timestamp: Date;
     } | null;
     isPublic?: boolean;
+    unreadCount?: number;
 };

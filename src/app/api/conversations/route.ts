@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { getConversations, startConversation } from '@/lib/firebase/firestore';
+import { getConversations, startConversation, markConversationAsRead } from '@/lib/firebase/firestore';
 import { auth } from '@/lib/firebase';
 import { headers } from 'next/headers';
 import type { Conversation } from '@/lib/types';
@@ -40,7 +40,16 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const { currentUserId, otherUserId } = await request.json();
+    const { currentUserId, otherUserId, action, conversationId } = await request.json();
+
+    if (action === 'markAsRead') {
+        if (!currentUserId || !conversationId) {
+             return new NextResponse('Missing userId or conversationId for marking as read', { status: 400 });
+        }
+        await markConversationAsRead(currentUserId, conversationId);
+        return new NextResponse('Success', { status: 200 });
+    }
+
     if (!currentUserId || !otherUserId) {
       return new NextResponse('Missing user IDs', { status: 400 });
     }

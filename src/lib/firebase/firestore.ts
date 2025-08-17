@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId } from 'firebase/firestore';
@@ -9,7 +10,9 @@ import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } fr
 // USER PROFILE FUNCTIONS
 export async function createUserProfile(profile: UserProfile): Promise<void> {
   const userDocRef = doc(db, 'users', profile.uid);
-  await setDoc(userDocRef, profile);
+  // Initialize lastRead as an empty object
+  const profileWithDefaults = { ...profile, lastRead: {} };
+  await setDoc(userDocRef, profileWithDefaults);
 }
 
 export async function updateUserProfile(userId: string, profileData: Partial<UserProfile>): Promise<void> {
@@ -22,7 +25,14 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
   try {
     const userDocRef = doc(db, "users", userId);
     const userDoc = await getDoc(userDocRef);
-    return userDoc.exists() ? userDoc.data() as UserProfile : null;
+    if (!userDoc.exists()) return null;
+
+    const data = userDoc.data() as UserProfile;
+    // Ensure lastRead exists
+    if (!data.lastRead) {
+        data.lastRead = {};
+    }
+    return data;
   } catch (error) {
     console.error("[getUserProfile] Error:", error);
     return null;
@@ -198,6 +208,9 @@ export async function getDashboardStats(userId: string) {
 export async function getConversations(userId: string): Promise<Conversation[]> {
     if (!userId) return [];
 
+    const currentUserProfile = await getUserProfile(userId);
+    if (!currentUserProfile) return [];
+
     const conversationsQuery = query(collection(db, 'conversations'), where('participants', 'array-contains', userId));
     const conversationsSnapshot = await getDocs(conversationsQuery);
     
@@ -221,7 +234,18 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
 
     const conversations = conversationsSnapshot.docs.map(doc => {
         const data = doc.data();
-        const otherParticipantId = data.participants.find((p: string) => p !== userId);
+        const lastReadTimestamp = currentUserProfile.lastRead?.[doc.id] ? new Date(currentUserProfile.lastRead[doc.id]) : new Date(0);
+        
+        let unreadCount = 0;
+        if (data.lastMessage && data.lastMessage.senderId !== userId) {
+            const lastMessageTimestamp = (data.lastMessage.timestamp as Timestamp).toDate();
+            if (lastMessageTimestamp > lastReadTimestamp) {
+                // This is a simplified unread count. A real implementation would query
+                // the messages subcollection for a precise count. For now, 1 means "new messages".
+                unreadCount = 1;
+            }
+        }
+
         return {
             id: doc.id,
             ...data,
@@ -229,7 +253,8 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
                 ...data.lastMessage,
                 timestamp: data.lastMessage.timestamp?.toDate() || new Date()
             } : null,
-            participantsDetails: data.participants.map((id: string) => participantDetails[id]).filter(Boolean)
+            participantsDetails: data.participants.map((id: string) => participantDetails[id]).filter(Boolean),
+            unreadCount: unreadCount,
         } as Conversation;
     });
 
@@ -240,6 +265,7 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
         participantsDetails: [],
         isPublic: true,
         lastMessage: null,
+        unreadCount: 0,
     });
 
     return conversations;
@@ -253,7 +279,6 @@ export async function startConversation(currentUserId: string, otherUserId: stri
     const conversationSnap = await getDoc(conversationRef);
 
     if (conversationSnap.exists()) {
-        // Conversation already exists, just return it.
         const [user1Profile, user2Profile] = await Promise.all([
             getUserProfile(participants[0]),
             getUserProfile(participants[1])
@@ -266,7 +291,6 @@ export async function startConversation(currentUserId: string, otherUserId: stri
         } as Conversation;
     }
 
-    // Create a new conversation
     const batch = writeBatch(db);
     const newConversationData = {
         participants: participants,
@@ -393,4 +417,13 @@ export async function getResource(resourceId: string): Promise<Resource | null> 
     const resourceRef = doc(db, 'resources', resourceId);
     const resourceSnap = await getDoc(resourceRef);
     return resourceSnap.exists() ? resourceSnap.data() as Resource : null;
+}
+
+export async function markConversationAsRead(userId: string, conversationId: string): Promise<void> {
+    if (!userId || !conversationId) return;
+    const userRef = doc(db, 'users', userId);
+    // We use dot notation to update a specific field in the map
+    await updateDoc(userRef, {
+        [`lastRead.${conversationId}`]: new Date().toISOString(),
+    });
 }
