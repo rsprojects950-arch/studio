@@ -230,7 +230,15 @@ function ChatPageContent() {
             }
             
             const newlySentMessage: Message = await response.json();
-            setMessages(prevMessages => [...prevMessages, newlySentMessage]);
+            
+            setMessages(prevMessages => {
+                const existingIds = new Set(prevMessages.map(m => m.id));
+                if (existingIds.has(newlySentMessage.id)) {
+                    return prevMessages;
+                }
+                return [...prevMessages, newlySentMessage];
+            });
+
             if (newlySentMessage.createdAt) {
                 lastMessageTimestamp.current = newlySentMessage.createdAt;
             }
