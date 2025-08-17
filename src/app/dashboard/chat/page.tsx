@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Send, Loader2, MessageSquareReply, X, Hash, BookOpen, UserPlus } from "lucide-react";
+import { Send, Loader2, MessageSquareReply, X, Hash, BookOpen, UserPlus, Trash2 } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { useUnreadCount } from '@/context/unread-count-context';
@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { ConversationList } from '@/components/chat/conversation-list';
 import { NewConversationDialog } from '@/components/chat/new-conversation-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 
 const renderMessageWithContent = (
@@ -109,16 +110,20 @@ function ChatPageContent() {
     const inputRef = useRef<HTMLInputElement>(null);
     const lastMessageTimestamp = useRef<string | null>(null);
 
-    const handleSelectConversation = useCallback(async (conversation: Conversation) => {
+    const handleSelectConversation = useCallback(async (conversation: Conversation | null) => {
+        if (!conversation) {
+            setSelectedConversation(null);
+            setMessages([]);
+            return;
+        }
+
         if (user && conversation.id !== 'public' && conversation.unreadCount && conversation.unreadCount > 0) {
             try {
-                // Use the API route to mark as read
                 await fetch('/api/conversations', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ action: 'markAsRead', userId: user.uid, conversationId: conversation.id }),
                 });
-                // After marking as read, refresh the global unread counts
                 refreshUnreadCount?.();
             } catch (error) {
                 console.error("Failed to mark conversation as read", error);
@@ -335,11 +340,32 @@ function ChatPageContent() {
         inputRef.current?.focus();
     }
     
+    const handleDeleteMessage = async (messageId: string) => {
+        if (!user || !selectedConversation) return;
+
+        setMessages(prev => prev.filter(m => m.id !== messageId));
+
+        try {
+            const res = await fetch(`/api/messages?conversationId=${selectedConversation.id}&messageId=${messageId}&userId=${user.uid}`, {
+                method: 'DELETE',
+            });
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(errorText || 'Failed to delete message');
+            }
+            toast({ title: "Message deleted" });
+            fetchMessages(true); // Refetch messages to get last message update
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+            fetchMessages(true); // Refetch to restore state on error
+        }
+    };
+
     const filteredUsers = users.filter(u => u.username && u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
     const filteredResources = resources.filter(r => r.title.toLowerCase().includes(resourceSearch.toLowerCase()));
 
     const otherParticipant = selectedConversation?.participantsDetails?.find(p => p.uid !== user?.uid);
-    const cardTitle = selectedConversation?.id === 'public' 
+    const cardTitle = selectedConversation?.isPublic
         ? "Community Discussion" 
         : otherParticipant?.username || "Direct Message";
 
@@ -358,10 +384,15 @@ function ChatPageContent() {
             <Card className="flex-1 flex flex-col rounded-l-none">
                 <CardHeader>
                     <div className="flex items-center gap-3">
-                        {selectedConversation && selectedConversation.id !== 'public' && otherParticipant && (
+                        {selectedConversation && !selectedConversation.isPublic && otherParticipant && (
                              <Avatar>
                                 <AvatarImage src={otherParticipant.photoURL || undefined} alt={otherParticipant.username} />
                                 <AvatarFallback>{otherParticipant.username.charAt(0).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                        )}
+                         {selectedConversation && selectedConversation.isPublic && (
+                             <Avatar>
+                                <AvatarFallback><MessageSquare/></AvatarFallback>
                             </Avatar>
                         )}
                         <div>
@@ -380,7 +411,10 @@ function ChatPageContent() {
                             </div>
                         ) : !selectedConversation ? (
                             <div className="flex items-center justify-center h-full text-muted-foreground text-center">
-                                <p>Select a conversation or <br/> start a new one.</p>
+                                <div>
+                                    <p className="text-lg font-semibold">Welcome to Chat</p>
+                                    <p>Select a conversation or start a new one to begin.</p>
+                                </div>
                             </div>
                         ) : messages.length === 0 ? (
                              <div className="flex items-center justify-center h-full text-muted-foreground text-center">
@@ -389,7 +423,7 @@ function ChatPageContent() {
                         ) : (
                             <div className="space-y-4 pr-4">
                                 {messages.map((msg) => (
-                                    <div key={msg.id} className="group relative">
+                                    <div key={msg.id} className="group/message relative">
                                         <div className={`flex items-start gap-3 ${user?.uid === msg.userId ? "justify-end" : ""}`}>
                                             {user?.uid !== msg.userId && (
                                                 <Avatar>
@@ -420,12 +454,35 @@ function ChatPageContent() {
                                             )}
                                         </div>
                                          {user && (
-                                            <div className={cn("absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity",
+                                            <div className={cn("absolute top-1/2 -translate-y-1/2 opacity-0 group-hover/message:opacity-100 transition-opacity",
                                                 user.uid === msg.userId ? 'left-0' : 'right-0'
                                             )}>
-                                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleSetReply(msg)}>
-                                                    <MessageSquareReply className="h-4 w-4" />
-                                                </Button>
+                                                <div className="flex bg-background rounded-full border shadow-sm">
+                                                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleSetReply(msg)}>
+                                                        <MessageSquareReply className="h-4 w-4" />
+                                                    </Button>
+                                                    {user.uid === msg.userId && (
+                                                         <AlertDialog>
+                                                            <AlertDialogTrigger asChild>
+                                                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                                                    <Trash2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </AlertDialogTrigger>
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>Delete this message?</AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        This will permanently delete this message. This action cannot be undone.
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                                    <AlertDialogAction onClick={() => handleDeleteMessage(msg.id)}>Delete</AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -506,5 +563,3 @@ export default function ChatPage() {
         </Suspense>
     )
 }
-
-    

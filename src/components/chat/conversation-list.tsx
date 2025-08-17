@@ -10,23 +10,26 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { MessageSquare, UserPlus } from 'lucide-react';
+import { MessageSquare, UserPlus, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useUnreadCount } from '@/context/unread-count-context';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useToast } from '@/hooks/use-toast';
 
 interface ConversationListProps {
     selectedConversation: Conversation | null;
-    onSelectConversation: (conversation: Conversation) => void;
+    onSelectConversation: (conversation: Conversation | null) => void;
     onNewConversation: () => void;
 }
 
 export function ConversationList({ selectedConversation, onSelectConversation, onNewConversation }: ConversationListProps) {
     const { user } = useAuth();
+    const { toast } = useToast();
     const { refreshUnreadCount } = useUnreadCount();
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const fetchConversations = useCallback(async () => {
+    const fetchConversations = useCallback(async (shouldSelectDefault = false) => {
         if (!user) return;
         setLoading(true);
         try {
@@ -34,47 +37,64 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
             if (!res.ok) throw new Error('Failed to fetch conversations');
             const data: Conversation[] = await res.json();
             
-            setConversations(prevConvos => {
-                // Create a map for quick lookups
-                const prevConvosMap = new Map(prevConvos.map(c => [c.id, c]));
-                // Update or add new conversations
-                data.forEach(newConvo => {
-                    prevConvosMap.set(newConvo.id, newConvo);
-                });
-                const updatedConvos = Array.from(prevConvosMap.values());
-                
-                if (!selectedConversation && updatedConvos.length > 0) {
-                     onSelectConversation(updatedConvos[0]); // Select public chat by default
-                }
-                return updatedConvos;
-            });
+            setConversations(data);
+            
+            if (shouldSelectDefault && data.length > 0) {
+                 onSelectConversation(data[0]); // Select first conversation by default
+            }
 
         } catch (error) {
             console.error(error);
         } finally {
             setLoading(false);
         }
-    }, [user, onSelectConversation, selectedConversation]);
+    }, [user, onSelectConversation]);
 
     useEffect(() => {
         if (user) {
-            fetchConversations();
-            const interval = setInterval(fetchConversations, 5000); // Refresh every 5s
+            fetchConversations(true); // Select default on initial load
+            const interval = setInterval(() => fetchConversations(false), 5000); // Just refresh list, don't re-select
             return () => clearInterval(interval);
         }
     }, [user, fetchConversations]);
     
      useEffect(() => {
         if (refreshUnreadCount) {
-             const handleRefresh = () => {
-                fetchConversations();
-            };
-            // This is a bit of a hack to tie into the provider's value changing
-            // A more robust solution might use a dedicated event emitter or callback system
-            // But for this context, it will work.
+            const handleRefresh = () => fetchConversations(false);
             handleRefresh();
         }
     }, [refreshUnreadCount, fetchConversations]);
+
+    const handleDeleteConversation = async (e: React.MouseEvent, conversationId: string) => {
+        e.stopPropagation();
+        if (!user) return;
+        
+        try {
+            const res = await fetch('/api/conversations', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conversationId, userId: user.uid }),
+            });
+
+            if (!res.ok) {
+                const errorData = await res.text();
+                throw new Error(errorData || 'Failed to delete conversation');
+            }
+
+            toast({ title: 'Conversation deleted.' });
+            
+            // If the deleted conversation was the selected one, clear the selection.
+            if (selectedConversation?.id === conversationId) {
+                onSelectConversation(null);
+            }
+            
+            await fetchConversations(true);
+
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+        }
+    };
+
 
     return (
         <div className="w-1/4 min-w-[250px] max-w-[300px] border-r flex flex-col bg-muted/50">
@@ -108,7 +128,7 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
                             <div
                                 key={convo.id}
                                 className={cn(
-                                    "flex items-start gap-3 p-3 cursor-pointer hover:bg-background transition-colors relative",
+                                    "flex items-start gap-3 p-3 cursor-pointer hover:bg-background transition-colors relative group/convo-item",
                                     isSelected && "bg-background"
                                 )}
                                 onClick={() => onSelectConversation(convo)}
@@ -134,8 +154,29 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
                                     </div>
                                     <p className="text-sm text-muted-foreground truncate">{lastMessageText}</p>
                                 </div>
-                                 {convo.unreadCount && convo.unreadCount > 0 && (
+                                 {convo.unreadCount && convo.unreadCount > 0 && !isSelected && (
                                     <div className="absolute right-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-primary rounded-full" />
+                                )}
+                                {!convo.isPublic && (
+                                     <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                             <Button variant="ghost" size="icon" className="h-7 w-7 absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/convo-item:opacity-100">
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Delete this conversation?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will permanently delete this entire conversation for all participants. This action cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={(e) => handleDeleteConversation(e, convo.id)}>Delete</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 )}
                             </div>
                         );
@@ -145,5 +186,3 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
         </div>
     );
 }
-
-    

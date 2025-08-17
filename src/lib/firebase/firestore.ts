@@ -1,5 +1,6 @@
 
 
+
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId } from 'firebase/firestore';
@@ -249,6 +250,7 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
         return {
             id: doc.id,
             ...data,
+            createdAt: data.createdAt?.toDate()?.toISOString() || new Date(0).toISOString(),
             lastMessage: data.lastMessage ? {
                 ...data.lastMessage,
                 timestamp: data.lastMessage.timestamp?.toDate() || new Date()
@@ -266,9 +268,16 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
         isPublic: true,
         lastMessage: null,
         unreadCount: 0,
+        createdAt: new Date(0).toISOString(),
     });
 
-    return conversations;
+    return conversations.sort((a,b) => {
+        if (a.isPublic) return -1;
+        if (b.isPublic) return 1;
+        const aTime = a.lastMessage?.timestamp.getTime() || new Date(a.createdAt!).getTime();
+        const bTime = b.lastMessage?.timestamp.getTime() || new Date(b.createdAt!).getTime();
+        return bTime - aTime;
+    });
 }
 
 export async function startConversation(currentUserId: string, otherUserId: string): Promise<Conversation> {
@@ -287,6 +296,7 @@ export async function startConversation(currentUserId: string, otherUserId: stri
         return {
             id: conversationSnap.id,
             ...conversationSnap.data(),
+            createdAt: conversationSnap.data().createdAt.toDate().toISOString(),
             participantsDetails: [user1Profile, user2Profile].map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
         } as Conversation;
     }
@@ -305,9 +315,13 @@ export async function startConversation(currentUserId: string, otherUserId: stri
         getUserProfile(participants[1])
     ]);
     
+    // Fetch the just-created doc to get the server timestamp
+    const newSnap = await getDoc(conversationRef);
+
     return {
         id: conversationId,
-        ...newConversationData,
+        ...newSnap.data(),
+        createdAt: newSnap.data()?.createdAt.toDate().toISOString(),
         participantsDetails: [user1Profile, user2Profile].map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
     } as Conversation;
 }
@@ -383,6 +397,56 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
       ...(replyTo && { replyToId: replyTo.id, replyToText: replyTo.text, replyToUsername: replyTo.username }),
       ...(resourceLinks && { resourceLinks }),
     };
+}
+
+
+export async function deleteMessage(conversationId: string, messageId: string, userId: string): Promise<void> {
+    const collectionPath = conversationId === 'public' ? 'messages' : `conversations/${conversationId}/messages`;
+    const messageRef = doc(db, collectionPath, messageId);
+
+    const messageSnap = await getDoc(messageRef);
+    if (!messageSnap.exists() || messageSnap.data().userId !== userId) {
+        throw new Error("You can only delete your own messages.");
+    }
+    
+    await deleteDoc(messageRef);
+
+    // If it's a private chat and this was the last message, update the conversation's lastMessage
+    if (conversationId !== 'public') {
+        const conversationRef = doc(db, 'conversations', conversationId);
+        const conversationSnap = await getDoc(conversationRef);
+        if (conversationSnap.exists() && conversationSnap.data().lastMessage?.id === messageId) {
+            // Find the new last message
+            const messagesQuery = query(collection(db, collectionPath), orderBy('createdAt', 'desc'), limit(1));
+            const messagesSnap = await getDocs(messagesQuery);
+            const newLastMessage = messagesSnap.empty ? null : {
+                text: messagesSnap.docs[0].data().text,
+                senderId: messagesSnap.docs[0].data().userId,
+                timestamp: messagesSnap.docs[0].data().createdAt,
+            };
+            await updateDoc(conversationRef, { lastMessage: newLastMessage });
+        }
+    }
+}
+
+export async function deleteConversation(conversationId: string, userId: string): Promise<void> {
+    const conversationRef = doc(db, 'conversations', conversationId);
+    const conversationSnap = await getDoc(conversationRef);
+
+    if (!conversationSnap.exists() || !conversationSnap.data().participants.includes(userId)) {
+        throw new Error("You are not part of this conversation.");
+    }
+
+    // Firestore does not support deleting subcollections from the server SDK directly.
+    // We must fetch all message documents and delete them in a batch.
+    const messagesRef = collection(db, 'conversations', conversationId, 'messages');
+    const messagesSnap = await getDocs(messagesRef);
+
+    const batch = writeBatch(db);
+    messagesSnap.docs.forEach(doc => batch.delete(doc.ref));
+    batch.delete(conversationRef);
+
+    await batch.commit();
 }
 
 

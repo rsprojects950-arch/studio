@@ -82,6 +82,7 @@ export type Conversation = {
     id: string;
     participants: string[];
     participantsDetails: ParticipantDetails[];
+    createdAt?: string; // ISO string, optional for older convos
     lastMessage: {
         text: string;
         senderId: string;

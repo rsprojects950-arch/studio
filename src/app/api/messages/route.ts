@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { getMessages, addMessage } from '@/lib/firebase/firestore';
+import { getMessages, addMessage, deleteMessage } from '@/lib/firebase/firestore';
 import type { Message } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 
@@ -48,4 +48,25 @@ export async function POST(request: Request) {
     console.error('Error sending message:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
+}
+
+export async function DELETE(request: Request) {
+    try {
+        const { searchParams } = new URL(request.url);
+        const conversationId = searchParams.get('conversationId');
+        const messageId = searchParams.get('messageId');
+        const userId = searchParams.get('userId'); // Assuming userId is sent for authorization
+
+        if (!conversationId || !messageId || !userId) {
+            return new NextResponse('Missing required parameters', { status: 400 });
+        }
+
+        await deleteMessage(conversationId, messageId, userId);
+
+        return new NextResponse('Message deleted successfully', { status: 200 });
+
+    } catch (error: any) {
+        console.error('Error deleting message:', error);
+        return new NextResponse(error.message || 'Internal Server Error', { status: 500 });
+    }
 }

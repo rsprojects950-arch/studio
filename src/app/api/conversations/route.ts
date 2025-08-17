@@ -1,6 +1,7 @@
 
+
 import { NextResponse } from 'next/server';
-import { getConversations, startConversation, markConversationAsRead } from '@/lib/firebase/firestore';
+import { getConversations, startConversation, markConversationAsRead, deleteConversation } from '@/lib/firebase/firestore';
 import { auth } from '@/lib/firebase';
 import { headers } from 'next/headers';
 import type { Conversation } from '@/lib/types';
@@ -26,6 +27,9 @@ export async function GET(request: Request) {
         }
         if (serializableConvo.createdAt && serializableConvo.createdAt instanceof Timestamp) {
             serializableConvo.createdAt = serializableConvo.createdAt.toDate().toISOString();
+        } else if (typeof serializableConvo.createdAt === 'object' && serializableConvo.createdAt.seconds) { // Handle Firestore Timestamp-like objects
+             const ts = serializableConvo.createdAt;
+             serializableConvo.createdAt = new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
         }
         return serializableConvo;
     });
@@ -65,6 +69,9 @@ export async function POST(request: Request) {
      // Also handle the top-level createdAt if it exists from a fresh creation
     if (serializableConversation.createdAt && serializableConversation.createdAt instanceof Timestamp) {
       serializableConversation.createdAt = serializableConversation.createdAt.toDate().toISOString();
+    } else if (typeof serializableConversation.createdAt === 'object' && serializableConversation.createdAt.seconds) {
+         const ts = serializableConversation.createdAt;
+         serializableConversation.createdAt = new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
     }
 
     return NextResponse.json(serializableConversation, { status: 201 });
@@ -73,4 +80,21 @@ export async function POST(request: Request) {
     console.error('Error in POST /api/conversations:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
+}
+
+export async function DELETE(request: Request) {
+    try {
+        const { conversationId, userId } = await request.json();
+        if (!conversationId || !userId) {
+            return new NextResponse('Missing conversationId or userId', { status: 400 });
+        }
+
+        await deleteConversation(conversationId, userId);
+
+        return new NextResponse('Conversation deleted successfully', { status: 200 });
+
+    } catch (error: any) {
+        console.error('Error deleting conversation:', error);
+        return new NextResponse(error.message || 'Internal Server Error', { status: 500 });
+    }
 }
