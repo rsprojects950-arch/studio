@@ -2,9 +2,10 @@
 
 
 
+
 'use server';
 
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId, count } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink, Note, Conversation, ParticipantDetails } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
@@ -234,18 +235,17 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
         });
     }
 
-    const conversations = conversationsSnapshot.docs.map(doc => {
+    const conversationPromises = conversationsSnapshot.docs.map(async (doc) => {
         const data = doc.data();
-        const lastReadTimestamp = currentUserProfile.lastRead?.[doc.id] ? new Date(currentUserProfile.lastRead[doc.id]) : new Date(0);
+        const lastReadTimestamp = currentUserProfile.lastRead?.[doc.id] ? Timestamp.fromDate(new Date(currentUserProfile.lastRead[doc.id])) : Timestamp.fromDate(new Date(0));
         
         let unreadCount = 0;
         if (data.lastMessage && data.lastMessage.senderId !== userId) {
-            const lastMessageTimestamp = (data.lastMessage.timestamp as Timestamp).toDate();
-            if (lastMessageTimestamp > lastReadTimestamp) {
-                // This is a simplified unread count. A real implementation would query
-                // the messages subcollection for a precise count. For now, 1 means "new messages".
-                unreadCount = 1;
-            }
+             const messagesRef = collection(db, 'conversations', doc.id, 'messages');
+             const unreadQuery = query(messagesRef, where('createdAt', '>', lastReadTimestamp), where('userId', '!=', userId));
+             const unreadSnapshot = await getDocs(unreadQuery);
+             // Using getCountFromServer might be more efficient for very large chats, but getDocs is fine here.
+             unreadCount = unreadSnapshot.size;
         }
 
         return {
@@ -260,6 +260,8 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
             unreadCount: unreadCount,
         } as Conversation;
     });
+
+    const conversations = await Promise.all(conversationPromises);
 
     // Add public chat placeholder
     conversations.unshift({
@@ -416,8 +418,8 @@ export async function deleteMessage(conversationId: string, messageId: string, u
     if (conversationId !== 'public') {
         const conversationRef = doc(db, 'conversations', conversationId);
         const conversationSnap = await getDoc(conversationRef);
-        if (conversationSnap.exists() && conversationSnap.data().lastMessage?.id === messageId) {
-            // Find the new last message
+        if (conversationSnap.exists()) {
+             // Find the new last message
             const messagesQuery = query(collection(db, collectionPath), orderBy('createdAt', 'desc'), limit(1));
             const messagesSnap = await getDocs(messagesQuery);
             const newLastMessage = messagesSnap.empty ? null : {
