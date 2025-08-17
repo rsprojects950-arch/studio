@@ -1,6 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { getConversations, startConversation, markConversationAsRead, deleteConversation } from '@/lib/firebase/firestore';
+import { getConversations, startConversation, markConversationAsRead } from '@/lib/firebase/firestore';
 import type { Conversation } from '@/lib/types';
 
 export async function GET(request: Request) {
@@ -44,22 +44,4 @@ export async function POST(request: Request) {
     console.error('Error in POST /api/conversations:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
   }
-}
-
-export async function DELETE(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const conversationId = searchParams.get('conversationId');
-    const userId = searchParams.get('userId');
-
-    if (!conversationId || !userId) {
-        return NextResponse.json({ message: "Missing conversationId or userId parameter" }, { status: 400 });
-    }
-
-    try {
-        await deleteConversation(conversationId, userId);
-        return NextResponse.json({ message: "Conversation deleted successfully" }, { status: 200 });
-    } catch (error: any) {
-        console.error('Error deleting conversation:', error);
-        return NextResponse.json({ message: error.message || 'Internal Server Error' }, { status: 500 });
-    }
 }
