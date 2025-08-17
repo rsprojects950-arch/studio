@@ -269,7 +269,7 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
              unreadCount = unreadSnapshot.size;
         }
 
-        const convo: Partial<Conversation> = { // Use Partial<Conversation> to build the object
+        const convo: Partial<Conversation> = {
             id: doc.id,
             participants: data.participants,
             isPublic: data.isPublic || false,
@@ -277,8 +277,9 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
             unreadCount: unreadCount,
         };
         
-        // Safely serialize timestamps
         convo.createdAt = toISOString(data.createdAt) || new Date(0).toISOString();
+        
+        // Safely serialize lastMessage
         if (data.lastMessage) {
             convo.lastMessage = {
                 ...data.lastMessage,
@@ -329,15 +330,21 @@ export async function startConversation(currentUserId: string, otherUserId: stri
             getUserProfile(participants[0]),
             getUserProfile(participants[1])
         ]);
+        
+        const serializableData: Partial<Conversation> = { ...data };
+        serializableData.createdAt = toISOString(data.createdAt);
+        if (data.lastMessage) {
+             serializableData.lastMessage = {
+                ...data.lastMessage,
+                timestamp: toISOString(data.lastMessage.timestamp)!,
+            }
+        } else {
+            serializableData.lastMessage = null;
+        }
 
         return {
             id: conversationSnap.id,
-            ...data,
-            createdAt: toISOString(data.createdAt),
-            lastMessage: data.lastMessage ? {
-                ...data.lastMessage,
-                timestamp: toISOString(data.lastMessage.timestamp)!,
-            } : null,
+            ...serializableData,
             participantsDetails: [user1Profile, user2Profile].filter(Boolean).map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
         } as Conversation;
     }
