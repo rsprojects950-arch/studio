@@ -1,9 +1,31 @@
 
 import { NextResponse } from 'next/server';
 import { getConversations, startConversation, markConversationAsRead, deleteConversation } from '@/lib/firebase/firestore';
-import { auth } from '@/lib/firebase';
-import { headers } from 'next/headers';
 import type { Conversation } from '@/lib/types';
+import { Timestamp } from 'firebase/firestore';
+
+// Helper to safely convert Firestore Timestamps or other date formats to ISO strings
+const toISOString = (date: any): string => {
+    if (!date) return new Date(0).toISOString(); // Return epoch if null/undefined
+    if (date instanceof Timestamp) {
+        return date.toDate().toISOString();
+    }
+    // Handle raw { seconds, nanoseconds } objects that can come from Firestore
+    if (typeof date === 'object' && date !== null && typeof date.seconds === 'number' && typeof date.nanoseconds === 'number') {
+        return new Timestamp(date.seconds, date.nanoseconds).toDate().toISOString();
+    }
+    // Handle existing ISO strings or other date strings
+    if (typeof date === 'string') {
+        const d = new Date(date);
+        if (!isNaN(d.getTime())) {
+            return d.toISOString();
+        }
+    }
+    // Fallback for any other valid Date constructor input, or return epoch if invalid
+    const d = new Date(date);
+    return !isNaN(d.getTime()) ? d.toISOString() : new Date(0).toISOString();
+};
+
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -40,7 +62,16 @@ export async function POST(request: Request) {
     
     const conversation = await startConversation(currentUserId, otherUserId);
     
-    return NextResponse.json(conversation, { status: 201 });
+    // Ensure the returned conversation is fully serializable
+    const serializableConversation = {
+        ...conversation,
+        createdAt: toISOString(conversation.createdAt),
+        lastMessage: conversation.lastMessage
+            ? { ...conversation.lastMessage, timestamp: toISOString(conversation.lastMessage.timestamp) }
+            : null,
+    };
+    
+    return NextResponse.json(serializableConversation, { status: 201 });
 
   } catch (error) {
     console.error('Error in POST /api/conversations:', error);
@@ -67,5 +98,3 @@ export async function DELETE(request: Request) {
         return new NextResponse(error.message || 'Internal Server Error', { status: 500 });
     }
 }
-
-    

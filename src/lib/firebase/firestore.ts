@@ -262,58 +262,61 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
         const lastReadTimestamp = currentUserProfile.lastRead?.[doc.id] ? Timestamp.fromDate(new Date(currentUserProfile.lastRead[doc.id])) : new Timestamp(0, 0);
         
         let unreadCount = 0;
+        // Only calculate unread for messages not sent by the current user
         if (data.lastMessage && data.lastMessage.senderId !== userId) {
              const messagesRef = collection(db, 'conversations', doc.id, 'messages');
              const unreadQuery = query(messagesRef, where('createdAt', '>', lastReadTimestamp), where('userId', '!=', userId));
-             const unreadSnapshot = await getDocs(unreadQuery);
-             unreadCount = unreadSnapshot.size;
+             const unreadSnapshot = await getDocs(unreadQuery); // Using getDocs to get the full snapshot
+             unreadCount = unreadSnapshot.size; // .size gives the count of documents
         }
-
-        const convo: Partial<Conversation> = {
+        
+        // Safely construct the conversation object
+        const convo: Conversation = {
             id: doc.id,
             participants: data.participants,
             isPublic: data.isPublic || false,
             participantsDetails: data.participants.map((id: string) => participantDetails[id]).filter(Boolean),
             unreadCount: unreadCount,
-        };
-        
-        convo.createdAt = toISOString(data.createdAt) || new Date(0).toISOString();
-        
-        if (data.lastMessage) {
-            convo.lastMessage = {
-                ...data.lastMessage,
+            createdAt: toISOString(data.createdAt),
+            lastMessage: data.lastMessage ? {
+                text: data.lastMessage.text,
+                senderId: data.lastMessage.senderId,
                 timestamp: toISOString(data.lastMessage.timestamp)!,
-            };
-        } else {
-            convo.lastMessage = null;
-        }
+            } : null,
+        };
 
-
-        return convo as Conversation;
+        return convo;
     });
 
     const conversations = await Promise.all(conversationPromises);
 
-    // Add public chat placeholder
-    const publicChat: Conversation = {
-        id: 'public',
-        participants: [],
-        participantsDetails: [],
-        isPublic: true,
-        lastMessage: null,
-        unreadCount: 0,
-        createdAt: new Date(0).toISOString(),
-    };
+    // Add public chat placeholder if it doesn't exist
+    const publicChatExists = conversations.some(c => c.id === 'public');
+    if (!publicChatExists) {
+        const publicChat: Conversation = {
+            id: 'public',
+            participants: [],
+            participantsDetails: [],
+            isPublic: true,
+            lastMessage: null,
+            unreadCount: 0,
+            createdAt: new Date(0).toISOString(),
+        };
+        conversations.push(publicChat);
+    }
 
-    const privateConversations = conversations.filter(c => !c.isPublic);
-    
-    privateConversations.sort((a, b) => {
-        const aTime = a.lastMessage?.timestamp ? new Date(a.lastMessage.timestamp).getTime() : a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bTime = b.lastMessage?.timestamp ? new Date(b.lastMessage.timestamp).getTime() : b.createdAt ? new Date(b.createdAt).getTime() : 0;
+    // Sort all conversations (including public chat) by last message timestamp
+    conversations.sort((a, b) => {
+        // Treat public chat as always active but sort it to the top
+        if (a.isPublic) return -1;
+        if (b.isPublic) return 1;
+
+        const aTime = a.lastMessage?.timestamp ? new Date(a.lastMessage.timestamp).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const bTime = b.lastMessage?.timestamp ? new Date(b.lastMessage.timestamp).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
         return bTime - aTime;
     });
 
-    return [publicChat, ...privateConversations];
+    return conversations;
 }
 
 export async function startConversation(currentUserId: string, otherUserId: string): Promise<Conversation> {
@@ -329,21 +332,16 @@ export async function startConversation(currentUserId: string, otherUserId: stri
             getUserProfile(participants[0]),
             getUserProfile(participants[1])
         ]);
-        
-        const serializableData: Partial<Conversation> = { ...data };
-        serializableData.createdAt = toISOString(data.createdAt);
-        if (data.lastMessage) {
-             serializableData.lastMessage = {
-                ...data.lastMessage,
-                timestamp: toISOString(data.lastMessage.timestamp)!,
-            }
-        } else {
-            serializableData.lastMessage = null;
-        }
 
         return {
             id: conversationSnap.id,
-            ...serializableData,
+            participants: data.participants,
+            isPublic: data.isPublic || false,
+            createdAt: toISOString(data.createdAt),
+            lastMessage: data.lastMessage ? {
+                ...data.lastMessage,
+                timestamp: toISOString(data.lastMessage.timestamp)!,
+            } : null,
             participantsDetails: [user1Profile, user2Profile].filter(Boolean).map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
         } as Conversation;
     }
@@ -368,8 +366,10 @@ export async function startConversation(currentUserId: string, otherUserId: stri
     
     return {
         id: conversationId,
-        ...newData,
+        participants: newData?.participants,
+        isPublic: newData?.isPublic || false,
         createdAt: toISOString(newData?.createdAt),
+        lastMessage: null,
         participantsDetails: [user1Profile, user2Profile].filter(Boolean).map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
     } as Conversation;
 }
@@ -426,7 +426,7 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
             lastMessage: {
                 text: text,
                 senderId: userId,
-                timestamp: serverTimestamp()
+                timestamp: serverTimestamp() // Use server timestamp for consistency
             }
         });
     }
@@ -459,15 +459,20 @@ export async function deleteMessage(conversationId: string, messageId: string, u
     
     await deleteDoc(messageRef);
 
-    // If it's a private chat and this was the last message, update the conversation's lastMessage
+    // If it's a private chat, update the conversation's lastMessage
     if (conversationId !== 'public') {
         const conversationRef = doc(db, 'conversations', conversationId);
         const conversationSnap = await getDoc(conversationRef);
-        if (conversationSnap.exists() && conversationSnap.data().lastMessage?.id === messageId) {
+        
+        // Check if the deleted message was the last message
+        const lastMessageTimestamp = toISOString(conversationSnap.data()?.lastMessage?.timestamp);
+        const deletedMessageTimestamp = toISOString(messageSnap.data()?.createdAt);
+
+        if (conversationSnap.exists() && lastMessageTimestamp === deletedMessageTimestamp) {
+            // Find the new last message
             const messagesQuery = query(collection(db, collectionPath), orderBy('createdAt', 'desc'), limit(1));
             const messagesSnap = await getDocs(messagesQuery);
             const newLastMessage = messagesSnap.empty ? null : {
-                id: messagesSnap.docs[0].id,
                 text: messagesSnap.docs[0].data().text,
                 senderId: messagesSnap.docs[0].data().userId,
                 timestamp: messagesSnap.docs[0].data().createdAt,
@@ -487,12 +492,13 @@ export async function deleteConversation(conversationId: string, userId: string)
     
     const messagesRef = collection(db, 'conversations', conversationId, 'messages');
     
+    // Batch delete messages to handle large conversations
     const deleteBatch = async () => {
         const messagesQuery = query(messagesRef, limit(500)); 
         const messagesSnap = await getDocs(messagesQuery);
         
         if (messagesSnap.size === 0) {
-            return;
+            return; // No more messages to delete
         }
 
         const batch = writeBatch(db);
@@ -501,6 +507,7 @@ export async function deleteConversation(conversationId: string, userId: string)
         });
         await batch.commit();
 
+        // Recursively call until all messages are deleted
         if (messagesSnap.size > 0) {
            await deleteBatch();
         }
@@ -508,6 +515,7 @@ export async function deleteConversation(conversationId: string, userId: string)
 
     await deleteBatch(); 
 
+    // Finally, delete the conversation document itself
     await deleteDoc(conversationRef);
 }
 
@@ -553,5 +561,3 @@ export async function markConversationAsRead(userId: string, conversationId: str
         [`lastRead.${conversationId}`]: new Date().toISOString(),
     });
 }
-
-    

@@ -25,10 +25,13 @@ export default function DashboardLayout({
   const [conversations, setConversations] = useState<Conversation[]>([]);
   
   const fetchConversations = useCallback(async () => {
-    if (!user) return;
+    if (!user?.uid) return; // Guard against undefined user.uid
     try {
         const res = await fetch(`/api/conversations?userId=${user.uid}`);
-        if (!res.ok) throw new Error('Could not fetch conversation data.');
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Could not fetch conversation data.');
+        }
         
         const userConversations: Conversation[] = await res.json();
         setConversations(userConversations);
@@ -37,7 +40,7 @@ export default function DashboardLayout({
          toast({
             variant: "destructive",
             title: "Error",
-            description: "Could not fetch conversation data.",
+            description: (error as Error).message || "Could not fetch conversation data.",
         });
     }
   }, [user, toast]);
@@ -89,5 +92,3 @@ export default function DashboardLayout({
     </UnreadCountProvider>
   );
 }
-
-    

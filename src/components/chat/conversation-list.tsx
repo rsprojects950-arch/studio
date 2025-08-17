@@ -29,11 +29,14 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
     const [loading, setLoading] = useState(true);
 
     const fetchConversations = useCallback(async (shouldSelectDefault = false) => {
-        if (!user) return;
+        if (!user?.uid) return; // Guard against undefined user
         setLoading(true);
         try {
             const res = await fetch(`/api/conversations?userId=${user.uid}`);
-            if (!res.ok) throw new Error('Failed to fetch conversations');
+            if (!res.ok) {
+                 const errorData = await res.json();
+                 throw new Error(errorData.message || 'Failed to fetch conversations');
+            }
             const data: Conversation[] = await res.json();
             
             setConversations(data);
@@ -92,7 +95,7 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
             await fetchConversations(selectedConversation?.id === conversationId);
             if (selectedConversation?.id === conversationId) {
                  onSelectConversation(null);
-                 // After clearing, select the public chat by default
+                 // After clearing, select the public chat by default if it exists
                  const publicChat = conversations.find(c => c.id === 'public');
                  if(publicChat) onSelectConversation(publicChat);
             }
@@ -193,5 +196,3 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
         </div>
     );
 }
-
-    
