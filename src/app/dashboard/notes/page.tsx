@@ -66,7 +66,7 @@ export default function NotesPage() {
   const [resourceSearch, setResourceSearch] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const refreshNotes = useCallback(async () => {
+  const refreshNotes = async () => {
     if (!user) return;
     setLoading(true);
     try {
@@ -81,13 +81,13 @@ export default function NotesPage() {
     } finally {
       setLoading(false);
     }
-  }, [user, toast]);
+  };
 
   useEffect(() => {
     if (user) {
       refreshNotes();
     }
-  }, [user, refreshNotes]);
+  }, [user]);
   
   useEffect(() => {
     if (isDialogOpen) {
