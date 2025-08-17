@@ -7,19 +7,29 @@ import { headers } from 'next/headers';
 import type { Conversation } from '@/lib/types';
 import { Timestamp } from 'firebase/firestore';
 
-// Helper to safely convert a Firestore timestamp or a raw object to an ISO string
-const toISOString = (date: any): string => {
-  if (!date) return new Date(0).toISOString(); // Fallback for null/undefined
+// Helper to safely convert a Firestore timestamp, a raw object, or a string to an ISO string
+const toISOString = (date: any): string | undefined => {
+  if (!date) return undefined;
   if (date instanceof Timestamp) {
     return date.toDate().toISOString();
   }
-  if (typeof date === 'string') {
-    return new Date(date).toISOString();
-  }
-  if (typeof date === 'object' && date.seconds !== undefined) {
+  // Handle raw { seconds, nanoseconds } objects
+  if (typeof date === 'object' && typeof date.seconds === 'number' && typeof date.nanoseconds === 'number') {
     return new Timestamp(date.seconds, date.nanoseconds).toDate().toISOString();
   }
-  return new Date(date).toISOString(); // Final attempt for other types
+  // Handle existing ISO strings or other date strings
+  if (typeof date === 'string') {
+    const d = new Date(date);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString();
+    }
+  }
+  // Fallback for any other valid Date constructor input
+  const d = new Date(date);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString();
+  }
+  return undefined;
 };
 
 export async function GET(request: Request) {
@@ -35,10 +45,11 @@ export async function GET(request: Request) {
 
     const serializableConversations = conversations.map(convo => ({
         ...convo,
-        createdAt: convo.createdAt ? toISOString(convo.createdAt) : undefined,
+        createdAt: toISOString(convo.createdAt),
         lastMessage: convo.lastMessage ? {
             ...convo.lastMessage,
-            timestamp: toISOString(convo.lastMessage.timestamp),
+            // Ensure lastMessage.timestamp is also serialized
+            timestamp: toISOString(convo.lastMessage.timestamp)!,
         } : null,
     }));
 
@@ -70,10 +81,10 @@ export async function POST(request: Request) {
     
     const serializableConversation = {
         ...conversation,
-        createdAt: conversation.createdAt ? toISOString(conversation.createdAt) : undefined,
+        createdAt: toISOString(conversation.createdAt),
         lastMessage: conversation.lastMessage ? {
             ...conversation.lastMessage,
-            timestamp: toISOString(conversation.lastMessage.timestamp),
+            timestamp: toISOString(conversation.lastMessage.timestamp)!,
         } : null,
     };
 
