@@ -40,7 +40,8 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
             setConversations(data);
             
             if (shouldSelectDefault && data.length > 0) {
-                 onSelectConversation(data[0]); // Select first conversation by default
+                 const publicChat = data.find(c => c.isPublic);
+                 onSelectConversation(publicChat || data[0]); // Select public chat or first conversation by default
             }
 
         } catch (error) {
@@ -166,7 +167,7 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
                                             <AlertDialogHeader>
                                                 <AlertDialogTitle>Delete this conversation?</AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    This will permanently delete this entire conversation for all participants. This action cannot be undone.
+                                                    This will permanently delete this entire conversation. This action cannot be undone.
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>

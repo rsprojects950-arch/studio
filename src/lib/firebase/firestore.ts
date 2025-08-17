@@ -14,7 +14,7 @@ const toISOString = (date: any): string | undefined => {
     return date.toDate().toISOString();
   }
   // Handle raw { seconds, nanoseconds } objects
-  if (typeof date === 'object' && typeof date.seconds === 'number' && typeof date.nanoseconds === 'number') {
+  if (typeof date === 'object' && date !== null && typeof date.seconds === 'number' && typeof date.nanoseconds === 'number') {
     return new Timestamp(date.seconds, date.nanoseconds).toDate().toISOString();
   }
   // Handle existing ISO strings or other date strings
@@ -260,7 +260,7 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
 
     const conversationPromises = conversationsSnapshot.docs.map(async (doc) => {
         const data = doc.data();
-        const lastReadTimestamp = currentUserProfile.lastRead?.[doc.id] ? Timestamp.fromDate(new Date(currentUserProfile.lastRead[doc.id])) : Timestamp.fromDate(new Date(0));
+        const lastReadTimestamp = currentUserProfile.lastRead?.[doc.id] ? Timestamp.fromDate(new Date(currentUserProfile.lastRead[doc.id])) : new Timestamp(0, 0);
         
         let unreadCount = 0;
         if (data.lastMessage && data.lastMessage.senderId !== userId) {
@@ -289,7 +289,7 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
     const conversations = await Promise.all(conversationPromises);
 
     // Add public chat placeholder
-    conversations.unshift({
+    const publicChat = {
         id: 'public',
         participants: [],
         participantsDetails: [],
@@ -297,15 +297,17 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
         lastMessage: null,
         unreadCount: 0,
         createdAt: new Date(0).toISOString(),
-    });
+    };
 
-    return conversations.sort((a,b) => {
-        if (a.isPublic) return -1;
-        if (b.isPublic) return 1;
-        const aTime = a.lastMessage ? new Date(a.lastMessage.timestamp as unknown as string).getTime() : new Date(a.createdAt!).getTime();
-        const bTime = b.lastMessage ? new Date(b.lastMessage.timestamp as unknown as string).getTime() : new Date(b.createdAt!).getTime();
+    const privateConversations = conversations.filter(c => !c.isPublic);
+    
+    privateConversations.sort((a, b) => {
+        const aTime = a.lastMessage ? new Date(a.lastMessage.timestamp as string).getTime() : new Date(a.createdAt!).getTime();
+        const bTime = b.lastMessage ? new Date(b.lastMessage.timestamp as string).getTime() : new Date(b.createdAt!).getTime();
         return bTime - aTime;
     });
+
+    return [publicChat, ...privateConversations];
 }
 
 export async function startConversation(currentUserId: string, otherUserId: string): Promise<Conversation> {
@@ -378,7 +380,7 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
     const messages: Message[] = querySnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        createdAt: (doc.data().createdAt as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+        createdAt: toISOString(doc.data().createdAt) || new Date().toISOString(),
     } as Message));
 
     if (!since) messages.reverse();
@@ -427,7 +429,7 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
       username: userProfile.username,
       userAvatar: userProfile.photoURL || '',
       conversationId: conversationId,
-      createdAt: newDocData?.createdAt instanceof Timestamp ? newDocData.createdAt.toDate().toISOString() : new Date().toISOString(),
+      createdAt: toISOString(newDocData?.createdAt) || new Date().toISOString(),
       ...(replyTo && { replyToId: replyTo.id, replyToText: replyTo.text, replyToUsername: replyTo.username }),
       ...(resourceLinks && { resourceLinks }),
     };
@@ -473,10 +475,15 @@ export async function deleteConversation(conversationId: string, userId: string)
     // Firestore does not support deleting subcollections from the server SDK directly.
     // We must fetch all message documents and delete them in a batch.
     const messagesRef = collection(db, 'conversations', conversationId, 'messages');
-    const messagesSnap = await getDocs(messagesRef);
+    const messagesQuery = query(messagesRef);
+    const messagesSnap = await getDocs(messagesQuery);
 
     const batch = writeBatch(db);
-    messagesSnap.docs.forEach(doc => batch.delete(doc.ref));
+
+    messagesSnap.docs.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+    
     batch.delete(conversationRef);
 
     await batch.commit();
