@@ -25,11 +25,14 @@ export async function GET(request: Request) {
             const ts = serializableConvo.lastMessage.timestamp;
             serializableConvo.lastMessage.timestamp = (ts instanceof Timestamp ? ts.toDate() : new Date(ts)).toISOString();
         }
-        if (serializableConvo.createdAt && serializableConvo.createdAt instanceof Timestamp) {
-            serializableConvo.createdAt = serializableConvo.createdAt.toDate().toISOString();
-        } else if (typeof serializableConvo.createdAt === 'object' && serializableConvo.createdAt.seconds) { // Handle Firestore Timestamp-like objects
-             const ts = serializableConvo.createdAt;
-             serializableConvo.createdAt = new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+        // Handle both actual Timestamps and raw Firestore objects
+        if (serializableConvo.createdAt) {
+            if (serializableConvo.createdAt instanceof Timestamp) {
+                serializableConvo.createdAt = serializableConvo.createdAt.toDate().toISOString();
+            } else if (typeof serializableConvo.createdAt === 'object' && 'seconds' in serializableConvo.createdAt) {
+                 const ts = serializableConvo.createdAt;
+                 serializableConvo.createdAt = new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+            }
         }
         return serializableConvo;
     });
@@ -67,11 +70,13 @@ export async function POST(request: Request) {
         serializableConversation.lastMessage.timestamp = (ts instanceof Timestamp ? ts.toDate() : new Date(ts)).toISOString();
     }
      // Also handle the top-level createdAt if it exists from a fresh creation
-    if (serializableConversation.createdAt && serializableConversation.createdAt instanceof Timestamp) {
-      serializableConversation.createdAt = serializableConversation.createdAt.toDate().toISOString();
-    } else if (typeof serializableConversation.createdAt === 'object' && serializableConversation.createdAt.seconds) {
-         const ts = serializableConversation.createdAt;
-         serializableConversation.createdAt = new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+    if (serializableConversation.createdAt) {
+      if (serializableConversation.createdAt instanceof Timestamp) {
+        serializableConversation.createdAt = serializableConversation.createdAt.toDate().toISOString();
+      } else if (typeof serializableConversation.createdAt === 'object' && 'seconds' in serializableConversation.createdAt) {
+           const ts = serializableConversation.createdAt;
+           serializableConversation.createdAt = new Timestamp(ts.seconds, ts.nanoseconds).toDate().toISOString();
+      }
     }
 
     return NextResponse.json(serializableConversation, { status: 201 });
