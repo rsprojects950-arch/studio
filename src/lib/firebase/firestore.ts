@@ -1,10 +1,37 @@
 
+
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId, count } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink, Note, Conversation, ParticipantDetails } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
+
+// Helper to safely convert a Firestore timestamp, a raw object, or a string to an ISO string
+const toISOString = (date: any): string | undefined => {
+  if (!date) return undefined;
+  if (date instanceof Timestamp) {
+    return date.toDate().toISOString();
+  }
+  // Handle raw { seconds, nanoseconds } objects
+  if (typeof date === 'object' && typeof date.seconds === 'number' && typeof date.nanoseconds === 'number') {
+    return new Timestamp(date.seconds, date.nanoseconds).toDate().toISOString();
+  }
+  // Handle existing ISO strings or other date strings
+  if (typeof date === 'string') {
+    const d = new Date(date);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString();
+    }
+  }
+  // Fallback for any other valid Date constructor input
+  const d = new Date(date);
+  if (!isNaN(d.getTime())) {
+    return d.toISOString();
+  }
+  return undefined;
+};
+
 
 // USER PROFILE FUNCTIONS
 export async function createUserProfile(profile: UserProfile): Promise<void> {
@@ -243,17 +270,20 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
              unreadCount = unreadSnapshot.size;
         }
 
-        return {
+        const convo = {
             id: doc.id,
             ...data,
-            createdAt: data.createdAt?.toDate()?.toISOString() || new Date(0).toISOString(),
-            lastMessage: data.lastMessage ? {
-                ...data.lastMessage,
-                timestamp: data.lastMessage.timestamp?.toDate() || new Date()
-            } : null,
             participantsDetails: data.participants.map((id: string) => participantDetails[id]).filter(Boolean),
             unreadCount: unreadCount,
         } as Conversation;
+        
+        // Serialize timestamps
+        convo.createdAt = toISOString(convo.createdAt) || new Date(0).toISOString();
+        if (convo.lastMessage) {
+            convo.lastMessage.timestamp = toISOString(convo.lastMessage.timestamp) as any;
+        }
+
+        return convo;
     });
 
     const conversations = await Promise.all(conversationPromises);
@@ -272,8 +302,8 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
     return conversations.sort((a,b) => {
         if (a.isPublic) return -1;
         if (b.isPublic) return 1;
-        const aTime = a.lastMessage?.timestamp.getTime() || new Date(a.createdAt!).getTime();
-        const bTime = b.lastMessage?.timestamp.getTime() || new Date(b.createdAt!).getTime();
+        const aTime = a.lastMessage ? new Date(a.lastMessage.timestamp as unknown as string).getTime() : new Date(a.createdAt!).getTime();
+        const bTime = b.lastMessage ? new Date(b.lastMessage.timestamp as unknown as string).getTime() : new Date(b.createdAt!).getTime();
         return bTime - aTime;
     });
 }
@@ -286,6 +316,7 @@ export async function startConversation(currentUserId: string, otherUserId: stri
     const conversationSnap = await getDoc(conversationRef);
 
     if (conversationSnap.exists()) {
+        const data = conversationSnap.data();
         const [user1Profile, user2Profile] = await Promise.all([
             getUserProfile(participants[0]),
             getUserProfile(participants[1])
@@ -293,8 +324,12 @@ export async function startConversation(currentUserId: string, otherUserId: stri
 
         return {
             id: conversationSnap.id,
-            ...conversationSnap.data(),
-            createdAt: conversationSnap.data().createdAt.toDate().toISOString(),
+            ...data,
+            createdAt: toISOString(data.createdAt),
+            lastMessage: data.lastMessage ? {
+                ...data.lastMessage,
+                timestamp: toISOString(data.lastMessage.timestamp)!,
+            } : null,
             participantsDetails: [user1Profile, user2Profile].map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
         } as Conversation;
     }
@@ -308,18 +343,19 @@ export async function startConversation(currentUserId: string, otherUserId: stri
     batch.set(conversationRef, newConversationData);
     await batch.commit();
 
+    // Fetch the just-created doc to get the server timestamp and serialize it
+    const newSnap = await getDoc(conversationRef);
+    const newData = newSnap.data();
+
     const [user1Profile, user2Profile] = await Promise.all([
         getUserProfile(participants[0]),
         getUserProfile(participants[1])
     ]);
     
-    // Fetch the just-created doc to get the server timestamp
-    const newSnap = await getDoc(conversationRef);
-
     return {
         id: conversationId,
-        ...newSnap.data(),
-        createdAt: newSnap.data()?.createdAt.toDate().toISOString(),
+        ...newData,
+        createdAt: toISOString(newData?.createdAt),
         participantsDetails: [user1Profile, user2Profile].map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
     } as Conversation;
 }

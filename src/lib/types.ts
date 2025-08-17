@@ -86,7 +86,7 @@ export type Conversation = {
     lastMessage: {
         text: string;
         senderId: string;
-        timestamp: Date;
+        timestamp: string; // Should be ISO string
     } | null;
     isPublic?: boolean;
     unreadCount?: number;

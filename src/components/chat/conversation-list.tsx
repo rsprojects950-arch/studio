@@ -70,10 +70,8 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
         if (!user) return;
         
         try {
-            const res = await fetch('/api/conversations', {
+            const res = await fetch(`/api/conversations?conversationId=${conversationId}&userId=${user.uid}`, {
                 method: 'DELETE',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ conversationId, userId: user.uid }),
             });
 
             if (!res.ok) {
