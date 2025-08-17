@@ -19,10 +19,13 @@ export async function GET(request: Request) {
 
     // Serialize Timestamps to plain strings before sending to client
     const serializableConversations = conversations.map(convo => {
-        const serializableConvo = { ...convo };
+        const serializableConvo = { ...convo } as any;
         if (serializableConvo.lastMessage && serializableConvo.lastMessage.timestamp) {
             const ts = serializableConvo.lastMessage.timestamp;
             serializableConvo.lastMessage.timestamp = (ts instanceof Timestamp ? ts.toDate() : new Date(ts)).toISOString();
+        }
+        if (serializableConvo.createdAt && serializableConvo.createdAt instanceof Timestamp) {
+            serializableConvo.createdAt = serializableConvo.createdAt.toDate().toISOString();
         }
         return serializableConvo;
     });
@@ -45,14 +48,14 @@ export async function POST(request: Request) {
     const conversation = await startConversation(currentUserId, otherUserId);
 
     // Serialize Timestamps to plain strings before sending to client
-    const serializableConversation = { ...conversation };
+    const serializableConversation = { ...conversation } as any;
     if (serializableConversation.lastMessage && serializableConversation.lastMessage.timestamp) {
         const ts = serializableConversation.lastMessage.timestamp;
         serializableConversation.lastMessage.timestamp = (ts instanceof Timestamp ? ts.toDate() : new Date(ts)).toISOString();
     }
      // Also handle the top-level createdAt if it exists from a fresh creation
-    if ((serializableConversation as any).createdAt instanceof Timestamp) {
-      (serializableConversation as any).createdAt = (serializableConversation as any).createdAt.toDate().toISOString();
+    if (serializableConversation.createdAt && serializableConversation.createdAt instanceof Timestamp) {
+      serializableConversation.createdAt = serializableConversation.createdAt.toDate().toISOString();
     }
 
     return NextResponse.json(serializableConversation, { status: 201 });
