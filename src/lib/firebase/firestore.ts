@@ -279,7 +279,6 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
         
         convo.createdAt = toISOString(data.createdAt) || new Date(0).toISOString();
         
-        // Safely serialize lastMessage
         if (data.lastMessage) {
             convo.lastMessage = {
                 ...data.lastMessage,
@@ -464,10 +463,11 @@ export async function deleteMessage(conversationId: string, messageId: string, u
     if (conversationId !== 'public') {
         const conversationRef = doc(db, 'conversations', conversationId);
         const conversationSnap = await getDoc(conversationRef);
-        if (conversationSnap.exists()) {
+        if (conversationSnap.exists() && conversationSnap.data().lastMessage?.id === messageId) {
             const messagesQuery = query(collection(db, collectionPath), orderBy('createdAt', 'desc'), limit(1));
             const messagesSnap = await getDocs(messagesQuery);
             const newLastMessage = messagesSnap.empty ? null : {
+                id: messagesSnap.docs[0].id,
                 text: messagesSnap.docs[0].data().text,
                 senderId: messagesSnap.docs[0].data().userId,
                 timestamp: messagesSnap.docs[0].data().createdAt,
@@ -487,10 +487,8 @@ export async function deleteConversation(conversationId: string, userId: string)
     
     const messagesRef = collection(db, 'conversations', conversationId, 'messages');
     
-    // Firestore does not support deleting subcollections from the server SDK directly in one operation.
-    // We must fetch all message documents and delete them in batches to avoid memory issues with large conversations.
     const deleteBatch = async () => {
-        const messagesQuery = query(messagesRef, limit(500)); // Process in batches of 500
+        const messagesQuery = query(messagesRef, limit(500)); 
         const messagesSnap = await getDocs(messagesQuery);
         
         if (messagesSnap.size === 0) {
@@ -503,15 +501,14 @@ export async function deleteConversation(conversationId: string, userId: string)
         });
         await batch.commit();
 
-        // Recurse until all messages are deleted
         if (messagesSnap.size > 0) {
            await deleteBatch();
         }
     };
 
-    await deleteBatch(); // Delete all messages in the subcollection
+    await deleteBatch(); 
 
-    await deleteDoc(conversationRef); // Delete the parent conversation document
+    await deleteDoc(conversationRef);
 }
 
 
