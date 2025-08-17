@@ -1,22 +1,26 @@
 
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useAuth } from '@/context/auth-context';
-import type { Message, UserProfile, Resource, ResourceLink } from '@/lib/types';
+import type { Message, UserProfile, Resource, ResourceLink, Conversation } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Send, Loader2, MessageSquareReply, X, Hash, BookOpen } from "lucide-react";
+import { Send, Loader2, MessageSquareReply, X, Hash, BookOpen, UserPlus } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { useUnreadCount } from '@/context/unread-count-context';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { ConversationList } from '@/components/chat/conversation-list';
+import { NewConversationDialog } from '@/components/chat/new-conversation-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
+
 
 const renderMessageWithContent = (
     text: string, 
@@ -30,22 +34,21 @@ const renderMessageWithContent = (
     let match;
 
     while ((match = regex.exec(text)) !== null) {
-        // Push the text before the match
         if (match.index > lastIndex) {
             parts.push(text.substring(lastIndex, match.index));
         }
 
-        // Check if it's a mention or a resource tag
-        if (match[1]) { // It's a mention (@username)
-            parts.push({ type: 'mention', content: match[1] });
-        } else if (match[2]) { // It's a resource tag (#[title](id))
+        if (match[1]) {
+            const mention = match[1].substring(1);
+            const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
+            parts.push({ type: 'mention', content: match[1], isCurrentUser: isCurrentUserMention });
+        } else if (match[2]) {
             parts.push({ type: 'resource', content: match[3], id: match[4] });
         }
 
         lastIndex = regex.lastIndex;
     }
 
-    // Push the remaining text after the last match
     if (lastIndex < text.length) {
         parts.push(text.substring(lastIndex));
     }
@@ -56,10 +59,8 @@ const renderMessageWithContent = (
         }
 
         if (part.type === 'mention') {
-            const mention = part.content.substring(1);
-            const isCurrentUserMention = mention.trim().toLowerCase() === currentUserName.toLowerCase();
             return (
-                <strong key={index} className={cn('font-bold', isCurrentUserMention ? 'bg-primary/20 text-primary rounded px-1' : isOwnMessage ? '' : 'text-primary' )}>
+                <strong key={index} className={cn('font-bold', part.isCurrentUser ? 'bg-primary/20 text-primary rounded px-1' : isOwnMessage ? '' : 'text-primary' )}>
                     {part.content}
                 </strong>
             );
@@ -81,10 +82,11 @@ const renderMessageWithContent = (
 };
 
 
-export default function ChatPage() {
+function ChatPageContent() {
     const { user, profile: userProfile } = useAuth();
     const { toast } = useToast();
     const { resetUnreadCount } = useUnreadCount();
+    
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(true);
@@ -100,25 +102,32 @@ export default function ChatPage() {
     const [isResourcePopoverOpen, setResourcePopoverOpen] = useState(false);
     
     const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+    const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
+    const [isNewConvoDialogOpen, setNewConvoDialogOpen] = useState(false);
 
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const lastMessageTimestamp = useRef<string | null>(null);
 
     useEffect(() => {
-      if (resetUnreadCount) {
-        resetUnreadCount();
+      if (resetUnreadCount && selectedConversation?.id !== 'public') {
+        resetUnreadCount(selectedConversation?.id);
       }
-    }, [resetUnreadCount]);
+    }, [selectedConversation, resetUnreadCount]);
 
     const fetchMessages = useCallback(async (isInitialLoad = false) => {
-        if (!user) return;
-        if (isInitialLoad) setLoading(true);
+        if (!user || !selectedConversation) return;
+        if (isInitialLoad) {
+            setLoading(true);
+            setMessages([]);
+            lastMessageTimestamp.current = null;
+        }
         
         try {
+            const baseUrl = `/api/messages?conversationId=${selectedConversation.id}`;
             const url = isInitialLoad 
-                ? '/api/messages' 
-                : `/api/messages?since=${encodeURIComponent(lastMessageTimestamp.current || new Date(0).toISOString())}`;
+                ? baseUrl 
+                : `${baseUrl}&since=${encodeURIComponent(lastMessageTimestamp.current || new Date(0).toISOString())}`;
 
             const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch messages');
@@ -149,17 +158,19 @@ export default function ChatPage() {
         } finally {
             if(isInitialLoad) setLoading(false);
         }
-    }, [user, toast]);
-
+    }, [user, selectedConversation, toast]);
+    
     useEffect(() => {
-        fetchMessages(true); // Initial fetch
-
-        const interval = setInterval(() => {
-            fetchMessages(false); // Poll for new messages
-        }, 5000); // Poll every 5 seconds
-
-        return () => clearInterval(interval);
-    }, [fetchMessages]);
+        if (selectedConversation) {
+            fetchMessages(true); // Initial fetch for selected convo
+            
+            const interval = setInterval(() => {
+                fetchMessages(false); // Poll for new messages
+            }, 5000); // Poll every 5 seconds
+    
+            return () => clearInterval(interval);
+        }
+    }, [selectedConversation, fetchMessages]);
 
     useEffect(() => {
         const fetchUsers = async () => {
@@ -184,23 +195,16 @@ export default function ChatPage() {
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !newMessage.trim()) return;
+        if (!user || !newMessage.trim() || !selectedConversation) return;
 
         setSending(true);
 
-        const resourceTagRegex = /#\[([^\]]+)\]\(([a-zA-Z0-9-]+)\)/g;
+        const resourceTagRegex = /#\[([^\]]+?)\]\(([a-zA-Z0-9-]+)\)/g;
         let match;
         const resourceLinks: ResourceLink[] = [];
         
-        const messageTextForRegex = newMessage;
-        // The API doesn't have access to the full list of resources, so we send the links.
-        // This is a bit redundant with the text but ensures data integrity.
-        while((match = resourceTagRegex.exec(messageTextForRegex)) !== null) {
-             resourceLinks.push({
-                id: match[2],
-                title: match[1],
-                type: 'resource', // Type info isn't critical here, can be generic
-            });
+        while((match = resourceTagRegex.exec(newMessage)) !== null) {
+             resourceLinks.push({ id: match[2], title: match[1], type: 'resource' });
         }
 
         try {
@@ -208,6 +212,7 @@ export default function ChatPage() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
+                    conversationId: selectedConversation.id,
                     text: newMessage, 
                     userId: user.uid,
                     replyTo: replyingTo ? {
@@ -245,7 +250,6 @@ export default function ChatPage() {
         }
     };
     
-
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const text = e.target.value;
         setNewMessage(text);
@@ -273,12 +277,9 @@ export default function ChatPage() {
     const handleMentionSelect = (username: string) => {
         const currentText = newMessage;
         const cursorPosition = inputRef.current?.selectionStart || 0;
-        
         const textUpToCursor = currentText.substring(0, cursorPosition);
-        
         const lastAtIndex = textUpToCursor.lastIndexOf('@');
         const prefix = textUpToCursor.substring(0, lastAtIndex);
-
         setNewMessage(`${prefix}@${username} `);
         setMentionPopoverOpen(false);
         setMentionSearch('');
@@ -289,12 +290,9 @@ export default function ChatPage() {
         const currentText = newMessage;
         const cursorPosition = inputRef.current?.selectionStart || 0;
         const textUpToCursor = currentText.substring(0, cursorPosition);
-        
         const lastHashIndex = textUpToCursor.lastIndexOf('#');
         const prefix = textUpToCursor.substring(0, lastHashIndex);
-
         const tag = `#[${resource.title}](${resource.id}) `;
-
         setNewMessage(`${prefix}${tag}`);
         setResourcePopoverOpen(false);
         setResourceSearch('');
@@ -310,7 +308,6 @@ export default function ChatPage() {
         } catch(error) {
             console.error("Failed to fetch resources for tagging", error);
         }
-
     }, []);
 
     const handleSetReply = (message: Message) => {
@@ -321,18 +318,53 @@ export default function ChatPage() {
     const filteredUsers = users.filter(u => u.username && u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
     const filteredResources = resources.filter(r => r.title.toLowerCase().includes(resourceSearch.toLowerCase()));
 
+    const otherParticipant = selectedConversation?.participantsDetails?.find(p => p.uid !== user?.uid);
+    const cardTitle = selectedConversation?.id === 'public' 
+        ? "Community Discussion" 
+        : otherParticipant?.username || "Direct Message";
+
     return (
-        <div className="flex-1 flex flex-col p-4 md:p-8 pt-6 h-[calc(100vh-4rem)]">
-            <Card className="flex-1 flex flex-col">
+        <div className="flex-1 flex h-[calc(100vh-4rem)]">
+            <ConversationList
+                selectedConversation={selectedConversation}
+                onSelectConversation={setSelectedConversation}
+                onNewConversation={() => setNewConvoDialogOpen(true)}
+            />
+            <NewConversationDialog
+                isOpen={isNewConvoDialogOpen}
+                onOpenChange={setNewConvoDialogOpen}
+                onConversationStarted={setSelectedConversation}
+            />
+            <Card className="flex-1 flex flex-col rounded-l-none">
                 <CardHeader>
-                    <CardTitle>Community Discussion</CardTitle>
-                    <CardDescription>Discuss ideas and get support. Mention users with @username or tag resources with #resourcename.</CardDescription>
+                    <div className="flex items-center gap-3">
+                        {selectedConversation && selectedConversation.id !== 'public' && otherParticipant && (
+                             <Avatar>
+                                <AvatarImage src={otherParticipant.photoURL || undefined} alt={otherParticipant.username} />
+                                <AvatarFallback>{otherParticipant.username.charAt(0).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                        )}
+                        <div>
+                            <CardTitle>{cardTitle}</CardTitle>
+                             {selectedConversation?.id === 'public' && (
+                                <CardDescription>Discuss ideas and get support. Mention users with @username or tag resources with #resourcename.</CardDescription>
+                             )}
+                        </div>
+                    </div>
                 </CardHeader>
                 <CardContent className="flex-1 overflow-hidden p-0">
                     <ScrollArea className="h-full p-6" ref={scrollAreaRef}>
-                        {loading && messages.length === 0 ? (
+                        {loading ? (
                             <div className="flex items-center justify-center h-full">
                                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                            </div>
+                        ) : !selectedConversation ? (
+                            <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                                <p>Select a conversation or <br/> start a new one.</p>
+                            </div>
+                        ) : messages.length === 0 ? (
+                             <div className="flex items-center justify-center h-full text-muted-foreground text-center">
+                                <p>No messages yet. <br /> Be the first to say something!</p>
                             </div>
                         ) : (
                             <div className="space-y-4 pr-4">
@@ -341,7 +373,7 @@ export default function ChatPage() {
                                         <div className={`flex items-start gap-3 ${user?.uid === msg.userId ? "justify-end" : ""}`}>
                                             {user?.uid !== msg.userId && (
                                                 <Avatar>
-                                                    <AvatarImage src={msg.userAvatar || 'https://placehold.co/100x100.png'} alt={msg.username || 'User'} data-ai-hint="user portrait" />
+                                                    <AvatarImage src={msg.userAvatar || undefined} alt={msg.username || 'User'} />
                                                     <AvatarFallback>{msg.username ? msg.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback>
                                                 </Avatar>
                                             )}
@@ -362,7 +394,7 @@ export default function ChatPage() {
                                             </div>
                                             {user?.uid === msg.userId && (
                                                 <Avatar>
-                                                    <AvatarImage src={userProfile?.photoURL || 'https://placehold.co/100x100.png'} alt={userProfile?.username || ''} data-ai-hint="user portrait" />
+                                                    <AvatarImage src={userProfile?.photoURL || undefined} alt={userProfile?.username || ''} />
                                                     <AvatarFallback>{(userProfile?.username || 'U').charAt(0).toUpperCase()}</AvatarFallback>
                                                 </Avatar>
                                             )}
@@ -402,75 +434,39 @@ export default function ChatPage() {
                                 value={newMessage}
                                 onChange={handleInputChange}
                                 autoComplete="off"
-                                disabled={sending || !user}
+                                disabled={sending || !user || !selectedConversation}
                                 className="w-full"
                             />
-                            <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
-                                <PopoverTrigger asChild><div/></PopoverTrigger>
-                                <PopoverContent className="w-80 p-0" align="start" side="top">
-                                    <div className="flex flex-col">
-                                        <div className="p-2 border-b flex items-center gap-2">
-                                            <Avatar className="h-4 w-4" />
-                                            <p className="text-sm font-medium">Mention a user</p>
-                                        </div>
-                                        <ScrollArea className="max-h-48">
-                                            <div className="p-1">
-                                                {filteredUsers.length > 0 ? (
-                                                    filteredUsers.map(u => (
-                                                        <div
-                                                            key={u.uid}
-                                                            className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
-                                                            onClick={() => handleMentionSelect(u.username)}
-                                                        >
-                                                            <Avatar className="h-6 w-6">
-                                                                <AvatarImage src={u.photoURL || undefined} />
-                                                                <AvatarFallback>{u.username.charAt(0)}</AvatarFallback>
-                                                            </Avatar>
-                                                            <span className="text-sm">{u.username}</span>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <p className="p-2 text-sm text-muted-foreground">No users found.</p>
-                                                )}
-                                            </div>
+                            {selectedConversation?.id === 'public' && (
+                            <>
+                                <Popover open={isMentionPopoverOpen} onOpenChange={setMentionPopoverOpen}>
+                                    <PopoverTrigger asChild><div/></PopoverTrigger>
+                                    <PopoverContent className="w-80 p-0" align="start" side="top">
+                                        {/* Mention Popover Content */}
+                                        <div className="p-2 border-b"><p className="text-sm font-medium">Mention a user</p></div>
+                                        <ScrollArea className="max-h-48 p-1">
+                                            {filteredUsers.length > 0 ? filteredUsers.map(u => (
+                                                <div key={u.uid} className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer" onClick={() => handleMentionSelect(u.username)}><Avatar className="h-6 w-6"><AvatarImage src={u.photoURL || undefined} /><AvatarFallback>{u.username.charAt(0)}</AvatarFallback></Avatar><span className="text-sm">{u.username}</span></div>
+                                            )) : <p className="p-2 text-sm text-muted-foreground">No users found.</p>}
                                         </ScrollArea>
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
-                            <Popover open={isResourcePopoverOpen} onOpenChange={setResourcePopoverOpen}>
-                                 <PopoverTrigger asChild><div/></PopoverTrigger>
-                                 <PopoverContent className="w-80 p-0" align="start" side="top">
-                                     <div className="flex flex-col">
-                                         <div className="p-2 border-b flex items-center gap-2">
-                                             <Hash className="h-4 w-4" />
-                                             <p className="text-sm font-medium">Tag a resource</p>
-                                         </div>
-                                         <ScrollArea className="max-h-48">
-                                             <div className="p-1">
-                                                 {filteredResources.length > 0 ? (
-                                                     filteredResources.map(r => (
-                                                         <div
-                                                             key={r.id}
-                                                             className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
-                                                             onClick={() => handleResourceSelect(r)}
-                                                         >
-                                                             <BookOpen className="h-4 w-4 text-muted-foreground" />
-                                                             <div className="flex flex-col">
-                                                                <span className="text-sm">{r.title}</span>
-                                                                <span className="text-xs text-muted-foreground">{r.type}</span>
-                                                             </div>
-                                                         </div>
-                                                     ))
-                                                 ) : (
-                                                     <p className="p-2 text-sm text-muted-foreground">No resources found.</p>
-                                                 )}
-                                             </div>
+                                    </PopoverContent>
+                                </Popover>
+                                <Popover open={isResourcePopoverOpen} onOpenChange={setResourcePopoverOpen}>
+                                     <PopoverTrigger asChild><div/></PopoverTrigger>
+                                     <PopoverContent className="w-80 p-0" align="start" side="top">
+                                         {/* Resource Popover Content */}
+                                         <div className="p-2 border-b"><p className="text-sm font-medium">Tag a resource</p></div>
+                                         <ScrollArea className="max-h-48 p-1">
+                                             {filteredResources.length > 0 ? filteredResources.map(r => (
+                                                <div key={r.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer" onClick={() => handleResourceSelect(r)}><BookOpen className="h-4 w-4 text-muted-foreground" /><div className="flex flex-col"><span className="text-sm">{r.title}</span><span className="text-xs text-muted-foreground">{r.type}</span></div></div>
+                                             )) : <p className="p-2 text-sm text-muted-foreground">No resources found.</p>}
                                          </ScrollArea>
-                                     </div>
-                                 </PopoverContent>
-                            </Popover>
+                                     </PopoverContent>
+                                </Popover>
+                            </>
+                            )}
                         </div>
-                         <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>
+                         <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user || !selectedConversation}>
                             {sending ? (
                                 <Loader2 className="h-5 w-5 animate-spin" />
                             ) : (
@@ -484,4 +480,11 @@ export default function ChatPage() {
         </div>
     );
 }
- 
+
+export default function ChatPage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin"/></div>}>
+            <ChatPageContent />
+        </Suspense>
+    )
+}

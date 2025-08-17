@@ -1,12 +1,12 @@
 
-
 'use server';
 
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink, Note } from '@/lib/types';
+import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink, Note, Conversation, ParticipantDetails } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
 
+// USER PROFILE FUNCTIONS
 export async function createUserProfile(profile: UserProfile): Promise<void> {
   const userDocRef = doc(db, 'users', profile.uid);
   await setDoc(userDocRef, profile);
@@ -17,132 +17,125 @@ export async function updateUserProfile(userId: string, profileData: Partial<Use
   await updateDoc(userDocRef, profileData);
 }
 
-export async function getTasks(userId: string): Promise<Task[]> {
-  if (!userId) {
-    return [];
-  }
-  await checkAndTransferGoals(userId);
-
-  const tasksCol = collection(db, 'tasks');
-  const q = query(tasksCol, where('userId', '==', userId));
-  
-  try {
-    const querySnapshot = await getDocs(q);
-
-    const tasks: Task[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      
-      const dueDate = data.dueDate instanceof Timestamp ? data.dueDate.toDate() : null;
-      const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
-
-      tasks.push({
-        id: doc.id,
-        userId: data.userId,
-        title: data.title,
-        status: data.status,
-        dueDate: dueDate,
-        createdAt: createdAt,
-        source: data.source,
-        goalId: data.goalId,
-      });
-    });
-    
-    return tasks.sort((a, b) => {
-        if (a.status !== b.status) {
-          return a.status === 'completed' ? 1 : -1;
-        }
-        const aDate = a.dueDate ? a.dueDate.getTime() : Infinity;
-        const bDate = b.dueDate ? b.dueDate.getTime() : Infinity;
-        return aDate - bDate;
-      });
-  } catch (error) {
-    console.error("[getTasks] Error fetching tasks from Firestore:", error);
-    return [];
-  }
-}
-
 export async function getUserProfile(userId: string): Promise<UserProfile | null> {
-  if (!userId) {
-    return null;
-  }
+  if (!userId) return null;
   try {
     const userDocRef = doc(db, "users", userId);
     const userDoc = await getDoc(userDocRef);
-    if (userDoc.exists()) {
-      return userDoc.data() as UserProfile;
-    }
-    return null;
+    return userDoc.exists() ? userDoc.data() as UserProfile : null;
   } catch (error) {
-    console.error("[getUserProfile] Error fetching user profile:", error);
+    console.error("[getUserProfile] Error:", error);
     return null;
   }
 }
 
 export async function getUserByUsername(username: string): Promise<UserProfile | null> {
-    const q = query(collection(db, 'users'), where('username', '==', username));
+    const q = query(collection(db, 'users'), where('username', '==', username), limit(1));
     const querySnapshot = await getDocs(q);
-    if (!querySnapshot.empty) {
-        return querySnapshot.docs[0].data() as UserProfile;
-    }
-    return null;
+    return !querySnapshot.empty ? querySnapshot.docs[0].data() as UserProfile : null;
 }
 
 export async function getAllUsers(): Promise<Pick<UserProfile, 'uid' | 'username' | 'photoURL'>[]> {
     const usersSnapshot = await getDocs(collection(db, 'users'));
-    const users: Pick<UserProfile, 'uid' | 'username' | 'photoURL'>[] = [];
-    usersSnapshot.forEach((doc) => {
-        const data = doc.data();
-        users.push({
-            uid: data.uid,
-            username: data.username,
-            photoURL: data.photoURL || null
-        });
+    return usersSnapshot.docs.map(doc => {
+        const { uid, username, photoURL } = doc.data() as UserProfile;
+        return { uid, username, photoURL: photoURL || null };
     });
-    return users;
 }
 
-
-async function getAllShortTermGoals(userId: string): Promise<ShortTermGoal[]> {
+// TASK & GOAL FUNCTIONS
+export async function getTasks(userId: string): Promise<Task[]> {
   if (!userId) return [];
-  const goalsCol = collection(db, 'shortTermGoals');
-  const q = query(goalsCol, where('userId', '==', userId));
-
+  await checkAndTransferGoals(userId);
+  const tasksCol = collection(db, 'tasks');
+  const q = query(tasksCol, where('userId', '==', userId));
+  
   try {
     const querySnapshot = await getDocs(q);
-    const goals: ShortTermGoal[] = [];
-    querySnapshot.forEach((doc) => {
+    const tasks = querySnapshot.docs.map(doc => {
       const data = doc.data();
-      goals.push({
+      return {
         id: doc.id,
-        userId: data.userId,
-        title: data.title,
-        dueDate: data.dueDate.toDate(),
-        createdAt: data.createdAt.toDate(),
-        isTransferred: data.isTransferred,
-      });
+        ...data,
+        dueDate: data.dueDate?.toDate() || null,
+        createdAt: data.createdAt?.toDate() || new Date(),
+      } as Task;
     });
-    return goals;
+    return tasks.sort((a, b) => {
+        if (a.status !== b.status) return a.status === 'completed' ? 1 : -1;
+        return (a.dueDate?.getTime() || Infinity) - (b.dueDate?.getTime() || Infinity);
+      });
   } catch (error) {
-    console.error("[getAllShortTermGoals] Error fetching goals:", error);
+    console.error("[getTasks] Error:", error);
     return [];
   }
 }
 
+export async function updateTaskStatus(taskId: string, status: 'ongoing' | 'completed'): Promise<void> {
+  if (!taskId) throw new Error("Task ID is required.");
+  const taskRef = doc(db, "tasks", taskId);
+  await updateDoc(taskRef, { status });
+}
+
+export async function deleteTask(taskId: string): Promise<void> {
+    if (!taskId) throw new Error("Task ID is required.");
+    await deleteDoc(doc(db, "tasks", taskId));
+}
+
+export async function getShortTermGoals(userId: string): Promise<ShortTermGoal[]> {
+  if (!userId) return [];
+  const goalsCol = collection(db, 'shortTermGoals');
+  const q = query(goalsCol, where('userId', '==', userId), where('isTransferred', '==', false));
+  const querySnapshot = await getDocs(q);
+  const goals = querySnapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data(),
+    dueDate: doc.data().dueDate.toDate(),
+    createdAt: doc.data().createdAt.toDate(),
+  } as ShortTermGoal));
+  return goals.sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+}
+
+export async function checkAndTransferGoals(userId: string) {
+  if (!userId) return;
+  const goalsCol = collection(db, 'shortTermGoals');
+  const today = new Date();
+  const q = query(goalsCol, where('userId', '==', userId), where('isTransferred', '==', false));
+  
+  const dueGoalsSnapshot = await getDocs(q);
+  const dueGoals = dueGoalsSnapshot.docs.filter(d => d.data().dueDate.toDate() <= today);
+
+  if (dueGoals.length === 0) return;
+
+  const batch = writeBatch(db);
+  dueGoals.forEach(goalDoc => {
+    const goalData = goalDoc.data();
+    const newTaskRef = doc(collection(db, 'tasks'));
+    batch.set(newTaskRef, {
+      userId: userId,
+      title: goalData.title,
+      status: 'ongoing',
+      createdAt: serverTimestamp(),
+      dueDate: goalData.dueDate,
+      source: 'goal',
+      goalId: goalDoc.id
+    });
+    batch.update(goalDoc.ref, { isTransferred: true });
+  });
+
+  await batch.commit();
+}
+
+// DASHBOARD STATS
 export async function getDashboardStats(userId: string) {
   const tasks = await getTasks(userId);
   const goals = await getAllShortTermGoals(userId);
 
-  // Task stats
   const totalTasks = tasks.length;
-  const completedTasks = tasks.filter((task) => task.status === "completed").length;
-  const missedTasksCount = tasks.filter(
-    (task) => task.status !== "completed" && task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate)
-  ).length;
+  const completedTasks = tasks.filter((t) => t.status === "completed").length;
+  const missedTasksCount = tasks.filter(t => t.status !== "completed" && t.dueDate && isPast(t.dueDate) && !isToday(t.dueDate)).length;
   const accomplishmentRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   
-  // Goal stats
-  const totalGoals = goals.length;
   const completedGoalIds = new Set(tasks.filter(t => t.source === 'goal' && t.status === 'completed').map(t => t.goalId));
   const completedGoalsCount = goals.filter(g => completedGoalIds.has(g.id)).length;
 
@@ -151,349 +144,234 @@ export async function getDashboardStats(userId: string) {
     completed: completedTasks.toString(),
     missed: missedTasksCount.toString(),
     accomplishmentRate: `${accomplishmentRate}%`,
-    totalGoals: totalGoals.toString(),
+    totalGoals: goals.length.toString(),
     completedGoals: completedGoalsCount.toString()
   };
 
-  // Chart data
-  const today = new Date();
-  const startOfThisWeek = startOfWeek(today, { weekStartsOn: 0 }); 
-
-  const weekData = Array.from({ length: 7 }).map((_, i) => {
-      const day = addDays(startOfThisWeek, i);
-      return {
-          name: format(day, "EEE"),
-          accomplished: 0,
-          missed: 0,
-          date: day,
-      };
-  });
+  const startOfThisWeek = startOfWeek(new Date(), { weekStartsOn: 0 });
+  const weekData = Array.from({ length: 7 }).map((_, i) => ({
+      name: format(addDays(startOfThisWeek, i), "EEE"),
+      accomplished: 0,
+      missed: 0,
+      date: addDays(startOfThisWeek, i),
+  }));
 
   tasks.forEach(task => {
       if (task.dueDate) {
-          const taskDueDate = task.dueDate;
-          const weekDayEntry = weekData.find(d => isSameDay(d.date, taskDueDate));
-
+          const weekDayEntry = weekData.find(d => isSameDay(d.date, task.dueDate));
           if (weekDayEntry) {
-              if (task.status === 'completed') {
-                  weekDayEntry.accomplished += 1;
-              } else if (task.status === 'ongoing' && isPast(taskDueDate) && !isToday(taskDueDate)) {
-                  weekDayEntry.missed += 1;
-              }
+              if (task.status === 'completed') weekDayEntry.accomplished += 1;
+              else if (isPast(task.dueDate) && !isToday(task.dueDate)) weekDayEntry.missed += 1;
           }
       }
   });
   
-  const progressChartData = weekData.map(({date, ...rest}) => rest);
-
-  // Relevant tasks
   const relevantTasks = tasks
-    .filter(task => {
-      const isMissed = task.status === 'ongoing' && task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate);
-      const isUpcoming = task.status === 'ongoing' && task.dueDate && (isFuture(task.dueDate) || isToday(task.dueDate));
-      return isMissed || isUpcoming;
-    })
-    .sort((a, b) => (a.dueDate && b.dueDate) ? a.dueDate.getTime() - b.dueDate.getTime() : 0)
+    .filter(task => task.status === 'ongoing' && (!task.dueDate || isFuture(task.dueDate) || isToday(task.dueDate) || isPast(task.dueDate)))
+    .sort((a, b) => (a.dueDate?.getTime() || Infinity) - (b.dueDate?.getTime() || Infinity))
     .slice(0, 3);
   
-  return { summary, progressChartData, relevantTasks };
+  return { summary, progressChartData: weekData.map(({date, ...rest}) => rest), relevantTasks };
 }
 
-export async function updateTaskStatus(taskId: string, status: 'ongoing' | 'completed'): Promise<void> {
-  if (!taskId) {
-    throw new Error("Task ID is required to update a task.");
-  }
-  try {
-    const taskRef = doc(db, "tasks", taskId);
-    await updateDoc(taskRef, {
-      status: status
-    });
-  } catch (error) {
-    console.error("Error updating task status in Firestore:", error);
-    throw new Error("Failed to update task.");
-  }
-}
+// CHAT AND CONVERSATION FUNCTIONS
 
-export async function deleteTask(taskId: string): Promise<void> {
-    if (!taskId) {
-        throw new Error("Task ID is required to delete a task.");
-    }
-    try {
-        const taskRef = doc(db, "tasks", taskId);
-        await deleteDoc(taskRef);
-    } catch (error) {
-        console.error("Error deleting task from Firestore:", error);
-        throw new Error("Failed to delete task.");
-    }
-}
+export async function getConversations(userId: string): Promise<Conversation[]> {
+    if (!userId) return [];
 
-
-export async function getShortTermGoals(userId: string): Promise<ShortTermGoal[]> {
-  if (!userId) return [];
-  const goalsCol = collection(db, 'shortTermGoals');
-  // Query only by userId to avoid needing a composite index.
-  const q = query(goalsCol, where('userId', '==', userId));
-
-  try {
-    const querySnapshot = await getDocs(q);
-    const goals: ShortTermGoal[] = [];
-    querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      goals.push({
-        id: doc.id,
-        userId: data.userId,
-        title: data.title,
-        dueDate: data.dueDate.toDate(),
-        createdAt: data.createdAt.toDate(),
-        isTransferred: data.isTransferred,
-      });
-    });
-
-    // Filter and sort in-memory
-    return goals
-      .filter(goal => goal.isTransferred === false)
-      .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
-
-  } catch (error) {
-    console.error("[getShortTermGoals] Error fetching goals from Firestore:", error);
-    return [];
-  }
-}
-
-export async function checkAndTransferGoals(userId: string) {
-  if (!userId) return;
-
-  const goalsCol = collection(db, 'shortTermGoals');
-  const today = new Date();
-  
-  // Simplified query to fetch all non-transferred goals for the user.
-  const q = query(
-    goalsCol, 
-    where('userId', '==', userId), 
-    where('isTransferred', '==', false)
-  );
-  
-  const allGoalsSnapshot = await getDocs(q);
-
-  if (allGoalsSnapshot.empty) {
-    return;
-  }
-
-  const batch = writeBatch(db);
-  let hasDueGoals = false;
-
-  allGoalsSnapshot.forEach(goalDoc => {
-    const goalData = goalDoc.data();
-    const dueDate = goalData.dueDate.toDate();
-
-    // Perform the date check in-memory.
-    if (dueDate <= today) {
-      hasDueGoals = true;
-      // Create a new task
-      const tasksColRef = collection(db, 'tasks');
-      const newTaskRef = doc(tasksColRef); 
-      batch.set(newTaskRef, {
-        userId: userId,
-        title: goalData.title,
-        status: 'ongoing',
-        createdAt: serverTimestamp(),
-        dueDate: goalData.dueDate,
-        source: 'goal',
-        goalId: goalDoc.id
-      });
-      
-      // Mark goal as transferred
-      const goalRef = doc(db, 'shortTermGoals', goalDoc.id);
-      batch.update(goalRef, { isTransferred: true });
-    }
-  });
-
-  if (!hasDueGoals) {
-    return;
-  }
-
-  try {
-    await batch.commit();
-  } catch (error) {
-    console.error("Error transferring goals to tasks:", error);
-  }
-}
-
-
-export async function getMessages({ since, lastId }: { since?: string | null, lastId?: string | null }): Promise<Message[]> {
-    let q;
-    let baseQuery = collection(db, 'messages');
+    const conversationsQuery = query(collection(db, 'conversations'), where('participants', 'array-contains', userId));
+    const conversationsSnapshot = await getDocs(conversationsQuery);
     
-    if (lastId) {
-        // "Load More" scenario
-        const lastDocSnap = await getDoc(doc(db, 'messages', lastId));
-        q = query(baseQuery, orderBy('createdAt', 'desc'), limit(20), where('createdAt', '<', lastDocSnap.data()?.createdAt || serverTimestamp()));
-    } else if (since) {
-        // Polling for new messages
-        const sinceDate = new Date(since);
-        q = query(baseQuery, where('createdAt', '>', Timestamp.fromDate(sinceDate)), orderBy('createdAt', 'asc'));
-    } else {
-        // Initial load
-        q = query(baseQuery, orderBy('createdAt', 'desc'), limit(20));
-    }
-    
-    const querySnapshot = await getDocs(q);
-    const messages: Message[] = [];
-    querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const createdAt = data.createdAt instanceof Timestamp ? data.createdAt.toDate().toISOString() : new Date().toISOString();
-        messages.push({
-            id: doc.id,
-            text: data.text,
-            userId: data.userId,
-            username: data.username,
-            userAvatar: data.userAvatar,
-            createdAt: createdAt,
-            replyToId: data.replyToId,
-            replyToText: data.replyToText,
-            replyToUsername: data.replyToUsername,
-            resourceLinks: data.resourceLinks,
+    const participantIds = new Set<string>();
+    conversationsSnapshot.docs.forEach(doc => {
+        const participants = doc.data().participants as string[];
+        participants.forEach(id => {
+            if (id !== userId) participantIds.add(id);
         });
     });
 
-    // Don't reverse for polling since we want them in ascending order
-    if (lastId || !since) {
-        messages.reverse();
+    let participantDetails: Record<string, ParticipantDetails> = {};
+    if (participantIds.size > 0) {
+        const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', Array.from(participantIds)));
+        const usersSnapshot = await getDocs(usersQuery);
+        usersSnapshot.forEach(doc => {
+            const data = doc.data() as UserProfile;
+            participantDetails[doc.id] = { uid: data.uid, username: data.username, photoURL: data.photoURL || null };
+        });
     }
+
+    const conversations = conversationsSnapshot.docs.map(doc => {
+        const data = doc.data();
+        const otherParticipantId = data.participants.find((p: string) => p !== userId);
+        return {
+            id: doc.id,
+            ...data,
+            lastMessage: data.lastMessage ? {
+                ...data.lastMessage,
+                timestamp: data.lastMessage.timestamp?.toDate() || new Date()
+            } : null,
+            participantsDetails: data.participants.map((id: string) => participantDetails[id]).filter(Boolean)
+        } as Conversation;
+    });
+
+    // Add public chat placeholder
+    conversations.unshift({
+        id: 'public',
+        participants: [],
+        participantsDetails: [],
+        isPublic: true,
+        lastMessage: null,
+    });
+
+    return conversations;
+}
+
+export async function startConversation(currentUserId: string, otherUserId: string): Promise<Conversation> {
+    const participants = [currentUserId, otherUserId].sort();
+    const conversationId = participants.join('_');
+    const conversationRef = doc(db, 'conversations', conversationId);
+    
+    const conversationSnap = await getDoc(conversationRef);
+
+    if (conversationSnap.exists()) {
+        // Conversation already exists, just return it.
+        const [user1Profile, user2Profile] = await Promise.all([
+            getUserProfile(participants[0]),
+            getUserProfile(participants[1])
+        ]);
+
+        return {
+            id: conversationSnap.id,
+            ...conversationSnap.data(),
+            participantsDetails: [user1Profile, user2Profile].map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
+        } as Conversation;
+    }
+
+    // Create a new conversation
+    const batch = writeBatch(db);
+    const newConversationData = {
+        participants: participants,
+        createdAt: serverTimestamp(),
+        lastMessage: null
+    };
+    batch.set(conversationRef, newConversationData);
+    await batch.commit();
+
+    const [user1Profile, user2Profile] = await Promise.all([
+        getUserProfile(participants[0]),
+        getUserProfile(participants[1])
+    ]);
+    
+    return {
+        id: conversationId,
+        ...newConversationData,
+        participantsDetails: [user1Profile, user2Profile].map(p => ({uid: p!.uid, username: p!.username, photoURL: p!.photoURL}))
+    } as Conversation;
+}
+
+export async function getMessages({ conversationId, since, lastId }: { conversationId: string, since?: string | null, lastId?: string | null }): Promise<Message[]> {
+    const collectionPath = conversationId === 'public' ? 'messages' : `conversations/${conversationId}/messages`;
+    const messagesCol = collection(db, collectionPath);
+    let q;
+
+    if (lastId) {
+        const lastDocSnap = await getDoc(doc(messagesCol, lastId));
+        q = query(messagesCol, orderBy('createdAt', 'desc'), limit(20), where('createdAt', '<', lastDocSnap.data()?.createdAt || serverTimestamp()));
+    } else if (since) {
+        q = query(messagesCol, where('createdAt', '>', Timestamp.fromDate(new Date(since))), orderBy('createdAt', 'asc'));
+    } else {
+        q = query(messagesCol, orderBy('createdAt', 'desc'), limit(20));
+    }
+    
+    const querySnapshot = await getDocs(q);
+    const messages: Message[] = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: (doc.data().createdAt as Timestamp)?.toDate().toISOString() || new Date().toISOString(),
+    } as Message));
+
+    if (!since) messages.reverse();
 
     return messages;
 }
 
-export async function addMessage({ text, userId, replyTo, resourceLinks }: { text: string; userId: string; replyTo: any; resourceLinks: ResourceLink[] | null }): Promise<Message> {
-    const userProfile = await getUserProfile(userId) as UserProfile | null;
+export async function addMessage({ conversationId, text, userId, replyTo, resourceLinks }: { conversationId: string, text: string; userId: string; replyTo: any; resourceLinks: ResourceLink[] | null }): Promise<Message> {
+    const userProfile = await getUserProfile(userId);
+    if (!userProfile) throw new Error('User profile not found');
 
-    if (!userProfile) {
-        throw new Error('User profile not found');
-    }
-
+    const collectionPath = conversationId === 'public' ? 'messages' : `conversations/${conversationId}/messages`;
+    const messagesColRef = collection(db, collectionPath);
+    
     const messageData: { [key: string]: any } = {
       text,
       userId,
       username: userProfile.username,
       userAvatar: userProfile.photoURL || '',
       createdAt: serverTimestamp(),
+      ...(replyTo && { replyToId: replyTo.id, replyToText: replyTo.text, replyToUsername: replyTo.username }),
+      ...(resourceLinks && { resourceLinks }),
     };
     
-    if (replyTo) {
-        messageData.replyToId = replyTo.id;
-        messageData.replyToText = replyTo.text;
-        messageData.replyToUsername = replyTo.username;
+    const docRef = await addDoc(messagesColRef, messageData);
+    
+    // Update last message on private conversation
+    if (conversationId !== 'public') {
+        const conversationRef = doc(db, 'conversations', conversationId);
+        await updateDoc(conversationRef, {
+            lastMessage: {
+                text: text,
+                senderId: userId,
+                timestamp: serverTimestamp()
+            }
+        });
     }
-    
-    if (resourceLinks) {
-        messageData.resourceLinks = resourceLinks;
-    }
-    
-    const docRef = await addDoc(collection(db, 'messages'), messageData);
-    
+
     const newDocSnap = await getDoc(docRef);
     const newDocData = newDocSnap.data();
     
-    const newMessage: Message = {
+    return {
       id: docRef.id,
       text: text,
       userId: userId,
       username: userProfile.username,
       userAvatar: userProfile.photoURL || '',
+      conversationId: conversationId,
       createdAt: newDocData?.createdAt instanceof Timestamp ? newDocData.createdAt.toDate().toISOString() : new Date().toISOString(),
-       ...(replyTo && { 
-        replyToId: replyTo.id,
-        replyToText: replyTo.text,
-        replyToUsername: replyTo.username,
-      }),
+      ...(replyTo && { replyToId: replyTo.id, replyToText: replyTo.text, replyToUsername: replyTo.username }),
       ...(resourceLinks && { resourceLinks }),
     };
-    return newMessage;
 }
 
+
+// RESOURCE FUNCTIONS
 export async function searchResources(queryText: string): Promise<(Resource & { id: string })[]> {
-    try {
-        const resourcesCol = collection(db, 'resources');
-        const allDocsSnapshot = await getDocs(query(resourcesCol, orderBy('title')));
-        
-        const allResources: (Resource & { id: string })[] = [];
-        allDocsSnapshot.forEach(doc => {
-            const data = doc.data();
-            allResources.push({
-                id: doc.id,
-                ...data
-            } as (Resource & { id: string }));
-        });
+    const resourcesCol = collection(db, 'resources');
+    const q = queryText 
+        ? query(resourcesCol, where('title_lowercase', '>=', queryText.toLowerCase()), where('title_lowercase', '<=', queryText.toLowerCase() + '\uf8ff'))
+        : query(resourcesCol, orderBy('title'));
 
-        if (!queryText) {
-            return allResources; // Return all resources if no query
-        }
-
-        const lowerCaseQuery = queryText.toLowerCase();
-        
-        const filteredResources = allResources.filter(resource => 
-            resource.title.toLowerCase().includes(lowerCaseQuery)
-        );
-
-        return filteredResources;
-    } catch (error) {
-        console.error("Error searching resources:", error);
-        return [];
-    }
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (Resource & { id: string })));
 }
     
+// NOTE FUNCTIONS
 export async function getNotes(userId: string): Promise<Note[]> {
-    if (!userId) {
-        return [];
-    }
-
+    if (!userId) return [];
     const notesCol = collection(db, 'notes');
-    const q = query(notesCol, where('userId', '==', userId));
-    
-    try {
-        const querySnapshot = await getDocs(q);
-        const notes: Note[] = [];
-        querySnapshot.forEach((doc) => {
-            const data = doc.data();
-            
-            const createdAt = data.createdAt instanceof Timestamp 
-                ? data.createdAt.toDate().toISOString() 
-                : new Date().toISOString();
-            const updatedAt = data.updatedAt instanceof Timestamp 
-                ? data.updatedAt.toDate().toISOString() 
-                : new Date().toISOString();
-
-            notes.push({
-                id: doc.id,
-                userId: data.userId,
-                topic: data.topic,
-                content: data.content,
-                resourceLinks: data.resourceLinks || [],
-                createdAt: createdAt,
-                updatedAt: updatedAt,
-            });
-        });
-        
-        // Sort in-memory after fetching
-        return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-    } catch (error) {
-        console.error("[getNotes] Error fetching notes from Firestore:", error);
-        return [];
-    }
+    const q = query(notesCol, where('userId', '==', userId), orderBy('updatedAt', 'desc'));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt.toDate().toISOString(),
+        updatedAt: doc.data().updatedAt.toDate().toISOString(),
+    } as Note));
 }
 
-
+// GENERIC GETTERS
 export async function getResource(resourceId: string): Promise<Resource | null> {
     if (!resourceId) return null;
-    try {
-        const resourceRef = doc(db, 'resources', resourceId);
-        const resourceSnap = await getDoc(resourceRef);
-        if (resourceSnap.exists()) {
-            return resourceSnap.data() as Resource;
-        }
-        return null;
-    } catch (error) {
-        console.error("[getResource] Error fetching resource:", error);
-        return null;
-    }
+    const resourceRef = doc(db, 'resources', resourceId);
+    const resourceSnap = await getDoc(resourceRef);
+    return resourceSnap.exists() ? resourceSnap.data() as Resource : null;
 }

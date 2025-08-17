@@ -4,7 +4,7 @@
 import React, { createContext, useContext } from 'react';
 
 type UnreadCountContextType = {
-  resetUnreadCount?: () => void;
+  resetUnreadCount?: (conversationId?: string) => void;
 };
 
 const UnreadCountContext = createContext<UnreadCountContextType>({});

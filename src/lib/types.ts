@@ -28,6 +28,7 @@ export type ResourceLink = {
 
 export type Message = {
   id: string;
+  conversationId: string;
   text: string;
   userId: string;
   username: string;
@@ -68,4 +69,22 @@ export type Resource = {
   createdAt: string; // Changed from Date to string for serialization
   thumbnailUrl?: string;
   title_lowercase?: string;
+};
+
+export type ParticipantDetails = {
+  uid: string;
+  username: string;
+  photoURL: string | null;
+}
+
+export type Conversation = {
+    id: string;
+    participants: string[];
+    participantsDetails: ParticipantDetails[];
+    lastMessage: {
+        text: string;
+        senderId: string;
+        timestamp: Date;
+    } | null;
+    isPublic?: boolean;
 };
