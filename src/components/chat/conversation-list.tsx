@@ -38,22 +38,28 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
             
             setConversations(data);
             
-            if (shouldSelectDefault && data.length > 0) {
+            if (shouldSelectDefault && !selectedConversation && data.length > 0) {
                  const publicChat = data.find(c => c.isPublic);
                  onSelectConversation(publicChat || data[0]); // Select public chat or first conversation by default
             }
 
         } catch (error) {
             console.error(error);
+             toast({ variant: 'destructive', title: 'Error', description: (error as Error).message });
         } finally {
             setLoading(false);
         }
-    }, [user, onSelectConversation]);
+    }, [user, onSelectConversation, toast, selectedConversation]);
 
     useEffect(() => {
         if (user) {
             fetchConversations(true); // Select default on initial load
-            const interval = setInterval(() => fetchConversations(false), 5000); // Just refresh list, don't re-select
+        }
+    }, [user]); // Only depends on user now
+
+     useEffect(() => {
+        if (user) {
+            const interval = setInterval(() => fetchConversations(false), 15000); // Just refresh list, don't re-select
             return () => clearInterval(interval);
         }
     }, [user, fetchConversations]);
@@ -61,6 +67,7 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
      useEffect(() => {
         if (refreshUnreadCount) {
             const handleRefresh = () => fetchConversations(false);
+            // This allows the layout to trigger a refresh
             handleRefresh();
         }
     }, [refreshUnreadCount, fetchConversations]);
@@ -81,12 +88,14 @@ export function ConversationList({ selectedConversation, onSelectConversation, o
 
             toast({ title: 'Conversation deleted.' });
             
-            // If the deleted conversation was the selected one, clear the selection.
+            // Refetch the list, and if the deleted one was selected, clear the view
+            await fetchConversations(selectedConversation?.id === conversationId);
             if (selectedConversation?.id === conversationId) {
-                onSelectConversation(null);
+                 onSelectConversation(null);
+                 // After clearing, select the public chat by default
+                 const publicChat = conversations.find(c => c.id === 'public');
+                 if(publicChat) onSelectConversation(publicChat);
             }
-            
-            await fetchConversations(true);
 
         } catch (error: any) {
             toast({ variant: 'destructive', title: 'Error', description: error.message });

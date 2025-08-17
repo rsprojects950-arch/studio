@@ -269,26 +269,33 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
              unreadCount = unreadSnapshot.size;
         }
 
-        const convo = {
+        const convo: Partial<Conversation> = { // Use Partial<Conversation> to build the object
             id: doc.id,
-            ...data,
+            participants: data.participants,
+            isPublic: data.isPublic || false,
             participantsDetails: data.participants.map((id: string) => participantDetails[id]).filter(Boolean),
             unreadCount: unreadCount,
-        } as Conversation;
+        };
         
-        // Serialize timestamps
-        convo.createdAt = toISOString(convo.createdAt) || new Date(0).toISOString();
-        if (convo.lastMessage) {
-            convo.lastMessage.timestamp = toISOString(convo.lastMessage.timestamp) as any;
+        // Safely serialize timestamps
+        convo.createdAt = toISOString(data.createdAt) || new Date(0).toISOString();
+        if (data.lastMessage) {
+            convo.lastMessage = {
+                ...data.lastMessage,
+                timestamp: toISOString(data.lastMessage.timestamp)!,
+            };
+        } else {
+            convo.lastMessage = null;
         }
 
-        return convo;
+
+        return convo as Conversation;
     });
 
     const conversations = await Promise.all(conversationPromises);
 
     // Add public chat placeholder
-    const publicChat = {
+    const publicChat: Conversation = {
         id: 'public',
         participants: [],
         participantsDetails: [],
@@ -301,8 +308,8 @@ export async function getConversations(userId: string): Promise<Conversation[]> 
     const privateConversations = conversations.filter(c => !c.isPublic);
     
     privateConversations.sort((a, b) => {
-        const aTime = a.lastMessage && a.lastMessage.timestamp ? new Date(a.lastMessage.timestamp).getTime() : a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bTime = b.lastMessage && b.lastMessage.timestamp ? new Date(b.lastMessage.timestamp).getTime() : b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        const aTime = a.lastMessage?.timestamp ? new Date(a.lastMessage.timestamp).getTime() : a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.lastMessage?.timestamp ? new Date(b.lastMessage.timestamp).getTime() : b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return bTime - aTime;
     });
 
@@ -490,7 +497,9 @@ export async function deleteConversation(conversationId: string, userId: string)
         await batch.commit();
 
         // Recurse until all messages are deleted
-        await deleteBatch();
+        if (messagesSnap.size > 0) {
+           await deleteBatch();
+        }
     };
 
     await deleteBatch(); // Delete all messages in the subcollection

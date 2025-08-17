@@ -14,6 +14,7 @@ export async function GET(request: Request) {
       return new NextResponse('Missing userId', { status: 400 });
     }
 
+    // The getConversations function now handles all serialization
     const conversations: Conversation[] = await getConversations(userId);
     return NextResponse.json(conversations);
 
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
       return new NextResponse('Missing user IDs', { status: 400 });
     }
     
+    // The startConversation function now handles all serialization
     const conversation = await startConversation(currentUserId, otherUserId);
     
     return NextResponse.json(conversation, { status: 201 });
