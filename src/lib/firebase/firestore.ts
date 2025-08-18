@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId, count } from 'firebase/firestore';
@@ -307,10 +308,18 @@ export async function searchResources(queryText: string): Promise<(Resource & { 
     const resourcesCol = collection(db, 'resources');
     const q = queryText 
         ? query(resourcesCol, where('title_lowercase', '>=', queryText.toLowerCase()), where('title_lowercase', '<=', queryText.toLowerCase() + '\uf8ff'))
-        : query(resourcesCol, orderBy('title'));
+        : query(resourcesCol, orderBy('createdAt', 'desc'));
 
     const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as (Resource & { id: string })));
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        const createdAtDate = data.createdAt instanceof Timestamp ? data.createdAt.toDate() : new Date();
+        return { 
+            id: doc.id,
+            ...data,
+            createdAt: createdAtDate.toISOString(),
+        } as (Resource & { id: string })
+    });
 }
     
 // NOTE FUNCTIONS
