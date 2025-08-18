@@ -273,7 +273,7 @@ export default function NotesPage() {
   
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-        <div className="flex items-center justify-between gap-4 space-y-2">
+        <div className="flex items-center justify-between gap-4 space-y-2 mb-8">
             <div>
                 <h2 className="text-3xl font-bold tracking-tight">Notes</h2>
                 <p className="text-muted-foreground">
@@ -467,29 +467,73 @@ export default function NotesPage() {
                             </Card>
                         ))
                     ) : publicNotes.length > 0 ? (
-                        publicNotes.map(note => (
-                            <Card key={note.id} className="group relative flex flex-col">
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Globe className="h-5 w-5 text-primary" />
-                                        {note.topic}
-                                    </CardTitle>
-                                    <CardDescription className="flex items-center gap-2">
-                                       <User className="h-4 w-4" />
-                                       <span>by {note.username || 'Anonymous'}</span>
-                                       <span>·</span>
-                                       <span>{formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}</span>
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="flex-grow">
-                                     <ScrollArea className="h-24">
-                                        <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words pr-4">
-                                            {renderNoteContent(note.content)}
+                        publicNotes.map(note => {
+                            const isAuthor = user?.uid === note.userId;
+                            return (
+                                <Card key={note.id} className="group relative flex flex-col">
+                                    <CardHeader>
+                                        <CardTitle className="flex items-center gap-2">
+                                            <Globe className="h-5 w-5 text-primary" />
+                                            {note.topic}
+                                        </CardTitle>
+                                        <CardDescription className="flex items-center gap-2">
+                                           <User className="h-4 w-4" />
+                                           <span>by {note.username || 'Anonymous'}</span>
+                                           <span>·</span>
+                                           <span>{formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}</span>
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="flex-grow">
+                                         <ScrollArea className="h-24">
+                                            <div className="text-sm text-muted-foreground whitespace-pre-wrap break-words pr-4">
+                                                {renderNoteContent(note.content)}
+                                            </div>
+                                        </ScrollArea>
+                                    </CardContent>
+                                    {isAuthor && (
+                                         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                            <TooltipProvider>
+                                                <Tooltip>
+                                                    <TooltipTrigger asChild>
+                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleTogglePublic(note)}>
+                                                            <Share2 className="h-4 w-4" />
+                                                            <span className="sr-only">Toggle Public Status</span>
+                                                        </Button>
+                                                    </TooltipTrigger>
+                                                    <TooltipContent>
+                                                        <p>{note.isPublic ? 'Make Private' : 'Make Public'}</p>
+                                                    </TooltipContent>
+                                                </Tooltip>
+                                            </TooltipProvider>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(note)}>
+                                                <Edit className="h-4 w-4" />
+                                                <span className="sr-only">Edit note</span>
+                                            </Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                        <Trash2 className="h-4 w-4" />
+                                                        <span className="sr-only">Delete note</span>
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This will permanently delete this note. This action cannot be undone.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => handleDeleteNote(note.id)}>Delete</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
                                         </div>
-                                    </ScrollArea>
-                                </CardContent>
-                            </Card>
-                        ))
+                                    )}
+                                </Card>
+                            );
+                        })
                     ) : (
                         <div className="col-span-full flex flex-col items-center justify-center text-center py-12 rounded-lg border-2 border-dashed">
                             <Globe className="w-16 h-16 text-muted-foreground mb-4" />
@@ -503,3 +547,5 @@ export default function NotesPage() {
     </div>
   );
 }
+
+    
