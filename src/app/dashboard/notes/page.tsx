@@ -193,8 +193,7 @@ export default function NotesPage() {
       setContent('');
       setIsDialogOpen(false);
       setEditingNote(null);
-      await refreshMyNotes();
-      await refreshPublicNotes();
+      await Promise.all([refreshMyNotes(), refreshPublicNotes()]);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred.';
       toast({ variant: 'destructive', title: 'Error', description: errorMessage });
