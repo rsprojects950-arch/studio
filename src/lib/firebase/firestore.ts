@@ -1,7 +1,7 @@
 
 'use server';
 
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId,getCountFromServer } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId,getCountFromServer, startAfter } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink, Note, Conversation } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
@@ -231,26 +231,58 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
 
     const baseQuery = query(messagesCol, where('conversationId', '==', conversationId));
 
-    if (lastId) {
-        const lastDocSnap = await getDoc(doc(messagesCol, lastId));
-        q = query(baseQuery, orderBy('createdAt', 'desc'), limit(20), where('createdAt', '<', lastDocSnap.data()?.createdAt || serverTimestamp()));
-    } else if (since) {
+    if (since) {
+        // Polling for new messages since a certain timestamp
         q = query(baseQuery, where('createdAt', '>', Timestamp.fromDate(new Date(since))), orderBy('createdAt', 'asc'));
+    } else if (lastId) {
+        // Paginating backwards to get older messages
+        const lastDocSnap = await getDoc(doc(messagesCol, lastId));
+        if (!lastDocSnap.exists()) return [];
+        q = query(baseQuery, orderBy('createdAt', 'desc'), startAfter(lastDocSnap), limit(20));
     } else {
+        // Initial load of the latest messages
         q = query(baseQuery, orderBy('createdAt', 'desc'), limit(50));
     }
     
     const querySnapshot = await getDocs(q);
-    const messages: Message[] = querySnapshot.docs.map(doc => ({
+    
+    const messages: Message[] = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
         id: doc.id,
-        ...doc.data(),
-        createdAt: toISOString(doc.data().createdAt),
-    } as Message));
+        ...data,
+        createdAt: toISOString(data.createdAt),
+      } as Message
+    });
 
-    if (!since) messages.reverse();
+    // For initial load or pagination, the order is descending, so we reverse it to show oldest first.
+    // For polling, the order is already ascending.
+    if (!since) {
+        messages.reverse();
+    }
 
-    return messages;
+    // Populate user details for each message
+    const userIds = [...new Set(messages.map(m => m.userId))];
+    if (userIds.length === 0) return [];
+    
+    const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', userIds));
+    const usersSnapshot = await getDocs(usersQuery);
+    const userProfiles = new Map<string, Pick<UserProfile, 'username' | 'photoURL'>>();
+    usersSnapshot.forEach(doc => {
+        const data = doc.data();
+        userProfiles.set(doc.id, { username: data.username, photoURL: data.photoURL });
+    });
+
+    return messages.map(msg => {
+        const profile = userProfiles.get(msg.userId);
+        return {
+            ...msg,
+            username: profile?.username || 'Anonymous',
+            userAvatar: profile?.photoURL || ''
+        }
+    });
 }
+
 
 export async function addMessage({ conversationId, text, userId, replyTo, resourceLinks }: { conversationId: string, text: string; userId: string; replyTo: any; resourceLinks: ResourceLink[] | null }): Promise<Message> {
     const userProfile = await getUserProfile(userId);
@@ -451,3 +483,5 @@ export async function markAsRead(userId: string, conversationId: string) {
         [`lastRead.${conversationId}`]: new Date().toISOString()
     });
 }
+
+    
