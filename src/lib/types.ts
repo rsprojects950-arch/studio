@@ -26,7 +26,7 @@ export type ResourceLink = {
 };
 
 export type Message = {
-  id: string;
+  id:string;
   conversationId: string;
   text: string;
   userId: string;
@@ -71,4 +71,12 @@ export type Resource = {
   createdAt: string; // Changed from Date to string for serialization
   thumbnailUrl?: string;
   title_lowercase?: string;
+};
+
+export type Conversation = {
+    id: string;
+    participants: string[]; // array of user uids
+    participantProfiles: Pick<UserProfile, 'uid' | 'username' | 'photoURL'>[];
+    lastMessage: Message | null;
+    unreadCount: number;
 };

@@ -1,9 +1,9 @@
 
 'use server';
 
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId, count } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId,getCountFromServer } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink, Note } from '@/lib/types';
+import type { Task, UserProfile, ShortTermGoal, Message, Resource, ResourceLink, Note, Conversation } from '@/lib/types';
 import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } from "date-fns";
 
 // Helper to safely convert a Firestore timestamp, a raw object, or a string to an ISO string
@@ -226,19 +226,18 @@ export async function getDashboardStats(userId: string) {
 }
 
 export async function getMessages({ conversationId, since, lastId }: { conversationId: string, since?: string | null, lastId?: string | null }): Promise<Message[]> {
-    if (conversationId !== 'public') {
-        return [];
-    }
     const messagesCol = collection(db, 'messages');
     let q;
 
+    const baseQuery = query(messagesCol, where('conversationId', '==', conversationId));
+
     if (lastId) {
         const lastDocSnap = await getDoc(doc(messagesCol, lastId));
-        q = query(messagesCol, orderBy('createdAt', 'desc'), limit(20), where('createdAt', '<', lastDocSnap.data()?.createdAt || serverTimestamp()));
+        q = query(baseQuery, orderBy('createdAt', 'desc'), limit(20), where('createdAt', '<', lastDocSnap.data()?.createdAt || serverTimestamp()));
     } else if (since) {
-        q = query(messagesCol, where('createdAt', '>', Timestamp.fromDate(new Date(since))), orderBy('createdAt', 'asc'));
+        q = query(baseQuery, where('createdAt', '>', Timestamp.fromDate(new Date(since))), orderBy('createdAt', 'asc'));
     } else {
-        q = query(messagesCol, orderBy('createdAt', 'desc'), limit(20));
+        q = query(baseQuery, orderBy('createdAt', 'desc'), limit(50));
     }
     
     const querySnapshot = await getDocs(q);
@@ -254,15 +253,13 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
 }
 
 export async function addMessage({ conversationId, text, userId, replyTo, resourceLinks }: { conversationId: string, text: string; userId: string; replyTo: any; resourceLinks: ResourceLink[] | null }): Promise<Message> {
-    if (conversationId !== 'public') {
-        throw new Error("Can only send messages to public chat.");
-    }
     const userProfile = await getUserProfile(userId);
     if (!userProfile) throw new Error('User profile not found');
 
     const messagesColRef = collection(db, 'messages');
     
     const messageData: { [key: string]: any } = {
+      conversationId,
       text,
       userId,
       username: userProfile.username,
@@ -273,6 +270,12 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
     };
     
     const docRef = await addDoc(messagesColRef, messageData);
+    
+    // Also update the conversation's lastMessage timestamp
+    if (conversationId !== 'public') {
+        const conversationRef = doc(db, 'conversations', conversationId);
+        await updateDoc(conversationRef, { lastMessageAt: serverTimestamp() });
+    }
     
     const newDocSnap = await getDoc(docRef);
     const newDocData = newDocSnap.data();
@@ -325,7 +328,6 @@ export async function searchResources(queryText: string): Promise<(Resource & { 
 export async function getNotes(userId: string): Promise<Note[]> {
   if (!userId) return [];
   const notesCol = collection(db, 'notes');
-  // Query for private notes belonging to the user
   const q = query(notesCol, where('userId', '==', userId), where('isPublic', '==', false));
   
   try {
@@ -339,7 +341,6 @@ export async function getNotes(userId: string): Promise<Note[]> {
         updatedAt: toISOString(data.updatedAt),
       } as Note;
     });
-    // This now performs the sorting in the code, after the data is fetched.
     return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   } catch (error) {
     console.error("[getNotes] Error:", error);
@@ -378,4 +379,75 @@ export async function getResource(resourceId: string): Promise<Resource | null> 
     return resourceSnap.exists() ? resourceSnap.data() as Resource : null;
 }
 
+// CONVERSATION FUNCTIONS
+export async function getUserConversations(userId: string): Promise<Conversation[]> {
+    if (!userId) return [];
+    const conversationsCol = collection(db, 'conversations');
+    const q = query(conversationsCol, where('participants', 'array-contains', userId), orderBy('lastMessageAt', 'desc'));
     
+    const querySnapshot = await getDocs(q);
+    const userProfile = await getUserProfile(userId);
+    const lastReadTimestamps = userProfile?.lastRead || {};
+
+    const conversations = await Promise.all(querySnapshot.docs.map(async (doc) => {
+        const data = doc.data();
+        const otherParticipantId = data.participants.find((p: string) => p !== userId);
+        const otherParticipantProfile = await getUserProfile(otherParticipantId);
+        
+        // Fetch last message
+        const messagesQuery = query(collection(db, 'messages'), where('conversationId', '==', doc.id), orderBy('createdAt', 'desc'), limit(1));
+        const lastMessageSnapshot = await getDocs(messagesQuery);
+        const lastMessage = lastMessageSnapshot.empty ? null : { id: lastMessageSnapshot.docs[0].id, ...lastMessageSnapshot.docs[0].data(), createdAt: toISOString(lastMessageSnapshot.docs[0].data().createdAt) } as Message;
+
+        // Fetch unread count
+        const lastReadTime = lastReadTimestamps[doc.id] ? Timestamp.fromMillis(new Date(lastReadTimestamps[doc.id]).getTime()) : Timestamp.fromMillis(0);
+        const unreadQuery = query(collection(db, 'messages'), where('conversationId', '==', doc.id), where('createdAt', '>', lastReadTime), where('userId', '!=', userId));
+        const unreadSnapshot = await getCountFromServer(unreadQuery);
+        const unreadCount = unreadSnapshot.data().count;
+
+        return {
+            id: doc.id,
+            participants: data.participants,
+            participantProfiles: [otherParticipantProfile].filter(Boolean).map(p => ({ uid: p!.uid, username: p!.username, photoURL: p!.photoURL })),
+            lastMessage,
+            unreadCount
+        } as Conversation;
+    }));
+
+    return conversations;
+}
+
+export async function getOrCreateConversation(currentUserId: string, otherUserId: string): Promise<string> {
+    const conversationsCol = collection(db, 'conversations');
+    
+    // Create a consistent ID for the conversation doc
+    const conversationId = [currentUserId, otherUserId].sort().join('_');
+    const conversationRef = doc(conversationsCol, conversationId);
+    
+    const conversationSnap = await getDoc(conversationRef);
+
+    if (conversationSnap.exists()) {
+        return conversationSnap.id;
+    } else {
+        await setDoc(conversationRef, {
+            participants: [currentUserId, otherUserId],
+            createdAt: serverTimestamp(),
+            lastMessageAt: serverTimestamp(),
+        });
+        return conversationId;
+    }
+}
+
+export async function getUnreadCount(userId: string): Promise<number> {
+    if (!userId) return 0;
+    const conversations = await getUserConversations(userId);
+    return conversations.reduce((total, conv) => total + conv.unreadCount, 0);
+}
+
+export async function markAsRead(userId: string, conversationId: string) {
+    if (!userId || !conversationId) return;
+    const userRef = doc(db, 'users', userId);
+    await updateDoc(userRef, {
+        [`lastRead.${conversationId}`]: new Date().toISOString()
+    });
+}

@@ -40,7 +40,7 @@ export default function DashboardLayout({
   }
 
   return (
-    <UnreadCountProvider value={{}}>
+    <UnreadCountProvider>
       <SidebarProvider>
         <AppSidebar userProfile={profile} />
         <SidebarInset>

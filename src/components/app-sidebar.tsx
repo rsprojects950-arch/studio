@@ -32,6 +32,7 @@ import { useAuth } from '@/context/auth-context';
 import type { UserProfile } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { useUnreadCount } from '@/context/unread-count-context';
 
 const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -51,6 +52,7 @@ export function AppSidebar({ userProfile }: { userProfile: UserProfile }) {
   const pathname = usePathname();
   const { signOut } = useAuth();
   const { isMobile, toggleSidebar, state } = useSidebar();
+  const { totalUnreadCount } = useUnreadCount();
 
   return (
     <Sidebar 
@@ -81,6 +83,9 @@ export function AppSidebar({ userProfile }: { userProfile: UserProfile }) {
                 <Link href={item.href}>
                   <item.icon />
                   <span>{item.label}</span>
+                   {item.id === 'chat' && totalUnreadCount > 0 && (
+                      <SidebarMenuBadge>{totalUnreadCount}</SidebarMenuBadge>
+                   )}
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
