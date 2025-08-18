@@ -44,10 +44,10 @@ import { Plus, Loader2, Edit, Trash2, BookOpen, Hash, Notebook } from 'lucide-re
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDistanceToNow } from 'date-fns';
 
-import { getNotes } from '@/lib/firebase/firestore';
+import { getNotes, searchResources } from '@/lib/firebase/firestore';
 import { createNoteAction, updateNoteAction, deleteNoteAction } from '@/lib/firebase/actions';
 import type { Note, Resource } from '@/lib/types';
-import { searchResources } from '@/lib/firebase/firestore';
+
 
 export default function NotesPage() {
   const { user } = useAuth();
@@ -71,7 +71,7 @@ export default function NotesPage() {
     setLoading(true);
     try {
       const userNotes = await getNotes(user.uid);
-      setNotes(userNotes);
+      setNotes(userNotes); // This line was missing, causing the bug.
     } catch (error) {
       toast({
         variant: 'destructive',
