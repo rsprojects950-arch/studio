@@ -326,7 +326,8 @@ export async function searchResources(queryText: string): Promise<(Resource & { 
 export async function getNotes(userId: string): Promise<Note[]> {
   if (!userId) return [];
   const notesCol = collection(db, 'notes');
-  const q = query(notesCol, where('userId', '==', userId), orderBy('updatedAt', 'desc'));
+  // This is the corrected query without the problematic orderBy clause.
+  const q = query(notesCol, where('userId', '==', userId));
   
   try {
     const querySnapshot = await getDocs(q);
@@ -339,9 +340,11 @@ export async function getNotes(userId: string): Promise<Note[]> {
         updatedAt: toISOString(data.updatedAt),
       } as Note;
     });
-    return notes;
+    // This now performs the sorting in the code, after the data is fetched.
+    return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   } catch (error) {
     console.error("[getNotes] Error:", error);
+    // The query should no longer fail silently, but we keep the catch block for safety.
     return [];
   }
 }
