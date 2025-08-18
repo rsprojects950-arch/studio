@@ -40,7 +40,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { Plus, Loader2, Edit, Trash2, BookOpen, Hash } from 'lucide-react';
+import { Plus, Loader2, Edit, Trash2, BookOpen, Hash, Notebook } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDistanceToNow } from 'date-fns';
 
@@ -377,7 +377,8 @@ export default function NotesPage() {
                     </Card>
                 ))
             ) : (
-                <div className="col-span-full text-center py-12">
+                <div className="col-span-full flex flex-col items-center justify-center text-center py-12 rounded-lg border-2 border-dashed">
+                    <Notebook className="w-16 h-16 text-muted-foreground mb-4" />
                     <h3 className="text-lg font-semibold">No notes yet</h3>
                     <p className="text-muted-foreground">Click "Add Note" to create your first one.</p>
                 </div>
@@ -386,5 +387,3 @@ export default function NotesPage() {
     </div>
   );
 }
-
-    
