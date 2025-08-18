@@ -40,10 +40,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { Plus, Loader2, Edit, Trash2, BookOpen, Hash, Notebook, Share2, Globe, Lock, User } from 'lucide-react';
+import { Plus, Loader2, Edit, Trash2, BookOpen, Hash, Notebook, Globe, Lock, User } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDistanceToNow } from 'date-fns';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { getNotes, getPublicNotes } from '@/lib/firebase/firestore';
@@ -177,7 +176,6 @@ export default function NotesPage() {
     formData.set('username', profile.username);
     formData.set('content', content);
     
-    // Set isPublic based on the active tab if it's a new note
     if (!editingNote) {
         formData.set('isPublic', activeTab === 'public-notes' ? 'true' : 'false');
     }
@@ -265,95 +263,96 @@ export default function NotesPage() {
   
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-        <div className="flex items-center justify-between gap-4 space-y-2 mb-8">
+        <div className="flex items-center justify-between gap-4 space-y-2 mb-6">
             <div>
                 <h2 className="text-3xl font-bold tracking-tight">Notes</h2>
                 <p className="text-muted-foreground">
                     Capture your thoughts and share them with the community.
                 </p>
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                    <Button onClick={() => handleOpenDialog()}>
-                        <Plus className="mr-2 h-4 w-4" /> Add Note
-                    </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[600px]">
-                    <DialogHeader>
-                        <DialogTitle>{editingNote ? 'Edit Note' : 'Create a new note'}</DialogTitle>
-                    </DialogHeader>
-                    <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
-                         {/* Hidden input to pass isPublic status for new notes */}
-                        {!editingNote && <input type="hidden" name="isPublic" value={activeTab === 'public-notes' ? 'true' : 'false'} />}
-                        
-                        <div>
-                            <Label htmlFor="topic">Topic</Label>
-                            <Input
-                                id="topic"
-                                name="topic"
-                                placeholder="A brief topic for your note"
-                                required
-                                defaultValue={editingNote?.topic}
-                            />
-                        </div>
-                        <div className="relative">
-                            <Label htmlFor="content">Content</Label>
-                             <Textarea
-                                ref={textareaRef}
-                                id="content"
-                                name="content"
-                                placeholder="Write your note here..."
-                                required
-                                value={content}
-                                onChange={handleContentChange}
-                                className="min-h-[200px]"
-                            />
-                            <Popover open={isResourcePopoverOpen} onOpenChange={setResourcePopoverOpen}>
-                                 <PopoverTrigger asChild><div/></PopoverTrigger>
-                                 <PopoverContent className="w-80 p-0" align="start" side="top">
-                                     <div className="flex flex-col">
-                                         <div className="p-2 border-b flex items-center gap-2">
-                                             <Hash className="h-4 w-4" />
-                                             <p className="text-sm font-medium">Tag a resource</p>
-                                         </div>
-                                         <ScrollArea className="max-h-48">
-                                             <div className="p-1">
-                                                 {resources.length > 0 ? (
-                                                     resources.map(r => (
-                                                         <div
-                                                             key={r.id}
-                                                             className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
-                                                             onClick={() => handleResourceSelect(r)}
-                                                         >
-                                                             <BookOpen className="h-4 w-4 text-muted-foreground" />
-                                                             <div className="flex flex-col">
-                                                                <span className="text-sm">{r.title}</span>
-                                                                <span className="text-xs text-muted-foreground">{r.type}</span>
-                                                             </div>
-                                                         </div>
-                                                     ))
-                                                 ) : (
-                                                     <p className="p-2 text-sm text-muted-foreground">No resources found.</p>
-                                                 )}
+            <div className="mt-6">
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button onClick={() => handleOpenDialog()}>
+                            <Plus className="mr-2 h-4 w-4" /> Add Note
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[600px]">
+                        <DialogHeader>
+                            <DialogTitle>{editingNote ? 'Edit Note' : 'Create a new note'}</DialogTitle>
+                        </DialogHeader>
+                        <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
+                            {!editingNote && <input type="hidden" name="isPublic" value={activeTab === 'public-notes' ? 'true' : 'false'} />}
+                            
+                            <div>
+                                <Label htmlFor="topic">Topic</Label>
+                                <Input
+                                    id="topic"
+                                    name="topic"
+                                    placeholder="A brief topic for your note"
+                                    required
+                                    defaultValue={editingNote?.topic}
+                                />
+                            </div>
+                            <div className="relative">
+                                <Label htmlFor="content">Content</Label>
+                                 <Textarea
+                                    ref={textareaRef}
+                                    id="content"
+                                    name="content"
+                                    placeholder="Write your note here..."
+                                    required
+                                    value={content}
+                                    onChange={handleContentChange}
+                                    className="min-h-[200px]"
+                                />
+                                <Popover open={isResourcePopoverOpen} onOpenChange={setResourcePopoverOpen}>
+                                     <PopoverTrigger asChild><div/></PopoverTrigger>
+                                     <PopoverContent className="w-80 p-0" align="start" side="top">
+                                         <div className="flex flex-col">
+                                             <div className="p-2 border-b flex items-center gap-2">
+                                                 <Hash className="h-4 w-4" />
+                                                 <p className="text-sm font-medium">Tag a resource</p>
                                              </div>
-                                         </ScrollArea>
-                                     </div>
-                                 </PopoverContent>
-                            </Popover>
-                        </div>
+                                             <ScrollArea className="max-h-48">
+                                                 <div className="p-1">
+                                                     {resources.length > 0 ? (
+                                                         resources.map(r => (
+                                                             <div
+                                                                 key={r.id}
+                                                                 className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                                                                 onClick={() => handleResourceSelect(r)}
+                                                             >
+                                                                 <BookOpen className="h-4 w-4 text-muted-foreground" />
+                                                                 <div className="flex flex-col">
+                                                                    <span className="text-sm">{r.title}</span>
+                                                                    <span className="text-xs text-muted-foreground">{r.type}</span>
+                                                                 </div>
+                                                             </div>
+                                                         ))
+                                                     ) : (
+                                                         <p className="p-2 text-sm text-muted-foreground">No resources found.</p>
+                                                     )}
+                                                 </div>
+                                             </ScrollArea>
+                                         </div>
+                                     </PopoverContent>
+                                </Popover>
+                            </div>
 
-                        <DialogFooter>
-                            <DialogClose asChild>
-                               <Button type="button" variant="ghost">Cancel</Button>
-                            </DialogClose>
-                            <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {editingNote ? 'Save Changes' : 'Create Note'}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+                            <DialogFooter>
+                                <DialogClose asChild>
+                                   <Button type="button" variant="ghost">Cancel</Button>
+                                </DialogClose>
+                                <Button type="submit" disabled={isSubmitting}>
+                                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {editingNote ? 'Save Changes' : 'Create Note'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+            </div>
         </div>
         
         <Tabs defaultValue="my-notes" className="space-y-4" onValueChange={setActiveTab}>
@@ -513,3 +512,5 @@ export default function NotesPage() {
     </div>
   );
 }
+
+    
