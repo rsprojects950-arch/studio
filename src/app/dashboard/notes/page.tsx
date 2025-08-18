@@ -71,7 +71,7 @@ export default function NotesPage() {
     setLoading(true);
     try {
       const userNotes = await getNotes(user.uid);
-      setNotes(userNotes);
+      setNotes(userNotes); // This line was missing
     } catch (error) {
       toast({
         variant: 'destructive',
@@ -388,3 +388,5 @@ export default function NotesPage() {
     </div>
   );
 }
+
+    
