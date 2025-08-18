@@ -302,7 +302,7 @@ export async function createNoteAction(formData: FormData) {
 
   const topic = formData.get('topic') as string;
   const content = formData.get('content') as string;
-  const isPublic = formData.get('isPublic') === 'on';
+  const isPublic = formData.get('isPublic') === 'true';
 
   if (!topic) {
     throw new Error('Topic is required.');
@@ -331,7 +331,6 @@ export async function createNoteAction(formData: FormData) {
   }
 
   revalidatePath('/dashboard/notes');
-  revalidatePath('/dashboard/public-notes');
 }
 
 
@@ -359,7 +358,6 @@ export async function updateNoteAction(formData: FormData) {
 
   const topic = formData.get('topic') as string;
   const content = formData.get('content') as string;
-  const isPublic = formData.get('isPublic') === 'on';
 
    if (!topic) {
     throw new Error('Topic is required.');
@@ -375,7 +373,6 @@ export async function updateNoteAction(formData: FormData) {
     await updateDoc(noteRef, {
       topic,
       content,
-      isPublic,
       resourceLinks,
       updatedAt: serverTimestamp(),
     });
@@ -385,7 +382,6 @@ export async function updateNoteAction(formData: FormData) {
   }
 
   revalidatePath('/dashboard/notes');
-  revalidatePath('/dashboard/public-notes');
 }
 
 export async function deleteNoteAction(noteId: string, userId: string) {
@@ -415,37 +411,4 @@ export async function deleteNoteAction(noteId: string, userId: string) {
   }
 
   revalidatePath('/dashboard/notes');
-  revalidatePath('/dashboard/public-notes');
-}
-
-export async function toggleNotePublicStatusAction(noteId: string, userId: string, currentStatus: boolean) {
-    if (!userId) {
-        throw new Error('You must be logged in to change a note\'s status.');
-    }
-    if (!noteId) {
-        throw new Error('Note ID is missing.');
-    }
-
-    const noteRef = doc(db, 'notes', noteId);
-    const noteSnap = await getDoc(noteRef);
-
-    if (!noteSnap.exists()) {
-        throw new Error('Note not found.');
-    }
-
-    if (noteSnap.data().userId !== userId) {
-        throw new Error('You are not authorized to modify this note.');
-    }
-
-    try {
-        await updateDoc(noteRef, {
-            isPublic: !currentStatus
-        });
-    } catch (error) {
-        console.error("Error toggling note public status:", error);
-        throw new Error('Could not update the note.');
-    }
-
-    revalidatePath('/dashboard/notes');
-    revalidatePath('/dashboard/public-notes');
 }

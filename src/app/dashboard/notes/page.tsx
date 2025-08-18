@@ -43,12 +43,11 @@ import Link from 'next/link';
 import { Plus, Loader2, Edit, Trash2, BookOpen, Hash, Notebook, Share2, Globe, Lock, User } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDistanceToNow } from 'date-fns';
-import { Switch } from "@/components/ui/switch";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { getNotes, getPublicNotes } from '@/lib/firebase/firestore';
-import { createNoteAction, updateNoteAction, deleteNoteAction, toggleNotePublicStatusAction } from '@/lib/firebase/actions';
+import { createNoteAction, updateNoteAction, deleteNoteAction } from '@/lib/firebase/actions';
 import type { Note, Resource } from '@/lib/types';
 
 const renderNoteContent = (text: string) => {
@@ -110,6 +109,7 @@ export default function NotesPage() {
   const [isResourcePopoverOpen, setResourcePopoverOpen] = useState(false);
   const [resourceSearch, setResourceSearch] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [activeTab, setActiveTab] = useState('my-notes');
 
   const refreshMyNotes = useCallback(async () => {
     if (!user) return;
@@ -176,6 +176,11 @@ export default function NotesPage() {
     formData.set('userId', user.uid);
     formData.set('username', profile.username);
     formData.set('content', content);
+    
+    // Set isPublic based on the active tab if it's a new note
+    if (!editingNote) {
+        formData.set('isPublic', activeTab === 'public-notes' ? 'true' : 'false');
+    }
 
     try {
       if (editingNote) {
@@ -209,19 +214,6 @@ export default function NotesPage() {
       await refreshPublicNotes();
     } catch(error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to delete note.";
-        toast({ variant: "destructive", title: "Error", description: errorMessage });
-    }
-  }
-
-  const handleTogglePublic = async (note: Note) => {
-    if (!user) return;
-    try {
-        await toggleNotePublicStatusAction(note.id, user.uid, note.isPublic || false);
-        toast({ title: `Note is now ${!note.isPublic ? 'public' : 'private'}.` });
-        await refreshMyNotes();
-        await refreshPublicNotes();
-    } catch(error) {
-        const errorMessage = error instanceof Error ? error.message : "Failed to update note status.";
         toast({ variant: "destructive", title: "Error", description: errorMessage });
     }
   }
@@ -291,6 +283,9 @@ export default function NotesPage() {
                         <DialogTitle>{editingNote ? 'Edit Note' : 'Create a new note'}</DialogTitle>
                     </DialogHeader>
                     <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
+                         {/* Hidden input to pass isPublic status for new notes */}
+                        {!editingNote && <input type="hidden" name="isPublic" value={activeTab === 'public-notes' ? 'true' : 'false'} />}
+                        
                         <div>
                             <Label htmlFor="topic">Topic</Label>
                             <Input
@@ -346,10 +341,7 @@ export default function NotesPage() {
                                  </PopoverContent>
                             </Popover>
                         </div>
-                        <div className="flex items-center space-x-2">
-                            <Switch id="isPublic" name="isPublic" defaultChecked={editingNote?.isPublic} />
-                            <Label htmlFor="isPublic">Make this note public</Label>
-                        </div>
+
                         <DialogFooter>
                             <DialogClose asChild>
                                <Button type="button" variant="ghost">Cancel</Button>
@@ -364,7 +356,7 @@ export default function NotesPage() {
             </Dialog>
         </div>
         
-        <Tabs defaultValue="my-notes" className="space-y-4">
+        <Tabs defaultValue="my-notes" className="space-y-4" onValueChange={setActiveTab}>
             <TabsList>
                 <TabsTrigger value="my-notes">My Notes</TabsTrigger>
                 <TabsTrigger value="public-notes">Public Notes</TabsTrigger>
@@ -403,44 +395,31 @@ export default function NotesPage() {
                                     </ScrollArea>
                                 </CardContent>
                                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleTogglePublic(note)}>
-                                                        <Share2 className="h-4 w-4" />
-                                                        <span className="sr-only">Toggle Public Status</span>
-                                                    </Button>
-                                                </TooltipTrigger>
-                                                <TooltipContent>
-                                                    <p>{note.isPublic ? 'Make Private' : 'Make Public'}</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(note)}>
-                                            <Edit className="h-4 w-4" />
-                                            <span className="sr-only">Edit note</span>
-                                        </Button>
-                                        <AlertDialog>
-                                            <AlertDialogTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
-                                                    <Trash2 className="h-4 w-4" />
-                                                    <span className="sr-only">Delete note</span>
-                                                </Button>
-                                            </AlertDialogTrigger>
-                                            <AlertDialogContent>
-                                                <AlertDialogHeader>
-                                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                                    <AlertDialogDescription>
-                                                        This will permanently delete this note. This action cannot be undone.
-                                                    </AlertDialogDescription>
-                                                </AlertDialogHeader>
-                                                <AlertDialogFooter>
-                                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                                    <AlertDialogAction onClick={() => handleDeleteNote(note.id)}>Delete</AlertDialogAction>
-                                                </AlertDialogFooter>
-                                            </AlertDialogContent>
-                                        </AlertDialog>
-                                     </div>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(note)}>
+                                        <Edit className="h-4 w-4" />
+                                        <span className="sr-only">Edit note</span>
+                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <Trash2 className="h-4 w-4" />
+                                                <span className="sr-only">Delete note</span>
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will permanently delete this note. This action cannot be undone.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                <AlertDialogAction onClick={() => handleDeleteNote(note.id)}>Delete</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                 </div>
                             </Card>
                         ))
                     ) : (
@@ -492,19 +471,6 @@ export default function NotesPage() {
                                     </CardContent>
                                     {isAuthor && (
                                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                                            <TooltipProvider>
-                                                <Tooltip>
-                                                    <TooltipTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleTogglePublic(note)}>
-                                                            <Share2 className="h-4 w-4" />
-                                                            <span className="sr-only">Toggle Public Status</span>
-                                                        </Button>
-                                                    </TooltipTrigger>
-                                                    <TooltipContent>
-                                                        <p>{note.isPublic ? 'Make Private' : 'Make Public'}</p>
-                                                    </TooltipContent>
-                                                </Tooltip>
-                                            </TooltipProvider>
                                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(note)}>
                                                 <Edit className="h-4 w-4" />
                                                 <span className="sr-only">Edit note</span>
@@ -547,5 +513,3 @@ export default function NotesPage() {
     </div>
   );
 }
-
-    
