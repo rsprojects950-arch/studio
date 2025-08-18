@@ -1,3 +1,4 @@
+
 'use client';
 
 import { usePathname } from 'next/navigation';
@@ -21,7 +22,9 @@ export function DashboardHeader() {
       case 'goals':
         return 'Short Term Goals';
       case 'notes':
-        return 'Notes';
+        return 'My Notes';
+      case 'public-notes':
+        return 'Public Notes';
       case 'resources':
         return 'Resources';
       case 'chat':

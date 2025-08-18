@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId, count } from 'firebase/firestore';
@@ -348,6 +347,29 @@ export async function getNotes(userId: string): Promise<Note[]> {
     return [];
   }
 }
+
+export async function getPublicNotes(): Promise<Note[]> {
+    const notesCol = collection(db, 'notes');
+    const q = query(notesCol, where('isPublic', '==', true), orderBy('updatedAt', 'desc'));
+
+    try {
+        const querySnapshot = await getDocs(q);
+        const notes = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                createdAt: toISOString(data.createdAt),
+                updatedAt: toISOString(data.updatedAt),
+            } as Note;
+        });
+        return notes;
+    } catch (error) {
+        console.error("[getPublicNotes] Error:", error);
+        return [];
+    }
+}
+
 
 // GENERIC GETTERS
 export async function getResource(resourceId: string): Promise<Resource | null> {

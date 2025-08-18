@@ -47,6 +47,8 @@ export type Note = {
   resourceLinks?: ResourceLink[];
   createdAt: string; // ISO 8601 string format
   updatedAt: string; // ISO 8601 string format
+  isPublic?: boolean;
+  username?: string;
 };
 
 export type UserProfile = {

@@ -40,17 +40,19 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
-import { Plus, Loader2, Edit, Trash2, BookOpen, Hash, Notebook } from 'lucide-react';
+import { Plus, Loader2, Edit, Trash2, BookOpen, Hash, Notebook, Share2, Globe, Lock } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDistanceToNow } from 'date-fns';
+import { Switch } from "@/components/ui/switch";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { getNotes } from '@/lib/firebase/firestore';
-import { createNoteAction, updateNoteAction, deleteNoteAction } from '@/lib/firebase/actions';
+import { createNoteAction, updateNoteAction, deleteNoteAction, toggleNotePublicStatusAction } from '@/lib/firebase/actions';
 import type { Note, Resource } from '@/lib/types';
 
 
 export default function NotesPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -107,11 +109,12 @@ export default function NotesPage() {
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user) return;
+    if (!user || !profile) return;
     
     setIsSubmitting(true);
     const formData = new FormData(e.currentTarget);
     formData.set('userId', user.uid);
+    formData.set('username', profile.username);
     formData.set('content', content);
 
     try {
@@ -144,6 +147,18 @@ export default function NotesPage() {
       await refreshNotes();
     } catch(error) {
         const errorMessage = error instanceof Error ? error.message : "Failed to delete note.";
+        toast({ variant: "destructive", title: "Error", description: errorMessage });
+    }
+  }
+
+  const handleTogglePublic = async (note: Note) => {
+    if (!user) return;
+    try {
+        await toggleNotePublicStatusAction(note.id, user.uid, note.isPublic || false);
+        toast({ title: `Note is now ${!note.isPublic ? 'public' : 'private'}.` });
+        await refreshNotes();
+    } catch(error) {
+        const errorMessage = error instanceof Error ? error.message : "Failed to update note status.";
         toast({ variant: "destructive", title: "Error", description: errorMessage });
     }
   }
@@ -234,90 +249,96 @@ export default function NotesPage() {
 
   return (
     <div className="flex-1 space-y-4 p-4 md:p-8 pt-6">
-        <div className="flex items-center justify-between gap-4 space-y-2 mb-6">
+        <div className="flex items-center justify-between gap-4 space-y-2">
             <div>
                 <p className="text-muted-foreground">
-                    Capture your thoughts and ideas. Tag resources with #resourcename.
+                    Capture your thoughts and ideas. Share them with the community if you like.
                 </p>
             </div>
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                    <Button onClick={() => handleOpenDialog()}>
-                        <Plus className="mr-2 h-4 w-4" /> Add Note
-                    </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[600px]">
-                    <DialogHeader>
-                        <DialogTitle>{editingNote ? 'Edit Note' : 'Create a new note'}</DialogTitle>
-                    </DialogHeader>
-                    <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
-                        <div>
-                            <Label htmlFor="topic">Topic</Label>
-                            <Input
-                                id="topic"
-                                name="topic"
-                                placeholder="A brief topic for your note"
-                                required
-                                defaultValue={editingNote?.topic}
-                            />
-                        </div>
-                        <div className="relative">
-                            <Label htmlFor="content">Content</Label>
-                             <Textarea
-                                ref={textareaRef}
-                                id="content"
-                                name="content"
-                                placeholder="Write your note here..."
-                                required
-                                value={content}
-                                onChange={handleContentChange}
-                                className="min-h-[200px]"
-                            />
-                            <Popover open={isResourcePopoverOpen} onOpenChange={setResourcePopoverOpen}>
-                                 <PopoverTrigger asChild><div/></PopoverTrigger>
-                                 <PopoverContent className="w-80 p-0" align="start" side="top">
-                                     <div className="flex flex-col">
-                                         <div className="p-2 border-b flex items-center gap-2">
-                                             <Hash className="h-4 w-4" />
-                                             <p className="text-sm font-medium">Tag a resource</p>
-                                         </div>
-                                         <ScrollArea className="max-h-48">
-                                             <div className="p-1">
-                                                 {resources.length > 0 ? (
-                                                     resources.map(r => (
-                                                         <div
-                                                             key={r.id}
-                                                             className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
-                                                             onClick={() => handleResourceSelect(r)}
-                                                         >
-                                                             <BookOpen className="h-4 w-4 text-muted-foreground" />
-                                                             <div className="flex flex-col">
-                                                                <span className="text-sm">{r.title}</span>
-                                                                <span className="text-xs text-muted-foreground">{r.type}</span>
-                                                             </div>
-                                                         </div>
-                                                     ))
-                                                 ) : (
-                                                     <p className="p-2 text-sm text-muted-foreground">No resources found.</p>
-                                                 )}
+             <div className="mb-6">
+                <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button onClick={() => handleOpenDialog()}>
+                            <Plus className="mr-2 h-4 w-4" /> Add Note
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[600px]">
+                        <DialogHeader>
+                            <DialogTitle>{editingNote ? 'Edit Note' : 'Create a new note'}</DialogTitle>
+                        </DialogHeader>
+                        <form ref={formRef} onSubmit={handleFormSubmit} className="space-y-4">
+                            <div>
+                                <Label htmlFor="topic">Topic</Label>
+                                <Input
+                                    id="topic"
+                                    name="topic"
+                                    placeholder="A brief topic for your note"
+                                    required
+                                    defaultValue={editingNote?.topic}
+                                />
+                            </div>
+                            <div className="relative">
+                                <Label htmlFor="content">Content</Label>
+                                 <Textarea
+                                    ref={textareaRef}
+                                    id="content"
+                                    name="content"
+                                    placeholder="Write your note here..."
+                                    required
+                                    value={content}
+                                    onChange={handleContentChange}
+                                    className="min-h-[200px]"
+                                />
+                                <Popover open={isResourcePopoverOpen} onOpenChange={setResourcePopoverOpen}>
+                                     <PopoverTrigger asChild><div/></PopoverTrigger>
+                                     <PopoverContent className="w-80 p-0" align="start" side="top">
+                                         <div className="flex flex-col">
+                                             <div className="p-2 border-b flex items-center gap-2">
+                                                 <Hash className="h-4 w-4" />
+                                                 <p className="text-sm font-medium">Tag a resource</p>
                                              </div>
-                                         </ScrollArea>
-                                     </div>
-                                 </PopoverContent>
-                            </Popover>
-                        </div>
-                        <DialogFooter>
-                            <DialogClose asChild>
-                               <Button type="button" variant="ghost">Cancel</Button>
-                            </DialogClose>
-                            <Button type="submit" disabled={isSubmitting}>
-                                {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {editingNote ? 'Save Changes' : 'Create Note'}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                </DialogContent>
-            </Dialog>
+                                             <ScrollArea className="max-h-48">
+                                                 <div className="p-1">
+                                                     {resources.length > 0 ? (
+                                                         resources.map(r => (
+                                                             <div
+                                                                 key={r.id}
+                                                                 className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer"
+                                                                 onClick={() => handleResourceSelect(r)}
+                                                             >
+                                                                 <BookOpen className="h-4 w-4 text-muted-foreground" />
+                                                                 <div className="flex flex-col">
+                                                                    <span className="text-sm">{r.title}</span>
+                                                                    <span className="text-xs text-muted-foreground">{r.type}</span>
+                                                                 </div>
+                                                             </div>
+                                                         ))
+                                                     ) : (
+                                                         <p className="p-2 text-sm text-muted-foreground">No resources found.</p>
+                                                     )}
+                                                 </div>
+                                             </ScrollArea>
+                                         </div>
+                                     </PopoverContent>
+                                </Popover>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Switch id="isPublic" name="isPublic" defaultChecked={editingNote?.isPublic} />
+                                <Label htmlFor="isPublic">Make this note public</Label>
+                            </div>
+                            <DialogFooter>
+                                <DialogClose asChild>
+                                   <Button type="button" variant="ghost">Cancel</Button>
+                                </DialogClose>
+                                <Button type="submit" disabled={isSubmitting}>
+                                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    {editingNote ? 'Save Changes' : 'Create Note'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+            </div>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -337,7 +358,10 @@ export default function NotesPage() {
                 notes.map(note => (
                     <Card key={note.id} className="group relative flex flex-col">
                         <CardHeader>
-                            <CardTitle>{note.topic}</CardTitle>
+                            <CardTitle className="flex items-center gap-2">
+                                {note.isPublic ? <Globe className="h-5 w-5 text-primary" /> : <Lock className="h-5 w-5 text-muted-foreground" />}
+                                {note.topic}
+                            </CardTitle>
                             <CardDescription>
                                 Last updated {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}
                             </CardDescription>
@@ -350,6 +374,19 @@ export default function NotesPage() {
                             </ScrollArea>
                         </CardContent>
                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
+                                <TooltipProvider>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleTogglePublic(note)}>
+                                                <Share2 className="h-4 w-4" />
+                                                <span className="sr-only">Toggle Public Status</span>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>{note.isPublic ? 'Make Private' : 'Make Public'}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                </TooltipProvider>
                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenDialog(note)}>
                                     <Edit className="h-4 w-4" />
                                     <span className="sr-only">Edit note</span>

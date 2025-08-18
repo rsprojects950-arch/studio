@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UnreadCountProvider } from '@/context/unread-count-context';
+import { SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 export default function DashboardLayout({
   children,

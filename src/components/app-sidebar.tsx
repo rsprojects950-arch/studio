@@ -27,16 +27,19 @@ import {
   PanelLeft,
   Notebook,
   Bot,
+  Globe,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import type { UserProfile } from '@/lib/types';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/todos', label: 'To-Do List', icon: ListTodo },
   { href: '/dashboard/goals', label: 'Short Term Goals', icon: Target },
-  { href: '/dashboard/notes', label: 'Notes', icon: Notebook },
+  { href: '/dashboard/notes', label: 'My Notes', icon: Notebook },
+  { href: '/dashboard/public-notes', label: 'Public Notes', icon: Globe },
   { href: '/dashboard/resources', label: 'Resources', icon: BookOpen },
   { href: '/dashboard/chat', label: 'Chat', icon: MessageSquare, id: 'chat' },
   { href: '/dashboard/bt-bot', label: 'BT-bot', icon: Bot },
@@ -52,7 +55,14 @@ export function AppSidebar({ userProfile }: { userProfile: UserProfile }) {
   const { isMobile, toggleSidebar, state } = useSidebar();
 
   return (
-    <Sidebar collapsible={isMobile ? 'offcanvas' : 'icon'}>
+    <Sidebar 
+      collapsible={isMobile ? 'offcanvas' : 'icon'}
+      mobileSheetHeader={
+        <SheetHeader>
+          <SheetTitle>Menu</SheetTitle>
+        </SheetHeader>
+      }
+    >
       <SidebarHeader>
         <Link href="/dashboard" className="flex items-center gap-2">
           <AppLogo className="w-8 h-8 text-primary" />
