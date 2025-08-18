@@ -71,7 +71,7 @@ export default function NotesPage() {
     setLoading(true);
     try {
       const userNotes = await getNotes(user.uid);
-      setNotes(userNotes); // This line was missing
+      setNotes(userNotes);
     } catch (error) {
       toast({
         variant: 'destructive',
