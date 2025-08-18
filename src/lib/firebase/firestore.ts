@@ -325,8 +325,8 @@ export async function searchResources(queryText: string): Promise<(Resource & { 
 export async function getNotes(userId: string): Promise<Note[]> {
   if (!userId) return [];
   const notesCol = collection(db, 'notes');
-  // This is the corrected query without the problematic orderBy clause.
-  const q = query(notesCol, where('userId', '==', userId));
+  // Query for private notes belonging to the user
+  const q = query(notesCol, where('userId', '==', userId), where('isPublic', '==', false));
   
   try {
     const querySnapshot = await getDocs(q);
@@ -343,7 +343,6 @@ export async function getNotes(userId: string): Promise<Note[]> {
     return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   } catch (error) {
     console.error("[getNotes] Error:", error);
-    // The query should no longer fail silently, but we keep the catch block for safety.
     return [];
   }
 }
@@ -378,3 +377,5 @@ export async function getResource(resourceId: string): Promise<Resource | null> 
     const resourceSnap = await getDoc(resourceRef);
     return resourceSnap.exists() ? resourceSnap.data() as Resource : null;
 }
+
+    

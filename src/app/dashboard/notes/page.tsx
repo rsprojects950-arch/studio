@@ -454,7 +454,7 @@ export default function NotesPage() {
                                             <Globe className="h-5 w-5 text-primary" />
                                             {note.topic}
                                         </CardTitle>
-                                        <CardDescription className="flex items-center gap-2">
+                                        <CardDescription className="flex items-center gap-2 text-xs">
                                            <User className="h-4 w-4" />
                                            <span>by {note.username || 'Anonymous'}</span>
                                            <span>·</span>
@@ -513,4 +513,5 @@ export default function NotesPage() {
   );
 }
 
+    
     
