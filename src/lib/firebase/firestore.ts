@@ -330,7 +330,7 @@ export async function getNotes(userId: string): Promise<Note[]> {
   
   try {
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => {
+    const notes = querySnapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -339,6 +339,7 @@ export async function getNotes(userId: string): Promise<Note[]> {
         updatedAt: toISOString(data.updatedAt),
       } as Note;
     });
+    return notes;
   } catch (error) {
     console.error("[getNotes] Error:", error);
     return [];
