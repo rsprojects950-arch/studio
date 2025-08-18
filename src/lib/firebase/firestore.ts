@@ -349,7 +349,7 @@ export async function getNotes(userId: string): Promise<Note[]> {
 
 export async function getPublicNotes(): Promise<Note[]> {
     const notesCol = collection(db, 'notes');
-    const q = query(notesCol, where('isPublic', '==', true), orderBy('updatedAt', 'desc'));
+    const q = query(notesCol, where('isPublic', '==', true));
 
     try {
         const querySnapshot = await getDocs(q);
@@ -362,7 +362,7 @@ export async function getPublicNotes(): Promise<Note[]> {
                 updatedAt: toISOString(data.updatedAt),
             } as Note;
         });
-        return notes;
+        return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     } catch (error) {
         console.error("[getPublicNotes] Error:", error);
         return [];
