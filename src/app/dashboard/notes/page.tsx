@@ -44,7 +44,7 @@ import { Plus, Loader2, Edit, Trash2, BookOpen, Hash, Notebook } from 'lucide-re
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { formatDistanceToNow } from 'date-fns';
 
-import { getNotes, searchResources } from '@/lib/firebase/firestore';
+import { getNotes } from '@/lib/firebase/firestore';
 import { createNoteAction, updateNoteAction, deleteNoteAction } from '@/lib/firebase/actions';
 import type { Note, Resource } from '@/lib/types';
 
@@ -168,8 +168,9 @@ export default function NotesPage() {
 
   const fetchResources = useCallback(async(query: string) => {
       try {
-          const res = await searchResources(query);
-          setResources(res);
+          const res = await fetch(`/api/resources?q=${query}`);
+          const data = await res.json();
+          setResources(data);
       } catch(error) {
           console.error("Failed to fetch resources for tagging", error);
       }
