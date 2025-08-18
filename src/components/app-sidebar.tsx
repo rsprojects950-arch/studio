@@ -27,7 +27,6 @@ import {
   PanelLeft,
   Notebook,
   Bot,
-  Globe,
 } from 'lucide-react';
 import { useAuth } from '@/context/auth-context';
 import type { UserProfile } from '@/lib/types';
@@ -38,8 +37,7 @@ const mainNav = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/todos', label: 'To-Do List', icon: ListTodo },
   { href: '/dashboard/goals', label: 'Short Term Goals', icon: Target },
-  { href: '/dashboard/notes', label: 'My Notes', icon: Notebook },
-  { href: '/dashboard/public-notes', label: 'Public Notes', icon: Globe },
+  { href: '/dashboard/notes', label: 'Notes', icon: Notebook },
   { href: '/dashboard/resources', label: 'Resources', icon: BookOpen },
   { href: '/dashboard/chat', label: 'Chat', icon: MessageSquare, id: 'chat' },
   { href: '/dashboard/bt-bot', label: 'BT-bot', icon: Bot },

@@ -22,9 +22,7 @@ export function DashboardHeader() {
       case 'goals':
         return 'Short Term Goals';
       case 'notes':
-        return 'My Notes';
-      case 'public-notes':
-        return 'Public Notes';
+        return 'Notes';
       case 'resources':
         return 'Resources';
       case 'chat':
