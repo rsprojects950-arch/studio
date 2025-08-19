@@ -234,8 +234,11 @@ export async function getMessages({ conversationId, since }: { conversationId: s
 
     const queryConstraints = [orderBy('createdAt', 'asc')];
     if (since) {
+        // Ensure 'since' is a valid string before creating a Date object.
         const sinceDate = new Date(since);
-        queryConstraints.push(where('createdAt', '>', Timestamp.fromDate(sinceDate)));
+        if (!isNaN(sinceDate.getTime())) {
+            queryConstraints.push(startAfter(Timestamp.fromDate(sinceDate)));
+        }
     }
 
     const q = query(messagesCol, ...queryConstraints);
@@ -314,9 +317,11 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
         });
     }
     
+    // Fetch the document we just created to get the server-generated timestamp
     const newDocSnap = await getDoc(docRef);
     const newDocData = newDocSnap.data();
     
+    // Construct the final message object to return to the client
     return {
       id: docRef.id,
       text: text,
@@ -324,7 +329,7 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
       username: userProfile.username,
       userAvatar: userProfile.photoURL || '',
       conversationId: conversationId,
-      createdAt: toISOString(newDocData?.createdAt),
+      createdAt: toISOString(newDocData?.createdAt), // Convert timestamp to ISO string
       ...(replyTo && { replyToId: replyTo.id, replyToText: replyTo.text, replyToUsername: replyTo.username }),
       ...(resourceLinks && { resourceLinks }),
     };
@@ -440,10 +445,11 @@ export async function getUserConversations(userId: string): Promise<Conversation
 
         let unreadCount = 0;
         const lastReadTime = lastReadTimestamps[conversationId] ? Timestamp.fromMillis(new Date(lastReadTimestamps[conversationId]).getTime()) : null;
+        
+        // Use lastMessageAt from the conversation document for comparison
         const lastMessageTime = data.lastMessageAt instanceof Timestamp ? data.lastMessageAt : null;
         
-        // Only calculate unread if we have a lastReadTime and a lastMessageTime
-        if (lastReadTime && lastMessageTime && lastMessageTime > lastReadTime) {
+        if (lastReadTime && lastMessageTime && lastMessageTime.toMillis() > lastReadTime.toMillis()) {
             const messagesPath = `conversations/${conversationId}/messages`;
             const unreadQuery = query(collection(db, messagesPath), where('createdAt', '>', lastReadTime), where('userId', '!=', userId));
             const unreadSnapshot = await getCountFromServer(unreadQuery);
@@ -527,7 +533,13 @@ export async function getUnreadCount(userId: string): Promise<number> {
 export async function markAsRead(userId: string, conversationId: string): Promise<void> {
     if (!userId || !conversationId) return;
     const userRef = doc(db, 'users', userId);
-    await updateDoc(userRef, {
-        [`lastRead.${conversationId}`]: new Date().toISOString()
-    });
+    try {
+        await updateDoc(userRef, {
+            [`lastRead.${conversationId}`]: new Date().toISOString()
+        });
+    } catch(error) {
+        // If the user document doesn't exist, we can't mark as read.
+        // This is a graceful failure, as there's nothing to update.
+        console.error("Failed to mark as read, user document might not exist:", error);
+    }
 }

@@ -28,19 +28,23 @@ export const UnreadCountProvider = ({ children }: { children: React.ReactNode })
       if (response.ok) {
         const data = await response.json();
         setTotalUnreadCount(data.count || 0);
+      } else {
+        // If the API call fails, don't just reset, maybe log error and keep old count
+        console.error("Failed to fetch unread count, status:", response.status);
       }
     } catch (error) {
       console.error('Failed to fetch unread count:', error);
-      setTotalUnreadCount(0);
     }
   }, [user]);
 
   useEffect(() => {
-    refreshUnreadCount();
-    // Poll for new unread messages every 15 seconds
-    const interval = setInterval(refreshUnreadCount, 15000); 
-    return () => clearInterval(interval);
-  }, [refreshUnreadCount]);
+    if (user) {
+        refreshUnreadCount();
+        // Poll for new unread messages every 15 seconds
+        const interval = setInterval(refreshUnreadCount, 15000); 
+        return () => clearInterval(interval);
+    }
+  }, [user, refreshUnreadCount]);
 
   const value = { totalUnreadCount, refreshUnreadCount };
 

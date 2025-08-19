@@ -120,6 +120,7 @@ function ChatPageContent() {
         try {
             let url = `/api/messages?conversationId=${conversationId}`;
             if (!isInitialLoad && lastMessageTimestamp.current) {
+                // Ensure the timestamp is URL-encoded to handle special characters.
                 url += `&since=${encodeURIComponent(lastMessageTimestamp.current)}`;
             }
 
@@ -189,16 +190,22 @@ function ChatPageContent() {
 
     useEffect(() => {
         if (!activeConversationId) return;
+        
+        // Stop any existing polling
         if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
         
+        // Initial fetch for the new conversation
         fetchMessages(activeConversationId, true);
 
+        // Start polling for the active conversation
         pollingIntervalRef.current = setInterval(() => fetchMessages(activeConversationId, false), 5000);
         
+        // Mark DMs as read when opened
         if(activeConversationId !== 'public') {
             markConversationAsRead(activeConversationId);
         }
         
+        // Cleanup on component unmount or when conversation changes
         return () => { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current) };
     }, [activeConversationId, fetchMessages, markConversationAsRead]);
 
@@ -246,10 +253,13 @@ function ChatPageContent() {
             // Optimistically add the new message to the state
             setMessages(prev => [...prev, newlySentMessage]);
 
-            if (newlySentMessage.createdAt) lastMessageTimestamp.current = newlySentMessage.createdAt;
+            if (newlySentMessage.createdAt) {
+                lastMessageTimestamp.current = newlySentMessage.createdAt;
+            }
             
             setNewMessage('');
-            fetchConversations(); // Refresh conversations to update last message
+            // Refresh conversation list to show new last message
+            fetchConversations(); 
 
         } catch (error) {
             console.error("SendMessageError:", error);
@@ -330,7 +340,6 @@ function ChatPageContent() {
                 
                 // Switch to the new conversation
                 router.push(`/dashboard/chat?id=${newConversation.id}`, { scroll: false });
-                setMessages([]);
 
             } else {
                 throw new Error("Failed to create conversation");
