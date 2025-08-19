@@ -1,4 +1,5 @@
 
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback, Suspense, useMemo } from 'react';
@@ -117,7 +118,6 @@ function ChatPageContent() {
         
         try {
             let url = `/api/messages?conversationId=${conversationId}`;
-            // Only add the 'since' parameter if it's not an initial load AND we have a valid timestamp
             if (!isInitialLoad && lastMessageTimestamp.current) {
                 url += `&since=${encodeURIComponent(lastMessageTimestamp.current)}`;
             }
@@ -192,8 +192,10 @@ function ChatPageContent() {
     }, [user, refreshUnreadCount]);
 
     useEffect(() => {
-        fetchMessages(activeConversationId, true);
         if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        
+        fetchMessages(activeConversationId, true);
+
         pollingIntervalRef.current = setInterval(() => fetchMessages(activeConversationId, false), 5000);
         
         if(activeConversationId !== 'public') {
@@ -468,5 +470,3 @@ export default function ChatPage() {
         </Suspense>
     )
 }
-
-    

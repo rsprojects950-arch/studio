@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId,getCountFromServer, startAfter } from 'firebase/firestore';
@@ -232,6 +233,7 @@ export async function getMessages({ conversationId, since }: { conversationId: s
     const messagesCol = collection(db, messagesPath);
 
     const queryConstraints = [];
+    queryConstraints.push(orderBy('createdAt', 'asc')); // Always order by creation time
     if (since) {
         const sinceDate = new Date(since);
         queryConstraints.push(where('createdAt', '>', Timestamp.fromDate(sinceDate)));
@@ -245,14 +247,11 @@ export async function getMessages({ conversationId, since }: { conversationId: s
       return {
         id: doc.id,
         ...data,
-        conversationId: conversationId, // Ensure conversationId is set
+        conversationId: conversationId,
         createdAt: toISOString(data.createdAt),
       } as Message
     });
 
-    messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-    
-    // For initial load, if more than 50 messages are returned, take the most recent 50
     if (!since && messages.length > 50) {
         messages = messages.slice(messages.length - 50);
     }
@@ -260,7 +259,6 @@ export async function getMessages({ conversationId, since }: { conversationId: s
     const userIds = [...new Set(messages.map(m => m.userId))];
     if (userIds.length === 0) return messages;
     
-    // Fetch user profiles in batches of 30, which is the max for 'in' queries
     const userProfiles = new Map<string, Pick<UserProfile, 'username' | 'photoURL'>>();
     const userBatches = [];
     for (let i = 0; i < userIds.length; i += 30) {
@@ -309,9 +307,13 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
     
     const docRef = await addDoc(messagesColRef, messageData);
     
+    // Only update conversation document for DMs
     if (conversationId !== 'public') {
         const conversationRef = doc(db, 'conversations', conversationId);
-        await updateDoc(conversationRef, { lastMessageAt: serverTimestamp() });
+        await updateDoc(conversationRef, { 
+            lastMessageAt: serverTimestamp(),
+            lastMessageText: text, // Store last message text for quick preview
+        });
     }
     
     const newDocSnap = await getDoc(docRef);
@@ -381,6 +383,7 @@ export async function getNotes(userId: string): Promise<Note[]> {
         updatedAt: toISOString(data.updatedAt),
       } as Note;
     });
+    // Sorting is done in code to avoid composite index requirement
     return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   } catch (error) {
     console.error("[getNotes] Error:", error);
@@ -442,16 +445,10 @@ export async function getUserConversations(userId: string): Promise<Conversation
         const unreadSnapshot = await getCountFromServer(unreadQuery);
         const unreadCount = unreadSnapshot.data().count;
 
-        const messagesQuery = query(collection(db, messagesPath), orderBy('createdAt', 'desc'), limit(1));
-        const lastMessageSnapshot = await getDocs(messagesQuery);
-        const lastMessage = lastMessageSnapshot.empty 
-            ? null 
-            : { 
-                id: lastMessageSnapshot.docs[0].id, 
-                ...lastMessageSnapshot.docs[0].data(),
-                conversationId: conversationId,
-                createdAt: toISOString(lastMessageSnapshot.docs[0].data().createdAt) 
-              } as Message;
+        const lastMessage = data.lastMessageText ? {
+            text: data.lastMessageText,
+            createdAt: toISOString(data.lastMessageAt),
+        } : null;
 
         return {
             id: conversationId,
@@ -498,5 +495,3 @@ export async function markAsRead(userId: string, conversationId: string) {
         [`lastRead.${conversationId}`]: new Date().toISOString()
     });
 }
-
-    
