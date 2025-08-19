@@ -68,7 +68,7 @@ function ChatPageContent() {
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [loadingConversations, setLoadingConversations] = useState(true);
     
-    const activeConversationId = useMemo(() => searchParams.get('id') || 'public', [searchParams]);
+    const activeConversationId = searchParams.get('id') || 'public';
 
     const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
     const [isNewDmDialogOpen, setIsNewDmDialogOpen] = useState(false);
@@ -134,7 +134,7 @@ function ChatPageContent() {
                     setMessages(prevMessages => {
                         const existingIds = new Set(prevMessages.map(m => m.id));
                         const uniqueNewMessages = newMessages.filter(m => !existingIds.has(m.id));
-                        return [...prevMessages, ...uniqueNewMessages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+                        return [...prevMessages, ...uniqueNewMessages];
                     });
                 }
                 const lastMsg = newMessages[newMessages.length - 1];
@@ -241,7 +241,7 @@ function ChatPageContent() {
             if (!response.ok) throw new Error(`Failed to send message: ${await response.text()}`);
             
             const newlySentMessage: Message = await response.json();
-            setMessages(prev => [...prev, newlySentMessage].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+            setMessages(prev => [...prev, newlySentMessage]);
             if (newlySentMessage.createdAt) lastMessageTimestamp.current = newlySentMessage.createdAt;
             
             setNewMessage('');
@@ -418,7 +418,7 @@ function ChatPageContent() {
                                 {loading ? <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
                                 : messages.length === 0 ? <div className="flex items-center justify-center h-full text-muted-foreground text-center"><p>No messages yet. <br /> Be the first to say something!</p></div>
                                 : <div className="space-y-4 pr-4">
-                                    {messages.map((msg) => (
+                                    {messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map((msg) => (
                                         <div key={msg.id} className="group/message relative">
                                             <div className={`flex items-start gap-3 ${user?.uid === msg.userId ? "justify-end" : ""}`}>
                                                 {user?.uid !== msg.userId && <Avatar><AvatarImage src={msg.userAvatar || undefined} alt={msg.username || 'User'} /><AvatarFallback>{msg.username ? msg.username.charAt(0).toUpperCase() : 'U'}</AvatarFallback></Avatar>}
@@ -468,3 +468,5 @@ export default function ChatPage() {
         </Suspense>
     )
 }
+
+    
