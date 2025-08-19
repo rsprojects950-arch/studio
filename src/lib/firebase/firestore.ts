@@ -228,19 +228,15 @@ export async function getDashboardStats(userId: string) {
 export async function getMessages({ conversationId, since, lastId }: { conversationId: string, since?: string | null, lastId?: string | null }): Promise<Message[]> {
     const messagesCol = collection(db, 'messages');
     let q;
-
+    
+    // Base query for the specified conversation
     const baseQuery = query(messagesCol, where('conversationId', '==', conversationId));
 
     if (since) {
-        // Polling for new messages since a certain timestamp
+        // Polling for new messages since a certain timestamp. This is for real-time updates.
         q = query(baseQuery, where('createdAt', '>', Timestamp.fromDate(new Date(since))), orderBy('createdAt', 'asc'));
-    } else if (lastId && conversationId !== 'public') {
-        // Paginating backwards to get older messages (Not applicable for public)
-        const lastDocSnap = await getDoc(doc(messagesCol, lastId));
-        if (!lastDocSnap.exists()) return [];
-        q = query(baseQuery, orderBy('createdAt', 'desc'), startAfter(lastDocSnap), limit(20));
     } else {
-        // Initial load of the latest messages
+        // Initial load of the latest messages. No pagination logic needed here.
         q = query(baseQuery, orderBy('createdAt', 'desc'), limit(50));
     }
     
@@ -255,7 +251,7 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
       } as Message
     });
 
-    // For initial load or pagination, the order is descending, so we reverse it to show oldest first.
+    // For initial load, the order is descending, so we reverse it to show oldest first.
     // For polling, the order is already ascending.
     if (!since) {
         messages.reverse();
@@ -263,7 +259,7 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
 
     // Populate user details for each message
     const userIds = [...new Set(messages.map(m => m.userId))];
-    if (userIds.length === 0) return [];
+    if (userIds.length === 0) return messages; // Return messages even if no users (e.g., empty chat)
     
     const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', userIds));
     const usersSnapshot = await getDocs(usersQuery);
@@ -373,6 +369,7 @@ export async function getNotes(userId: string): Promise<Note[]> {
         updatedAt: toISOString(data.updatedAt),
       } as Note;
     });
+    // Sort in code to avoid complex index requirement
     return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   } catch (error) {
     console.error("[getNotes] Error:", error);
@@ -395,6 +392,7 @@ export async function getPublicNotes(): Promise<Note[]> {
                 updatedAt: toISOString(data.updatedAt),
             } as Note;
         });
+        // Sort in code to avoid complex index requirement
         return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     } catch (error) {
         console.error("[getPublicNotes] Error:", error);
@@ -489,5 +487,3 @@ export async function markAsRead(userId: string, conversationId: string) {
         [`lastRead.${conversationId}`]: new Date().toISOString()
     });
 }
-
-    
