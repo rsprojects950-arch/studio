@@ -73,7 +73,7 @@ function ChatPageContent() {
     const [isNewDmDialogOpen, setIsNewDmDialogOpen] = useState(false);
     const [dmUserSearch, setDmUserSearch] = useState('');
     
-    const [users, setUsers] = useState<Pick<UserProfile, 'uid' | 'username' | 'photoURL'>[]>([]);
+    const [usersForMentions, setUsersForMentions] = useState<Pick<UserProfile, 'uid' | 'username' | 'photoURL'>[]>([]);
     const [resources, setResources] = useState<Pick<Resource, 'id' | 'title' | 'type'>[]>([]);
     
     const [mentionSearch, setMentionSearch] = useState('');
@@ -205,7 +205,7 @@ function ChatPageContent() {
             try {
                 const res = await fetch('/api/users');
                 const data = await res.json();
-                setUsers(data);
+                setUsersForMentions(data);
                 setAllUsers(data);
             } catch (error) {
                 console.error("Failed to fetch users", error);
@@ -327,7 +327,7 @@ function ChatPageContent() {
         }
     }
 
-    const filteredUsersForMentions = users.filter(u => u.username && u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
+    const filteredUsersForMentions = usersForMentions.filter(u => u.username && u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
     
     const filteredUsersForDm = useMemo(() => {
         return allUsers.filter(u =>
