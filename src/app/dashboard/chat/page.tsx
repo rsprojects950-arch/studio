@@ -89,8 +89,6 @@ function ChatPageContent() {
     
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
-    const lastMessageTimestamp = useRef<string | null>(null);
-    const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const activeConversation = useMemo(() => {
         if (activeConversationId === 'public') {
@@ -113,43 +111,23 @@ function ChatPageContent() {
         }
     }, [activeConversationId, conversations, user]);
 
-    const fetchMessages = useCallback(async (conversationId: string, isInitialLoad = false) => {
+    const fetchMessages = useCallback(async (conversationId: string) => {
         if (!user) return;
-        if (isInitialLoad) {
-            setLoading(true);
-            setMessages([]);
-            lastMessageTimestamp.current = null;
-        }
+        setLoading(true);
+        setMessages([]);
         
         try {
             let url = `/api/messages?conversationId=${conversationId}`;
-            if (!isInitialLoad && lastMessageTimestamp.current) {
-                // Ensure the timestamp is URL-encoded to handle special characters.
-                url += `&since=${encodeURIComponent(lastMessageTimestamp.current)}`;
-            }
-
             const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch messages');
             
             const newMessages: Message[] = await response.json();
+            setMessages(newMessages);
 
-            if (newMessages.length > 0) {
-                 if (isInitialLoad) {
-                    setMessages(newMessages);
-                } else {
-                    setMessages(prevMessages => {
-                        const existingIds = new Set(prevMessages.map(m => m.id));
-                        const uniqueNewMessages = newMessages.filter(m => !existingIds.has(m.id));
-                        return [...prevMessages, ...uniqueNewMessages];
-                    });
-                }
-                const lastMsg = newMessages[newMessages.length - 1];
-                if (lastMsg) lastMessageTimestamp.current = lastMsg.createdAt;
-            }
         } catch (error) {
              toast({ variant: 'destructive', title: 'Error', description: 'Failed to load messages.' });
         } finally {
-            if(isInitialLoad) setLoading(false);
+            setLoading(false);
         }
     }, [user, toast]);
     
@@ -173,7 +151,6 @@ function ChatPageContent() {
             setLoadingConversations(false);
         });
     
-        // Cleanup listener on component unmount
         return () => unsubscribe();
     
     }, [user, toast, refreshUnreadCount]);
@@ -186,33 +163,19 @@ function ChatPageContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user.uid, conversationId }),
             });
-            // The real-time listener will handle the UI update.
-            // We just need to trigger a refresh of the global count.
             refreshUnreadCount();
         } catch (error) {
             console.error("Failed to mark as read", error);
         }
     }, [user, refreshUnreadCount]);
-
+    
     useEffect(() => {
-        if (!activeConversationId) return;
-        
-        // Stop any existing polling
-        if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-        
-        // Initial fetch for the new conversation
-        fetchMessages(activeConversationId, true);
-
-        // Start polling for the active conversation
-        pollingIntervalRef.current = setInterval(() => fetchMessages(activeConversationId, false), 5000);
-        
-        // Mark DMs as read when opened
-        if(activeConversationId !== 'public') {
-            markConversationAsRead(activeConversationId);
+        if (activeConversationId) {
+            fetchMessages(activeConversationId);
+            if (activeConversationId !== 'public') {
+                markConversationAsRead(activeConversationId);
+            }
         }
-        
-        // Cleanup on component unmount or when conversation changes
-        return () => { if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current) };
     }, [activeConversationId, fetchMessages, markConversationAsRead]);
 
     useEffect(() => {
@@ -257,13 +220,8 @@ function ChatPageContent() {
             const newlySentMessage: Message = await response.json();
             
             setMessages(prev => [...prev, newlySentMessage]);
-
-            if (newlySentMessage.createdAt) {
-                lastMessageTimestamp.current = newlySentMessage.createdAt;
-            }
-            
             setNewMessage('');
-            // The real-time listener will handle conversation list updates.
+            // The real-time listener on conversations will handle the list update/re-ordering.
 
         } catch (error) {
             console.error("SendMessageError:", error);
@@ -336,14 +294,7 @@ function ChatPageContent() {
             });
             if (res.ok) {
                 const newConversation: Conversation = await res.json();
-                 // Add the new conversation to the local state immediately
-                setConversations(prev => {
-                    const exists = prev.some(c => c.id === newConversation.id);
-                    if (exists) return prev;
-                    return [newConversation, ...prev];
-                });
                 router.push(`/dashboard/chat?id=${newConversation.id}`, { scroll: false });
-
             } else {
                 throw new Error("Failed to create conversation");
             }
@@ -497,3 +448,5 @@ export default function ChatPage() {
         </Suspense>
     )
 }
+
+    
