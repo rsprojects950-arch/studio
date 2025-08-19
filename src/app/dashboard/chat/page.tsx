@@ -116,8 +116,11 @@ function ChatPageContent() {
         }
         
         try {
-            const baseUrl = `/api/messages?conversationId=${conversationId}`;
-            const url = isInitialLoad ? baseUrl : `${baseUrl}&since=${encodeURIComponent(lastMessageTimestamp.current || new Date(0).toISOString())}`;
+            let url = `/api/messages?conversationId=${conversationId}`;
+            // Only add the 'since' parameter if it's not an initial load AND we have a valid timestamp
+            if (!isInitialLoad && lastMessageTimestamp.current) {
+                url += `&since=${encodeURIComponent(lastMessageTimestamp.current)}`;
+            }
 
             const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch messages');
@@ -465,3 +468,5 @@ export default function ChatPage() {
         </Suspense>
     )
 }
+
+    

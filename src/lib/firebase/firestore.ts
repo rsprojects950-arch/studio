@@ -228,25 +228,14 @@ export async function getDashboardStats(userId: string) {
 
 export async function getMessages({ conversationId, since }: { conversationId: string, since?: string | null }): Promise<Message[]> {
     const messagesCol = collection(db, 'messages');
-    
-    // Base query for the conversation
     const queryConstraints = [where('conversationId', '==', conversationId)];
 
-    // If 'since' is provided, it means we are polling for new messages.
-    // Otherwise, it's an initial load.
     if (since) {
         const sinceDate = new Date(since);
         queryConstraints.push(where('createdAt', '>', Timestamp.fromDate(sinceDate)));
     }
 
-    let q = query(messagesCol, ...queryConstraints);
-    
-    // For initial load, we also want to order and limit the results.
-    // This ORDER BY is safe because Firestore supports ordering by the same field used in the last inequality filter.
-    if (!since) {
-        q = query(messagesCol, ...queryConstraints, orderBy('createdAt', 'desc'), limit(50));
-    }
-    
+    const q = query(messagesCol, ...queryConstraints);
     const querySnapshot = await getDocs(q);
     
     let messages: Message[] = querySnapshot.docs.map(doc => {
@@ -258,10 +247,13 @@ export async function getMessages({ conversationId, since }: { conversationId: s
       } as Message
     });
 
-    // Sort ascending (oldest first) as the final step in the code.
     messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    
+    // For initial load, if more than 50 messages are returned, take the most recent 50
+    if (!since && messages.length > 50) {
+        messages = messages.slice(messages.length - 50);
+    }
 
-    // Fetch user profiles for avatars and usernames
     const userIds = [...new Set(messages.map(m => m.userId))];
     if (userIds.length === 0) return messages;
     
@@ -485,3 +477,5 @@ export async function markAsRead(userId: string, conversationId: string) {
         [`lastRead.${conversationId}`]: new Date().toISOString()
     });
 }
+
+    
