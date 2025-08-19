@@ -20,6 +20,10 @@ import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useUnreadCount } from '@/context/unread-count-context';
+import { db } from '@/lib/firebase';
+import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { getUserConversations } from '@/lib/firebase/firestore';
+
 
 const renderMessageWithContent = (text: string, currentUserName: string, isOwnMessage: boolean) => {
     const regex = /(@[a-zA-Z0-9_]+)|(#\[([^\]]+?)\]\(([a-zA-Z0-9-]+)\))/g;
@@ -148,29 +152,32 @@ function ChatPageContent() {
             if(isInitialLoad) setLoading(false);
         }
     }, [user, toast]);
-
-    const fetchConversations = useCallback(async () => {
-        if (!user) return;
-        setLoadingConversations(true);
-        try {
-            const res = await fetch(`/api/conversations?userId=${user.uid}`);
-            if(res.ok) {
-                const data = await res.json();
-                setConversations(data);
-            }
-        } catch (error) {
-            console.error("Failed to fetch conversations", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Could not load conversations.' });
-        } finally {
-            setLoadingConversations(false);
-        }
-    }, [user, toast]);
     
     useEffect(() => {
-        if (user) {
-            fetchConversations();
-        }
-    }, [user, fetchConversations]);
+        if (!user) return;
+    
+        setLoadingConversations(true);
+        const q = query(
+            collection(db, "conversations"),
+            where("participants", "array-contains", user.uid),
+            orderBy("lastMessageAt", "desc")
+        );
+    
+        const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+            const fetchedConversations = await getUserConversations(user.uid);
+            setConversations(fetchedConversations);
+            setLoadingConversations(false);
+            refreshUnreadCount();
+        }, (error) => {
+            console.error("Error listening to conversations:", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load conversations in real-time.' });
+            setLoadingConversations(false);
+        });
+    
+        // Cleanup listener on component unmount
+        return () => unsubscribe();
+    
+    }, [user, toast, refreshUnreadCount]);
 
     const markConversationAsRead = useCallback(async (conversationId: string) => {
         if (!user || conversationId === 'public') return;
@@ -180,8 +187,8 @@ function ChatPageContent() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ userId: user.uid, conversationId }),
             });
-            // Optimistic update
-            setConversations(prev => prev.map(c => c.id === conversationId ? {...c, unreadCount: 0} : c));
+            // The real-time listener will handle the UI update.
+            // We just need to trigger a refresh of the global count.
             refreshUnreadCount();
         } catch (error) {
             console.error("Failed to mark as read", error);
@@ -250,7 +257,6 @@ function ChatPageContent() {
             
             const newlySentMessage: Message = await response.json();
             
-            // Optimistically add the new message to the state
             setMessages(prev => [...prev, newlySentMessage]);
 
             if (newlySentMessage.createdAt) {
@@ -258,8 +264,7 @@ function ChatPageContent() {
             }
             
             setNewMessage('');
-            // Refresh conversation list to show new last message
-            fetchConversations(); 
+            // The real-time listener will handle conversation list updates.
 
         } catch (error) {
             console.error("SendMessageError:", error);
@@ -332,13 +337,6 @@ function ChatPageContent() {
             });
             if (res.ok) {
                 const newConversation: Conversation = await res.json();
-                
-                // Add to local state if not already there
-                if (!conversations.some(c => c.id === newConversation.id)) {
-                    setConversations(prev => [newConversation, ...prev]);
-                }
-                
-                // Switch to the new conversation
                 router.push(`/dashboard/chat?id=${newConversation.id}`, { scroll: false });
 
             } else {
@@ -494,3 +492,5 @@ export default function ChatPage() {
         </Suspense>
     )
 }
+
+    
