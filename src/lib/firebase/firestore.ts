@@ -446,16 +446,14 @@ export async function getUserConversations(userId: string): Promise<Conversation
         let unreadCount = 0;
         const lastReadTime = lastReadTimestamps[conversationId] ? Timestamp.fromMillis(new Date(lastReadTimestamps[conversationId]).getTime()) : null;
         
-        // Use lastMessageAt from the conversation document for comparison
         const lastMessageTime = data.lastMessageAt instanceof Timestamp ? data.lastMessageAt : null;
         
         if (lastReadTime && lastMessageTime && lastMessageTime.toMillis() > lastReadTime.toMillis()) {
             const messagesPath = `conversations/${conversationId}/messages`;
-            const unreadQuery = query(collection(db, messagesPath), where('createdAt', '>', lastReadTime), where('userId', '!=', userId));
-            const unreadSnapshot = await getCountFromServer(unreadQuery);
-            unreadCount = unreadSnapshot.data().count;
+            const unreadQuery = query(collection(db, messagesPath), where('createdAt', '>', lastReadTime));
+            const unreadSnapshot = await getDocs(unreadQuery);
+            unreadCount = unreadSnapshot.docs.filter(d => d.data().userId !== userId).length;
         } else if (!lastReadTime && lastMessageTime) {
-            // If the user has never read this chat, count all messages from others as unread
             const messagesPath = `conversations/${conversationId}/messages`;
             const unreadQuery = query(collection(db, messagesPath), where('userId', '!=', userId));
             const unreadSnapshot = await getCountFromServer(unreadQuery);

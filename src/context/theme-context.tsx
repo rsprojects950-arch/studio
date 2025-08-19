@@ -56,19 +56,21 @@ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
   }, [font, isMounted]);
 
   const setTheme = useCallback((newTheme: Theme) => {
-    if (newTheme !== theme) {
+    if (isMounted) {
       setThemeState(newTheme);
     }
-  }, [theme]);
+  }, [isMounted]);
 
   const setFont = useCallback((newFont: Font) => {
-    if (newFont !== font) {
+    if (isMounted) {
         setFontState(newFont);
     }
-  }, [font]);
+  }, [isMounted]);
   
   const value = { theme, setTheme, font, setFont };
 
+  // Prevents hydration mismatch by not rendering anything on the server.
+  // The actual content will be rendered on the client after the theme is determined.
   if (!isMounted) {
     return null;
   }
