@@ -9,7 +9,7 @@ import { isPast, isToday, isFuture, startOfWeek, addDays, format, isSameDay } fr
 
 // Helper to safely convert a Firestore timestamp, a raw object, or a string to an ISO string
 const toISOString = (date: any): string => {
-    if (!date) return new Date(0).toISOString(); // Return epoch if null/undefined to avoid crashes
+    if (!date) return new Date().toISOString(); // Return current time if null/undefined
     if (date instanceof Timestamp) {
         return date.toDate().toISOString();
     }
@@ -233,7 +233,9 @@ export async function getMessages({ conversationId, since }: { conversationId: s
     const messagesCol = collection(db, messagesPath);
 
     const queryConstraints = [];
-    queryConstraints.push(orderBy('createdAt', 'asc')); // Always order by creation time
+    // Firestore does not allow orderBy on a different field than where, without an index.
+    // We will sort in code after fetching.
+    // queryConstraints.push(orderBy('createdAt', 'asc')); 
     if (since) {
         const sinceDate = new Date(since);
         queryConstraints.push(where('createdAt', '>', Timestamp.fromDate(sinceDate)));
@@ -252,12 +254,8 @@ export async function getMessages({ conversationId, since }: { conversationId: s
       } as Message
     });
 
-    if (!since && messages.length > 50) {
-        messages = messages.slice(messages.length - 50);
-    }
-
     const userIds = [...new Set(messages.map(m => m.userId))];
-    if (userIds.length === 0) return messages;
+    if (userIds.length === 0) return messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     
     const userProfiles = new Map<string, Pick<UserProfile, 'username' | 'photoURL'>>();
     const userBatches = [];
@@ -273,8 +271,8 @@ export async function getMessages({ conversationId, since }: { conversationId: s
             userProfiles.set(doc.id, { username: data.username, photoURL: data.photoURL });
         });
     }
-
-    return messages.map(msg => {
+    
+    const populatedMessages = messages.map(msg => {
         const profile = userProfiles.get(msg.userId);
         return {
             ...msg,
@@ -282,6 +280,8 @@ export async function getMessages({ conversationId, since }: { conversationId: s
             userAvatar: profile?.photoURL || ''
         }
     });
+
+    return populatedMessages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 }
 
 
@@ -435,9 +435,12 @@ export async function getUserConversations(userId: string): Promise<Conversation
     const conversations = await Promise.all(querySnapshot.docs.map(async (doc) => {
         const data = doc.data();
         const conversationId = doc.id;
-        const otherParticipantId = data.participants.find((p: string) => p !== userId);
-        const otherParticipantProfile = await getUserProfile(otherParticipantId);
+        const otherParticipantIds = data.participants.filter((p: string) => p !== userId);
         
+        const participantProfiles = (await Promise.all(
+            otherParticipantIds.map((id: string) => getUserProfile(id))
+        )).filter(Boolean) as UserProfile[];
+
         const lastReadTime = lastReadTimestamps[conversationId] ? Timestamp.fromMillis(new Date(lastReadTimestamps[conversationId]).getTime()) : Timestamp.fromMillis(0);
         
         const messagesPath = `conversations/${conversationId}/messages`;
@@ -453,7 +456,7 @@ export async function getUserConversations(userId: string): Promise<Conversation
         return {
             id: conversationId,
             participants: data.participants,
-            participantProfiles: [otherParticipantProfile].filter(Boolean).map(p => ({ uid: p!.uid, username: p!.username, photoURL: p!.photoURL })),
+            participantProfiles: participantProfiles.map(p => ({ uid: p.uid, username: p.username, photoURL: p.photoURL })),
             lastMessage: lastMessage,
             unreadCount
         } as Conversation;
@@ -495,3 +498,5 @@ export async function markAsRead(userId: string, conversationId: string) {
         [`lastRead.${conversationId}`]: new Date().toISOString()
     });
 }
+
+    

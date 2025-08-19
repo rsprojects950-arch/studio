@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Send, Loader2, BookOpen, MessageSquare, Plus, Users, Search as SearchIcon } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
@@ -68,7 +68,7 @@ function ChatPageContent() {
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [loadingConversations, setLoadingConversations] = useState(true);
     
-    const activeConversationId = searchParams.get('id') || 'public';
+    const [activeConversationId, setActiveConversationId] = useState<string>('public');
 
     const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
     const [isNewDmDialogOpen, setIsNewDmDialogOpen] = useState(false);
@@ -99,14 +99,15 @@ function ChatPageContent() {
         }
         const conversation = conversations.find(c => c.id === activeConversationId);
         if (!conversation || !conversation.participantProfiles || conversation.participantProfiles.length === 0) return null;
-        const otherUser = conversation.participantProfiles[0];
+        const otherUser = conversation.participantProfiles.find(p => p.uid !== user?.uid);
+        if(!otherUser) return null;
         return {
             id: conversation.id,
             title: otherUser.username,
             description: `Direct message with ${otherUser.username}`,
             icon: <Avatar className="h-8 w-8"><AvatarImage src={otherUser.photoURL || undefined} /><AvatarFallback>{otherUser.username.charAt(0).toUpperCase()}</AvatarFallback></Avatar>
         }
-    }, [activeConversationId, conversations]);
+    }, [activeConversationId, conversations, user]);
 
     const fetchMessages = useCallback(async (conversationId: string, isInitialLoad = false) => {
         if (!user) return;
@@ -169,6 +170,11 @@ function ChatPageContent() {
             fetchConversations();
         }
     }, [user, fetchConversations]);
+    
+    useEffect(() => {
+        const conversationIdFromUrl = searchParams.get('id') || 'public';
+        setActiveConversationId(conversationIdFromUrl);
+    }, [searchParams]);
 
     const markConversationAsRead = useCallback(async (conversationId: string) => {
         if (!user || conversationId === 'public') return;
@@ -309,6 +315,7 @@ function ChatPageContent() {
     const handleStartNewDm = async (otherUserId: string) => {
         if (!user) return;
         setIsNewDmDialogOpen(false);
+        setLoading(true);
         try {
             const res = await fetch('/api/conversations', {
                 method: 'POST',
@@ -317,14 +324,23 @@ function ChatPageContent() {
             });
             if (res.ok) {
                 const { conversationId } = await res.json();
-                router.push(`/dashboard/chat?id=${conversationId}`);
-                fetchConversations();
+                router.push(`/dashboard/chat?id=${conversationId}`, { scroll: false });
+                setActiveConversationId(conversationId);
+                setMessages([]);
+                await fetchConversations(); // Refresh list to include new DM
             } else {
                 throw new Error("Failed to create conversation");
             }
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not start a new chat.' });
+        } finally {
+            setLoading(false);
         }
+    }
+
+    const handleConversationSelect = (id: string) => {
+        setActiveConversationId(id);
+        router.push(`/dashboard/chat?id=${id}`, { scroll: false });
     }
 
     const filteredUsersForMentions = useMemo(() => {
@@ -361,7 +377,7 @@ function ChatPageContent() {
                             <ScrollArea className="max-h-72">
                                 {filteredUsersForDm.length > 0 ? filteredUsersForDm.map(u => (
                                     <div key={u.uid} onClick={() => handleStartNewDm(u.uid)} className="flex items-center gap-3 p-2 rounded-md hover:bg-accent cursor-pointer">
-                                        <Avatar className="h-8 w-8"><AvatarImage src={u.photoURL || undefined} /><AvatarFallback>{u.username?.charAt(0)}</AvatarFallback></Avatar>
+                                        <Avatar className="h-8 w-8"><AvatarImage src={u.photoURL || undefined} /><AvatarFallback>{u.username?.charAt(0).toUpperCase()}</AvatarFallback></Avatar>
                                         <span className="text-sm font-medium">{u.username}</span>
                                     </div>
                                 )) : <p className="p-4 text-center text-sm text-muted-foreground">No users found.</p>}
@@ -372,20 +388,20 @@ function ChatPageContent() {
                 <CardContent className="flex-1 overflow-auto p-0">
                     <ScrollArea className="h-full">
                         <div className="p-2 space-y-1">
-                            <Link href="/dashboard/chat?id=public" className={cn("flex items-center gap-3 p-2 rounded-md cursor-pointer", activeConversationId === 'public' ? 'bg-accent' : 'hover:bg-accent')}>
+                            <div onClick={() => handleConversationSelect('public')} className={cn("flex items-center gap-3 p-2 rounded-md cursor-pointer", activeConversationId === 'public' ? 'bg-accent' : 'hover:bg-accent')}>
                                 <Avatar><AvatarFallback><Users/></AvatarFallback></Avatar>
                                 <div>
                                     <p className="font-semibold">Community</p>
                                     <p className="text-sm text-muted-foreground truncate">Public discussion</p>
                                 </div>
-                            </Link>
+                            </div>
                             {loadingConversations ? Array.from({length: 3}).map((_, i) => <div key={i} className="flex items-center gap-3 p-2"><Skeleton className="h-10 w-10 rounded-full" /><div className="space-y-2"><Skeleton className="h-4 w-24" /><Skeleton className="h-3 w-32" /></div></div>) 
                             : conversations.map(c => {
-                                const otherUser = c.participantProfiles[0];
+                                const otherUser = c.participantProfiles.find(p => p.uid !== user?.uid);
                                 if (!otherUser) return null;
                                 return (
-                                <Link key={c.id} href={`/dashboard/chat?id=${c.id}`} className={cn("flex items-center gap-3 p-2 rounded-md cursor-pointer", activeConversationId === c.id ? 'bg-accent' : 'hover:bg-accent')}>
-                                    <Avatar><AvatarImage src={otherUser.photoURL || undefined} /><AvatarFallback>{otherUser.username.charAt(0)}</AvatarFallback></Avatar>
+                                <div key={c.id} onClick={() => handleConversationSelect(c.id)} className={cn("flex items-center gap-3 p-2 rounded-md cursor-pointer", activeConversationId === c.id ? 'bg-accent' : 'hover:bg-accent')}>
+                                    <Avatar><AvatarImage src={otherUser.photoURL || undefined} /><AvatarFallback>{otherUser.username.charAt(0).toUpperCase()}</AvatarFallback></Avatar>
                                     <div className="flex-1 overflow-hidden">
                                         <div className="flex justify-between items-center">
                                             <p className="font-semibold">{otherUser.username}</p>
@@ -393,7 +409,7 @@ function ChatPageContent() {
                                         </div>
                                         <p className="text-sm text-muted-foreground truncate">{c.lastMessage ? c.lastMessage.text : 'No messages yet'}</p>
                                     </div>
-                                </Link>
+                                </div>
                                 )
                             })}
                         </div>
@@ -427,7 +443,7 @@ function ChatPageContent() {
                                                         {user?.uid !== msg.userId && <p className="font-semibold text-sm mb-1 text-primary">{msg.username || 'Anonymous'}</p>}
                                                         <div className="whitespace-pre-wrap break-words">{renderMessageWithContent(msg.text, userProfile?.username || '', user?.uid === msg.userId)}</div>
                                                     </div>
-                                                    <span className="text-xs text-muted-foreground mt-1">{format(new Date(msg.createdAt), 'p')}</span>
+                                                    <span className="text-xs text-muted-foreground mt-1">{msg.createdAt ? format(new Date(msg.createdAt), 'p') : ''}</span>
                                                 </div>
                                                 {user?.uid === msg.userId && <Avatar><AvatarImage src={userProfile?.photoURL || undefined} alt={userProfile?.username || ''} /><AvatarFallback>{(userProfile?.username || 'U').charAt(0).toUpperCase()}</AvatarFallback></Avatar>}
                                             </div>
