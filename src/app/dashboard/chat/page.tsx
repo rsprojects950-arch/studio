@@ -21,7 +21,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useUnreadCount } from '@/context/unread-count-context';
 import { db } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { getUserConversations } from '@/lib/firebase/firestore';
 
 
@@ -159,8 +159,7 @@ function ChatPageContent() {
         setLoadingConversations(true);
         const q = query(
             collection(db, "conversations"),
-            where("participants", "array-contains", user.uid),
-            orderBy("lastMessageAt", "desc")
+            where("participants", "array-contains", user.uid)
         );
     
         const unsubscribe = onSnapshot(q, async (querySnapshot) => {
@@ -337,6 +336,12 @@ function ChatPageContent() {
             });
             if (res.ok) {
                 const newConversation: Conversation = await res.json();
+                 // Add the new conversation to the local state immediately
+                setConversations(prev => {
+                    const exists = prev.some(c => c.id === newConversation.id);
+                    if (exists) return prev;
+                    return [newConversation, ...prev];
+                });
                 router.push(`/dashboard/chat?id=${newConversation.id}`, { scroll: false });
 
             } else {
@@ -492,5 +497,3 @@ export default function ChatPage() {
         </Suspense>
     )
 }
-
-    

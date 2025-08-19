@@ -429,13 +429,13 @@ export async function getResource(resourceId: string): Promise<Resource | null> 
 export async function getUserConversations(userId: string): Promise<Conversation[]> {
     if (!userId) return [];
     const conversationsCol = collection(db, 'conversations');
-    const q = query(conversationsCol, where('participants', 'array-contains', userId), orderBy('lastMessageAt', 'desc'));
+    const q = query(conversationsCol, where('participants', 'array-contains', userId));
     
     const querySnapshot = await getDocs(q);
     const userProfile = await getUserProfile(userId);
     const lastReadTimestamps = userProfile?.lastRead || {};
 
-    const conversations = await Promise.all(querySnapshot.docs.map(async (doc) => {
+    let conversations = await Promise.all(querySnapshot.docs.map(async (doc) => {
         const data = doc.data();
         const conversationId = doc.id;
         
@@ -476,7 +476,16 @@ export async function getUserConversations(userId: string): Promise<Conversation
         } as Conversation;
     }));
 
-    return conversations.filter(c => c.participantProfiles.length > 0);
+    conversations = conversations.filter(c => c.participantProfiles.length > 0);
+
+    // Now, sort on the client-side
+    conversations.sort((a, b) => {
+        const timeA = a.lastMessage ? new Date(a.lastMessage.createdAt).getTime() : 0;
+        const timeB = b.lastMessage ? new Date(b.lastMessage.createdAt).getTime() : 0;
+        return timeB - timeA;
+    });
+
+    return conversations;
 }
 
 export async function getOrCreateConversation(currentUserId: string, otherUserId: string, currentUserProfile: Pick<UserProfile, 'uid' | 'username' | 'photoURL'>): Promise<Conversation> {
