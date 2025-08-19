@@ -1,5 +1,4 @@
 
-
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId,getCountFromServer, startAfter } from 'firebase/firestore';
@@ -227,9 +226,12 @@ export async function getDashboardStats(userId: string) {
 }
 
 export async function getMessages({ conversationId, since }: { conversationId: string, since?: string | null }): Promise<Message[]> {
-    const messagesCol = collection(db, 'messages');
-    const queryConstraints = [where('conversationId', '==', conversationId)];
+    const messagesPath = conversationId === 'public'
+        ? 'public-messages'
+        : `conversations/${conversationId}/messages`;
+    const messagesCol = collection(db, messagesPath);
 
+    const queryConstraints = [];
     if (since) {
         const sinceDate = new Date(since);
         queryConstraints.push(where('createdAt', '>', Timestamp.fromDate(sinceDate)));
@@ -243,6 +245,7 @@ export async function getMessages({ conversationId, since }: { conversationId: s
       return {
         id: doc.id,
         ...data,
+        conversationId: conversationId, // Ensure conversationId is set
         createdAt: toISOString(data.createdAt),
       } as Message
     });
@@ -257,13 +260,21 @@ export async function getMessages({ conversationId, since }: { conversationId: s
     const userIds = [...new Set(messages.map(m => m.userId))];
     if (userIds.length === 0) return messages;
     
-    const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', userIds));
-    const usersSnapshot = await getDocs(usersQuery);
+    // Fetch user profiles in batches of 30, which is the max for 'in' queries
     const userProfiles = new Map<string, Pick<UserProfile, 'username' | 'photoURL'>>();
-    usersSnapshot.forEach(doc => {
-        const data = doc.data();
-        userProfiles.set(doc.id, { username: data.username, photoURL: data.photoURL });
-    });
+    const userBatches = [];
+    for (let i = 0; i < userIds.length; i += 30) {
+        userBatches.push(userIds.slice(i, i + 30));
+    }
+
+    for (const batch of userBatches) {
+        const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', batch));
+        const usersSnapshot = await getDocs(usersQuery);
+        usersSnapshot.forEach(doc => {
+            const data = doc.data();
+            userProfiles.set(doc.id, { username: data.username, photoURL: data.photoURL });
+        });
+    }
 
     return messages.map(msg => {
         const profile = userProfiles.get(msg.userId);
@@ -280,10 +291,13 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
     const userProfile = await getUserProfile(userId);
     if (!userProfile) throw new Error('User profile not found');
 
-    const messagesColRef = collection(db, 'messages');
+    const messagesPath = conversationId === 'public'
+      ? 'public-messages'
+      : `conversations/${conversationId}/messages`;
     
+    const messagesColRef = collection(db, messagesPath);
+
     const messageData: { [key: string]: any } = {
-      conversationId,
       text,
       userId,
       username: userProfile.username,
@@ -318,7 +332,10 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
 
 
 export async function deleteMessage(conversationId: string, messageId: string, userId: string): Promise<void> {
-    const messageRef = doc(db, 'messages', messageId);
+    const messagesPath = conversationId === 'public'
+        ? 'public-messages'
+        : `conversations/${conversationId}/messages`;
+    const messageRef = doc(db, messagesPath, messageId);
 
     const messageSnap = await getDoc(messageRef);
     if (!messageSnap.exists() || messageSnap.data().userId !== userId) {
@@ -373,7 +390,7 @@ export async function getNotes(userId: string): Promise<Note[]> {
 
 export async function getPublicNotes(): Promise<Note[]> {
     const notesCol = collection(db, 'notes');
-    const q = query(notesCol, where('isPublic', '==', true));
+    const q = query(notesCol, where('isPublic', '==', true), orderBy('updatedAt', 'desc'));
 
     try {
         const querySnapshot = await getDocs(q);
@@ -386,7 +403,7 @@ export async function getPublicNotes(): Promise<Note[]> {
                 updatedAt: toISOString(data.updatedAt),
             } as Note;
         });
-        return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+        return notes;
     } catch (error) {
         console.error("[getPublicNotes] Error:", error);
         return [];
@@ -414,26 +431,30 @@ export async function getUserConversations(userId: string): Promise<Conversation
 
     const conversations = await Promise.all(querySnapshot.docs.map(async (doc) => {
         const data = doc.data();
+        const conversationId = doc.id;
         const otherParticipantId = data.participants.find((p: string) => p !== userId);
         const otherParticipantProfile = await getUserProfile(otherParticipantId);
         
-        const lastReadTime = lastReadTimestamps[doc.id] ? Timestamp.fromMillis(new Date(lastReadTimestamps[doc.id]).getTime()) : Timestamp.fromMillis(0);
-        const unreadQuery = query(collection(db, 'messages'), where('conversationId', '==', doc.id), where('createdAt', '>', lastReadTime), where('userId', '!=', userId));
+        const lastReadTime = lastReadTimestamps[conversationId] ? Timestamp.fromMillis(new Date(lastReadTimestamps[conversationId]).getTime()) : Timestamp.fromMillis(0);
+        
+        const messagesPath = `conversations/${conversationId}/messages`;
+        const unreadQuery = query(collection(db, messagesPath), where('createdAt', '>', lastReadTime), where('userId', '!=', userId));
         const unreadSnapshot = await getCountFromServer(unreadQuery);
         const unreadCount = unreadSnapshot.data().count;
 
-        const messagesQuery = query(collection(db, 'messages'), where('conversationId', '==', doc.id), orderBy('createdAt', 'desc'), limit(1));
+        const messagesQuery = query(collection(db, messagesPath), orderBy('createdAt', 'desc'), limit(1));
         const lastMessageSnapshot = await getDocs(messagesQuery);
         const lastMessage = lastMessageSnapshot.empty 
             ? null 
             : { 
                 id: lastMessageSnapshot.docs[0].id, 
-                ...lastMessageSnapshot.docs[0].data(), 
+                ...lastMessageSnapshot.docs[0].data(),
+                conversationId: conversationId,
                 createdAt: toISOString(lastMessageSnapshot.docs[0].data().createdAt) 
               } as Message;
 
         return {
-            id: doc.id,
+            id: conversationId,
             participants: data.participants,
             participantProfiles: [otherParticipantProfile].filter(Boolean).map(p => ({ uid: p!.uid, username: p!.username, photoURL: p!.photoURL })),
             lastMessage: lastMessage,
