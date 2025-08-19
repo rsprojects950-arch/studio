@@ -232,10 +232,7 @@ export async function getMessages({ conversationId, since }: { conversationId: s
         : `conversations/${conversationId}/messages`;
     const messagesCol = collection(db, messagesPath);
 
-    const queryConstraints = [];
-    // Firestore does not allow orderBy on a different field than where, without an index.
-    // We will sort in code after fetching.
-    // queryConstraints.push(orderBy('createdAt', 'asc')); 
+    const queryConstraints = [orderBy('createdAt', 'asc')];
     if (since) {
         const sinceDate = new Date(since);
         queryConstraints.push(where('createdAt', '>', Timestamp.fromDate(sinceDate)));
@@ -255,7 +252,7 @@ export async function getMessages({ conversationId, since }: { conversationId: s
     });
 
     const userIds = [...new Set(messages.map(m => m.userId))];
-    if (userIds.length === 0) return messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    if (userIds.length === 0) return messages;
     
     const userProfiles = new Map<string, Pick<UserProfile, 'username' | 'photoURL'>>();
     const userBatches = [];
@@ -281,7 +278,7 @@ export async function getMessages({ conversationId, since }: { conversationId: s
         }
     });
 
-    return populatedMessages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    return populatedMessages;
 }
 
 
@@ -307,11 +304,12 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
     
     const docRef = await addDoc(messagesColRef, messageData);
     
+    const now = serverTimestamp();
     // Only update conversation document for DMs
     if (conversationId !== 'public') {
         const conversationRef = doc(db, 'conversations', conversationId);
         await updateDoc(conversationRef, { 
-            lastMessageAt: serverTimestamp(),
+            lastMessageAt: now,
             lastMessageText: text, // Store last message text for quick preview
         });
     }
@@ -438,8 +436,8 @@ export async function getUserConversations(userId: string): Promise<Conversation
         const otherParticipantIds = data.participants.filter((p: string) => p !== userId);
         
         const participantProfiles = (await Promise.all(
-            otherParticipantIds.map((id: string) => getUserProfile(id))
-        )).filter(Boolean) as UserProfile[];
+            data.participants.map((id: string) => getUserProfile(id))
+        )).filter((p): p is UserProfile => p !== null);
 
         const lastReadTime = lastReadTimestamps[conversationId] ? Timestamp.fromMillis(new Date(lastReadTimestamps[conversationId]).getTime()) : Timestamp.fromMillis(0);
         
@@ -465,7 +463,7 @@ export async function getUserConversations(userId: string): Promise<Conversation
     return conversations.filter(c => c.participantProfiles.length > 0);
 }
 
-export async function getOrCreateConversation(currentUserId: string, otherUserId: string): Promise<string> {
+export async function getOrCreateConversation(currentUserId: string, otherUserId: string, currentUserProfile: Pick<UserProfile, 'uid' | 'username' | 'photoURL'>): Promise<Conversation> {
     const conversationsCol = collection(db, 'conversations');
     
     const conversationId = [currentUserId, otherUserId].sort().join('_');
@@ -474,14 +472,39 @@ export async function getOrCreateConversation(currentUserId: string, otherUserId
     const conversationSnap = await getDoc(conversationRef);
 
     if (conversationSnap.exists()) {
-        return conversationSnap.id;
+        const data = conversationSnap.data();
+        const participantProfiles = (await Promise.all(
+            data.participants.map((id: string) => getUserProfile(id))
+        )).filter((p): p is UserProfile => p !== null);
+
+        return {
+            id: conversationId,
+            participants: data.participants,
+            participantProfiles: participantProfiles.map(p => ({ uid: p.uid, username: p.username, photoURL: p.photoURL })),
+            lastMessage: data.lastMessageText ? { text: data.lastMessageText, createdAt: toISOString(data.lastMessageAt) } : null,
+            unreadCount: 0, // Unread count will be fetched separately on the client
+        };
     } else {
+        const otherUserProfile = await getUserProfile(otherUserId);
+        if(!otherUserProfile) throw new Error("Other user not found");
+        
+        const now = serverTimestamp();
         await setDoc(conversationRef, {
             participants: [currentUserId, otherUserId],
-            createdAt: serverTimestamp(),
-            lastMessageAt: serverTimestamp(),
+            createdAt: now,
+            lastMessageAt: now,
+            lastMessageText: "Conversation started.",
         });
-        return conversationId;
+        return {
+            id: conversationId,
+            participants: [currentUserId, otherUserId],
+            participantProfiles: [
+                { uid: currentUserProfile.uid, username: currentUserProfile.username, photoURL: currentUserProfile.photoURL },
+                { uid: otherUserProfile.uid, username: otherUserProfile.username, photoURL: otherUserProfile.photoURL }
+            ],
+            lastMessage: { text: "Conversation started.", createdAt: new Date().toISOString() },
+            unreadCount: 0
+        };
     }
 }
 
@@ -498,5 +521,3 @@ export async function markAsRead(userId: string, conversationId: string) {
         [`lastRead.${conversationId}`]: new Date().toISOString()
     });
 }
-
-    

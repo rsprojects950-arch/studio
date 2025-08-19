@@ -1,6 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { getOrCreateConversation, getUserConversations } from '@/lib/firebase/firestore';
+import type { UserProfile } from '@/lib/types';
 
 export async function GET(request: Request) {
   try {
@@ -23,14 +24,14 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
-        const { currentUserId, otherUserId } = await request.json();
-        if (!currentUserId || !otherUserId) {
-            return new NextResponse('Missing user IDs', { status: 400 });
+        const { currentUserId, otherUserId, currentUserProfile } = await request.json();
+        if (!currentUserId || !otherUserId || !currentUserProfile) {
+            return new NextResponse('Missing user IDs or profile', { status: 400 });
         }
 
-        const conversationId = await getOrCreateConversation(currentUserId, otherUserId);
+        const newConversation = await getOrCreateConversation(currentUserId, otherUserId, currentUserProfile);
         
-        return NextResponse.json({ conversationId }, { status: 201 });
+        return NextResponse.json(newConversation, { status: 201 });
 
     } catch (error) {
         console.error('Error in POST /api/conversations:', error);

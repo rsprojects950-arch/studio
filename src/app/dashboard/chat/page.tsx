@@ -313,28 +313,32 @@ function ChatPageContent() {
     }, []);
 
     const handleStartNewDm = async (otherUserId: string) => {
-        if (!user) return;
+        if (!user || !userProfile) return;
         setIsNewDmDialogOpen(false);
-        setLoading(true);
+        
         try {
             const res = await fetch('/api/conversations', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ currentUserId: user.uid, otherUserId })
+                body: JSON.stringify({ currentUserId: user.uid, otherUserId, currentUserProfile: { uid: user.uid, username: userProfile.username, photoURL: userProfile.photoURL } })
             });
             if (res.ok) {
-                const { conversationId } = await res.json();
-                router.push(`/dashboard/chat?id=${conversationId}`, { scroll: false });
-                setActiveConversationId(conversationId);
+                const newConversation: Conversation = await res.json();
+                
+                // Add to local state if not already there
+                if (!conversations.some(c => c.id === newConversation.id)) {
+                    setConversations(prev => [newConversation, ...prev]);
+                }
+                
+                setActiveConversationId(newConversation.id);
                 setMessages([]);
-                await fetchConversations(); // Refresh list to include new DM
+                router.push(`/dashboard/chat?id=${newConversation.id}`, { scroll: false });
+
             } else {
                 throw new Error("Failed to create conversation");
             }
         } catch (error) {
             toast({ variant: 'destructive', title: 'Error', description: 'Could not start a new chat.' });
-        } finally {
-            setLoading(false);
         }
     }
 
@@ -484,5 +488,3 @@ export default function ChatPage() {
         </Suspense>
     )
 }
-
-    
