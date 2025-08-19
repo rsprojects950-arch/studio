@@ -229,16 +229,21 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
     const messagesCol = collection(db, 'messages');
     let q;
     
-    // Base query for the specified conversation
-    const baseQuery = query(messagesCol, where('conversationId', '==', conversationId));
+    const baseQuery = [where('conversationId', '==', conversationId)];
 
     if (since) {
-        // Polling for new messages since a certain timestamp. This is for real-time updates.
-        q = query(baseQuery, where('createdAt', '>', Timestamp.fromDate(new Date(since))), orderBy('createdAt', 'asc'));
+        // Polling for new messages since a certain timestamp. 
+        const sinceDate = new Date(since);
+        // Important: Compare against a server-side timestamp if possible or a consistent client timestamp
+        baseQuery.push(where('createdAt', '>', Timestamp.fromDate(sinceDate)));
+        baseQuery.push(orderBy('createdAt', 'asc'));
     } else {
-        // Initial load of the latest messages. No pagination logic needed here.
-        q = query(baseQuery, orderBy('createdAt', 'desc'), limit(50));
+        // Initial load of the latest messages.
+        baseQuery.push(orderBy('createdAt', 'desc'));
+        baseQuery.push(limit(50));
     }
+    
+    q = query(messagesCol, ...baseQuery);
     
     const querySnapshot = await getDocs(q);
     
@@ -251,15 +256,12 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
       } as Message
     });
 
-    // For initial load, the order is descending, so we reverse it to show oldest first.
-    // For polling, the order is already ascending.
     if (!since) {
         messages.reverse();
     }
 
-    // Populate user details for each message
     const userIds = [...new Set(messages.map(m => m.userId))];
-    if (userIds.length === 0) return messages; // Return messages even if no users (e.g., empty chat)
+    if (userIds.length === 0) return messages;
     
     const usersQuery = query(collection(db, 'users'), where(documentId(), 'in', userIds));
     const usersSnapshot = await getDocs(usersQuery);
@@ -299,7 +301,6 @@ export async function addMessage({ conversationId, text, userId, replyTo, resour
     
     const docRef = await addDoc(messagesColRef, messageData);
     
-    // Also update the conversation's lastMessage timestamp
     if (conversationId !== 'public') {
         const conversationRef = doc(db, 'conversations', conversationId);
         await updateDoc(conversationRef, { lastMessageAt: serverTimestamp() });
@@ -424,13 +425,11 @@ export async function getUserConversations(userId: string): Promise<Conversation
         const otherParticipantId = data.participants.find((p: string) => p !== userId);
         const otherParticipantProfile = await getUserProfile(otherParticipantId);
         
-        // Fetch unread count
         const lastReadTime = lastReadTimestamps[doc.id] ? Timestamp.fromMillis(new Date(lastReadTimestamps[doc.id]).getTime()) : Timestamp.fromMillis(0);
         const unreadQuery = query(collection(db, 'messages'), where('conversationId', '==', doc.id), where('createdAt', '>', lastReadTime), where('userId', '!=', userId));
         const unreadSnapshot = await getCountFromServer(unreadQuery);
         const unreadCount = unreadSnapshot.data().count;
 
-        // Fetch last message for display
         const messagesQuery = query(collection(db, 'messages'), where('conversationId', '==', doc.id), orderBy('createdAt', 'desc'), limit(1));
         const lastMessageSnapshot = await getDocs(messagesQuery);
         const lastMessage = lastMessageSnapshot.empty 
@@ -456,7 +455,6 @@ export async function getUserConversations(userId: string): Promise<Conversation
 export async function getOrCreateConversation(currentUserId: string, otherUserId: string): Promise<string> {
     const conversationsCol = collection(db, 'conversations');
     
-    // Create a consistent ID for the conversation doc
     const conversationId = [currentUserId, otherUserId].sort().join('_');
     const conversationRef = doc(conversationsCol, conversationId);
     
@@ -487,3 +485,5 @@ export async function markAsRead(userId: string, conversationId: string) {
         [`lastRead.${conversationId}`]: new Date().toISOString()
     });
 }
+
+    

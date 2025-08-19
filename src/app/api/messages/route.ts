@@ -17,12 +17,8 @@ export async function GET(request: Request) {
 
     const messages = await getMessages({ conversationId, since, lastId });
 
-    const serializableMessages = messages.map(msg => ({
-      ...msg,
-      createdAt: (msg.createdAt instanceof Timestamp ? msg.createdAt.toDate() : new Date(msg.createdAt)).toISOString(),
-    }));
-
-    return NextResponse.json(serializableMessages);
+    // The createdAt field is already an ISO string from getMessages
+    return NextResponse.json(messages);
   } catch (error) {
     console.error('Error in GET /api/messages:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
@@ -38,12 +34,8 @@ export async function POST(request: Request) {
 
     const newMessage = await addMessage({ conversationId, text, userId, replyTo, resourceLinks });
     
-    const serializableMessage: Message = {
-      ...newMessage,
-      createdAt: new Date().toISOString(),
-    };
-
-    return NextResponse.json(serializableMessage, { status: 201 });
+    // The createdAt field is already an ISO string from addMessage
+    return NextResponse.json(newMessage, { status: 201 });
   } catch (error) {
     console.error('Error sending message:', error);
     return new NextResponse('Internal Server Error', { status: 500 });
@@ -70,3 +62,5 @@ export async function DELETE(request: Request) {
         return new NextResponse(error.message || 'Internal Server Error', { status: 500 });
     }
 }
+
+    
