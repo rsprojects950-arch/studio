@@ -68,7 +68,7 @@ function ChatPageContent() {
     
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [loadingConversations, setLoadingConversations] = useState(true);
-    const [activeConversationId, setActiveConversationId] = useState<string>('public');
+    const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     
     const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
     const [isNewDmDialogOpen, setIsNewDmDialogOpen] = useState(false);
@@ -134,7 +134,7 @@ function ChatPageContent() {
                     setMessages(prevMessages => {
                         const existingIds = new Set(prevMessages.map(m => m.id));
                         const uniqueNewMessages = newMessages.filter(m => !existingIds.has(m.id));
-                        return [...prevMessages, ...uniqueNewMessages];
+                        return [...prevMessages, ...uniqueNewMessages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
                     });
                 }
                 const lastMsg = newMessages[newMessages.length - 1];
@@ -192,6 +192,7 @@ function ChatPageContent() {
     }, [user, refreshUnreadCount]);
 
     useEffect(() => {
+        if (!activeConversationId) return;
         if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
         
         fetchMessages(activeConversationId, true);
@@ -228,7 +229,7 @@ function ChatPageContent() {
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!user || !newMessage.trim()) return;
+        if (!user || !newMessage.trim() || !activeConversationId) return;
         setSending(true);
         const resourceTagRegex = /#\[([^\]]+?)\]\(([a-zA-Z0-9-]+)\)/g;
         let match;
@@ -245,7 +246,7 @@ function ChatPageContent() {
             if (!response.ok) throw new Error(`Failed to send message: ${await response.text()}`);
             
             const newlySentMessage: Message = await response.json();
-            setMessages(prev => [...prev, newlySentMessage]);
+            setMessages(prev => [...prev, newlySentMessage].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
             if (newlySentMessage.createdAt) lastMessageTimestamp.current = newlySentMessage.createdAt;
             
             setNewMessage('');
@@ -321,8 +322,10 @@ function ChatPageContent() {
             });
             if (res.ok) {
                 const { conversationId } = await res.json();
+                console.log("New conversation created with ID:", conversationId); // For debugging
                 router.push(`/dashboard/chat?id=${conversationId}`);
-                fetchConversations();
+                setActiveConversationId(conversationId); // Explicitly set the active conversation
+                fetchConversations(); // Refresh the conversation list in the sidebar
             } else {
                 throw new Error("Failed to create conversation");
             }
