@@ -230,16 +230,14 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
     const messagesCol = collection(db, 'messages');
     let q;
     
-    // Base query for the specific conversation
-    const baseQuery = [where('conversationId', '==', conversationId)];
+    const queryConstraints = [where('conversationId', '==', conversationId)];
 
     if (since) {
-        // Polling for new messages since a certain timestamp.
         const sinceDate = new Date(since);
-        baseQuery.push(where('createdAt', '>', Timestamp.fromDate(sinceDate)));
+        queryConstraints.push(where('createdAt', '>', Timestamp.fromDate(sinceDate)));
     }
     
-    q = query(messagesCol, ...baseQuery);
+    q = query(messagesCol, ...queryConstraints);
     
     const querySnapshot = await getDocs(q);
     
@@ -252,10 +250,8 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
       } as Message
     });
 
-    // Sort messages in code instead of in the query
     messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-    // Limit to the last 50 messages for initial load
     if (!since) {
         messages = messages.slice(-50);
     }
@@ -370,7 +366,6 @@ export async function getNotes(userId: string): Promise<Note[]> {
         updatedAt: toISOString(data.updatedAt),
       } as Note;
     });
-    // Sort in code to avoid complex index requirement
     return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
   } catch (error) {
     console.error("[getNotes] Error:", error);
@@ -393,7 +388,6 @@ export async function getPublicNotes(): Promise<Note[]> {
                 updatedAt: toISOString(data.updatedAt),
             } as Note;
         });
-        // Sort in code to avoid complex index requirement
         return notes.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
     } catch (error) {
         console.error("[getPublicNotes] Error:", error);
@@ -449,7 +443,7 @@ export async function getUserConversations(userId: string): Promise<Conversation
         } as Conversation;
     }));
 
-    return conversations;
+    return conversations.filter(c => c.participantProfiles.length > 0);
 }
 
 export async function getOrCreateConversation(currentUserId: string, otherUserId: string): Promise<string> {
@@ -485,5 +479,3 @@ export async function markAsRead(userId: string, conversationId: string) {
         [`lastRead.${conversationId}`]: new Date().toISOString()
     });
 }
-
-    

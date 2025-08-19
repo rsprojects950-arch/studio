@@ -97,7 +97,7 @@ function ChatPageContent() {
             }
         }
         const conversation = conversations.find(c => c.id === activeConversationId);
-        if (!conversation || conversation.participantProfiles.length === 0) return null;
+        if (!conversation || !conversation.participantProfiles || conversation.participantProfiles.length === 0) return null;
         const otherUser = conversation.participantProfiles[0];
         return {
             id: conversation.id,
@@ -456,5 +456,3 @@ export default function ChatPage() {
         </Suspense>
     )
 }
-
-    
