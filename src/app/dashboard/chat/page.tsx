@@ -328,7 +328,15 @@ function ChatPageContent() {
     }
 
     const filteredUsersForMentions = users.filter(u => u.username && u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
-    const filteredUsersForDm = allUsers.filter(u => u.username && u.username.toLowerCase().includes(dmUserSearch.toLowerCase()) && u.uid !== user?.uid);
+    
+    const filteredUsersForDm = useMemo(() => {
+        return allUsers.filter(u =>
+            u.uid !== user?.uid &&
+            (u.username?.toLowerCase().includes(dmUserSearch.toLowerCase()) || 
+             u.email?.toLowerCase().includes(dmUserSearch.toLowerCase()))
+        );
+    }, [allUsers, dmUserSearch, user]);
+
     const filteredResources = resources.filter(r => r.title.toLowerCase().includes(resourceSearch.toLowerCase()));
 
     return (
