@@ -226,18 +226,26 @@ export async function getDashboardStats(userId: string) {
   return { summary, progressChartData: weekData.map(({date, ...rest}) => rest), relevantTasks };
 }
 
-export async function getMessages({ conversationId, since, lastId }: { conversationId: string, since?: string | null, lastId?: string | null }): Promise<Message[]> {
+export async function getMessages({ conversationId, since }: { conversationId: string, since?: string | null }): Promise<Message[]> {
     const messagesCol = collection(db, 'messages');
-    let q;
     
+    // Base query for the conversation
     const queryConstraints = [where('conversationId', '==', conversationId)];
 
+    // If 'since' is provided, it means we are polling for new messages.
+    // Otherwise, it's an initial load.
     if (since) {
         const sinceDate = new Date(since);
         queryConstraints.push(where('createdAt', '>', Timestamp.fromDate(sinceDate)));
     }
+
+    let q = query(messagesCol, ...queryConstraints);
     
-    q = query(messagesCol, ...queryConstraints);
+    // For initial load, we also want to order and limit the results.
+    // This ORDER BY is safe because Firestore supports ordering by the same field used in the last inequality filter.
+    if (!since) {
+        q = query(messagesCol, ...queryConstraints, orderBy('createdAt', 'desc'), limit(50));
+    }
     
     const querySnapshot = await getDocs(q);
     
@@ -250,12 +258,10 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
       } as Message
     });
 
+    // Sort ascending (oldest first) as the final step in the code.
     messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-    if (!since) {
-        messages = messages.slice(-50);
-    }
-
+    // Fetch user profiles for avatars and usernames
     const userIds = [...new Set(messages.map(m => m.userId))];
     if (userIds.length === 0) return messages;
     
@@ -353,7 +359,7 @@ export async function searchResources(queryText: string): Promise<(Resource & { 
 export async function getNotes(userId: string): Promise<Note[]> {
   if (!userId) return [];
   const notesCol = collection(db, 'notes');
-  const q = query(notesCol, where('userId', '==', userId), where('isPublic', '==', false));
+  const q = query(notesCol, where('userId', '==', userId));
   
   try {
     const querySnapshot = await getDocs(q);

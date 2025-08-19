@@ -9,13 +9,12 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId');
     const since = searchParams.get('since');
-    const lastId = searchParams.get('lastId');
     
     if (!conversationId) {
       return new NextResponse('Missing conversationId', { status: 400 });
     }
 
-    const messages = await getMessages({ conversationId, since, lastId });
+    const messages = await getMessages({ conversationId, since });
 
     // The createdAt field is already an ISO string from getMessages
     return NextResponse.json(messages);
@@ -62,5 +61,3 @@ export async function DELETE(request: Request) {
         return new NextResponse(error.message || 'Internal Server Error', { status: 500 });
     }
 }
-
-    

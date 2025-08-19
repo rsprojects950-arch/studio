@@ -205,7 +205,6 @@ function ChatPageContent() {
             try {
                 const res = await fetch('/api/users');
                 const data = await res.json();
-                setUsersForMentions(data);
                 setAllUsers(data);
             } catch (error) {
                 console.error("Failed to fetch users", error);
@@ -327,8 +326,10 @@ function ChatPageContent() {
         }
     }
 
-    const filteredUsersForMentions = usersForMentions.filter(u => u.username && u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
-    
+    const filteredUsersForMentions = useMemo(() => {
+        return allUsers.filter(u => u.username && u.username.toLowerCase().includes(mentionSearch.toLowerCase()) && u.uid !== user?.uid);
+    }, [allUsers, mentionSearch, user]);
+
     const filteredUsersForDm = useMemo(() => {
         return allUsers.filter(u =>
             u.uid !== user?.uid &&
@@ -436,8 +437,8 @@ function ChatPageContent() {
                             <form onSubmit={handleSendMessage} className="flex items-center gap-2 w-full">
                                 <div className="w-full relative">
                                     <Input ref={inputRef} placeholder="Type a message..." value={newMessage} onChange={handleInputChange} autoComplete="off" disabled={sending || !user} className="w-full"/>
-                                    <><Popover open={isMentionPopoverOpen && activeConversationId === 'public'} onOpenChange={setMentionPopoverOpen}><PopoverTrigger asChild><div/></PopoverTrigger><PopoverContent className="w-80 p-0" align="start" side="top"><div className="p-2 border-b"><p className="text-sm font-medium">Mention a user</p></div><ScrollArea className="max-h-48 p-1">{filteredUsersForMentions.length > 0 ? filteredUsersForMentions.map(u => (<div key={u.uid} className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer" onClick={() => handleMentionSelect(u.username)}><Avatar className="h-6 w-6"><AvatarImage src={u.photoURL || undefined} /><AvatarFallback>{u.username.charAt(0)}</AvatarFallback></Avatar><span className="text-sm">{u.username}</span></div>)) : <p className="p-2 text-sm text-muted-foreground">No users found.</p>}</ScrollArea></PopoverContent></Popover>
-                                    <Popover open={isResourcePopoverOpen && activeConversationId === 'public'} onOpenChange={setResourcePopoverOpen}><PopoverTrigger asChild><div/></PopoverTrigger><PopoverContent className="w-80 p-0" align="start" side="top"><div className="p-2 border-b"><p className="text-sm font-medium">Tag a resource</p></div><ScrollArea className="max-h-48 p-1">{filteredResources.length > 0 ? filteredResources.map(r => (<div key={r.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer" onClick={() => handleResourceSelect(r)}><BookOpen className="h-4 w-4 text-muted-foreground" /><div className="flex flex-col"><span className="text-sm">{r.title}</span><span className="text-xs text-muted-foreground">{r.type}</span></div></div>)) : <p className="p-2 text-sm text-muted-foreground">No resources found.</p>}</ScrollArea></PopoverContent></Popover></>
+                                    <><Popover open={isMentionPopoverOpen && filteredUsersForMentions.length > 0 && activeConversationId === 'public'} onOpenChange={setMentionPopoverOpen}><PopoverTrigger asChild><div/></PopoverTrigger><PopoverContent className="w-80 p-0" align="start" side="top"><div className="p-2 border-b"><p className="text-sm font-medium">Mention a user</p></div><ScrollArea className="max-h-48 p-1">{filteredUsersForMentions.map(u => (<div key={u.uid} className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer" onClick={() => handleMentionSelect(u.username)}><Avatar className="h-6 w-6"><AvatarImage src={u.photoURL || undefined} /><AvatarFallback>{u.username.charAt(0)}</AvatarFallback></Avatar><span className="text-sm">{u.username}</span></div>))}</ScrollArea></PopoverContent></Popover>
+                                    <Popover open={isResourcePopoverOpen && filteredResources.length > 0 && activeConversationId === 'public'} onOpenChange={setResourcePopoverOpen}><PopoverTrigger asChild><div/></PopoverTrigger><PopoverContent className="w-80 p-0" align="start" side="top"><div className="p-2 border-b"><p className="text-sm font-medium">Tag a resource</p></div><ScrollArea className="max-h-48 p-1">{filteredResources.map(r => (<div key={r.id} className="flex items-center gap-2 p-2 rounded-md hover:bg-accent cursor-pointer" onClick={() => handleResourceSelect(r)}><BookOpen className="h-4 w-4 text-muted-foreground" /><div className="flex flex-col"><span className="text-sm">{r.title}</span><span className="text-xs text-muted-foreground">{r.type}</span></div></div>))}</ScrollArea></PopoverContent></Popover></>
                                 </div>
                                 <Button type="submit" variant="ghost" size="icon" disabled={sending || !newMessage.trim() || !user}>{sending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}<span className="sr-only">Send</span></Button>
                             </form>
