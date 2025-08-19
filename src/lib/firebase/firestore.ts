@@ -1,4 +1,5 @@
 
+
 'use server';
 
 import { collection, query, where, getDocs, addDoc, updateDoc, doc, deleteDoc, serverTimestamp, getDoc, Timestamp, orderBy, limit, setDoc, writeBatch, collectionGroup, documentId,getCountFromServer, startAfter } from 'firebase/firestore';
@@ -229,25 +230,20 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
     const messagesCol = collection(db, 'messages');
     let q;
     
+    // Base query for the specific conversation
     const baseQuery = [where('conversationId', '==', conversationId)];
 
     if (since) {
-        // Polling for new messages since a certain timestamp. 
+        // Polling for new messages since a certain timestamp.
         const sinceDate = new Date(since);
-        // Important: Compare against a server-side timestamp if possible or a consistent client timestamp
         baseQuery.push(where('createdAt', '>', Timestamp.fromDate(sinceDate)));
-        baseQuery.push(orderBy('createdAt', 'asc'));
-    } else {
-        // Initial load of the latest messages.
-        baseQuery.push(orderBy('createdAt', 'desc'));
-        baseQuery.push(limit(50));
     }
     
     q = query(messagesCol, ...baseQuery);
     
     const querySnapshot = await getDocs(q);
     
-    const messages: Message[] = querySnapshot.docs.map(doc => {
+    let messages: Message[] = querySnapshot.docs.map(doc => {
       const data = doc.data();
       return {
         id: doc.id,
@@ -256,8 +252,12 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
       } as Message
     });
 
+    // Sort messages in code instead of in the query
+    messages.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+    // Limit to the last 50 messages for initial load
     if (!since) {
-        messages.reverse();
+        messages = messages.slice(-50);
     }
 
     const userIds = [...new Set(messages.map(m => m.userId))];
