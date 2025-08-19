@@ -1,5 +1,4 @@
 
-
 'use client';
 
 import { useState, useEffect, useRef, useCallback, Suspense, useMemo } from 'react';
@@ -68,8 +67,9 @@ function ChatPageContent() {
     
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [loadingConversations, setLoadingConversations] = useState(true);
-    const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
     
+    const activeConversationId = useMemo(() => searchParams.get('id') || 'public', [searchParams]);
+
     const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
     const [isNewDmDialogOpen, setIsNewDmDialogOpen] = useState(false);
     const [dmUserSearch, setDmUserSearch] = useState('');
@@ -169,11 +169,6 @@ function ChatPageContent() {
             fetchConversations();
         }
     }, [user, fetchConversations]);
-
-    useEffect(() => {
-        const conversationId = searchParams.get('id') || 'public';
-        setActiveConversationId(conversationId);
-    }, [searchParams]);
 
     const markConversationAsRead = useCallback(async (conversationId: string) => {
         if (!user || conversationId === 'public') return;
@@ -322,10 +317,8 @@ function ChatPageContent() {
             });
             if (res.ok) {
                 const { conversationId } = await res.json();
-                console.log("New conversation created with ID:", conversationId); // For debugging
                 router.push(`/dashboard/chat?id=${conversationId}`);
-                setActiveConversationId(conversationId); // Explicitly set the active conversation
-                fetchConversations(); // Refresh the conversation list in the sidebar
+                fetchConversations();
             } else {
                 throw new Error("Failed to create conversation");
             }
