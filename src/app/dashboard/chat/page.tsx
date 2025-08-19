@@ -68,7 +68,7 @@ function ChatPageContent() {
     const [conversations, setConversations] = useState<Conversation[]>([]);
     const [loadingConversations, setLoadingConversations] = useState(true);
     
-    const [activeConversationId, setActiveConversationId] = useState<string>('public');
+    const activeConversationId = searchParams.get('id') || 'public';
 
     const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
     const [isNewDmDialogOpen, setIsNewDmDialogOpen] = useState(false);
@@ -170,11 +170,6 @@ function ChatPageContent() {
             fetchConversations();
         }
     }, [user, fetchConversations]);
-    
-    useEffect(() => {
-        const conversationIdFromUrl = searchParams.get('id') || 'public';
-        setActiveConversationId(conversationIdFromUrl);
-    }, [searchParams]);
 
     const markConversationAsRead = useCallback(async (conversationId: string) => {
         if (!user || conversationId === 'public') return;
@@ -247,7 +242,10 @@ function ChatPageContent() {
             if (!response.ok) throw new Error(`Failed to send message: ${await response.text()}`);
             
             const newlySentMessage: Message = await response.json();
+            
+            // Optimistically add the new message to the state
             setMessages(prev => [...prev, newlySentMessage]);
+
             if (newlySentMessage.createdAt) lastMessageTimestamp.current = newlySentMessage.createdAt;
             
             setNewMessage('');
@@ -330,9 +328,9 @@ function ChatPageContent() {
                     setConversations(prev => [newConversation, ...prev]);
                 }
                 
-                setActiveConversationId(newConversation.id);
-                setMessages([]);
+                // Switch to the new conversation
                 router.push(`/dashboard/chat?id=${newConversation.id}`, { scroll: false });
+                setMessages([]);
 
             } else {
                 throw new Error("Failed to create conversation");
@@ -343,7 +341,6 @@ function ChatPageContent() {
     }
 
     const handleConversationSelect = (id: string) => {
-        setActiveConversationId(id);
         router.push(`/dashboard/chat?id=${id}`, { scroll: false });
     }
 

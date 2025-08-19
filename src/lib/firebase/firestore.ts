@@ -433,18 +433,28 @@ export async function getUserConversations(userId: string): Promise<Conversation
     const conversations = await Promise.all(querySnapshot.docs.map(async (doc) => {
         const data = doc.data();
         const conversationId = doc.id;
-        const otherParticipantIds = data.participants.filter((p: string) => p !== userId);
         
         const participantProfiles = (await Promise.all(
             data.participants.map((id: string) => getUserProfile(id))
         )).filter((p): p is UserProfile => p !== null);
 
-        const lastReadTime = lastReadTimestamps[conversationId] ? Timestamp.fromMillis(new Date(lastReadTimestamps[conversationId]).getTime()) : Timestamp.fromMillis(0);
+        let unreadCount = 0;
+        const lastReadTime = lastReadTimestamps[conversationId] ? Timestamp.fromMillis(new Date(lastReadTimestamps[conversationId]).getTime()) : null;
+        const lastMessageTime = data.lastMessageAt instanceof Timestamp ? data.lastMessageAt : null;
         
-        const messagesPath = `conversations/${conversationId}/messages`;
-        const unreadQuery = query(collection(db, messagesPath), where('createdAt', '>', lastReadTime), where('userId', '!=', userId));
-        const unreadSnapshot = await getCountFromServer(unreadQuery);
-        const unreadCount = unreadSnapshot.data().count;
+        // Only calculate unread if we have a lastReadTime and a lastMessageTime
+        if (lastReadTime && lastMessageTime && lastMessageTime > lastReadTime) {
+            const messagesPath = `conversations/${conversationId}/messages`;
+            const unreadQuery = query(collection(db, messagesPath), where('createdAt', '>', lastReadTime), where('userId', '!=', userId));
+            const unreadSnapshot = await getCountFromServer(unreadQuery);
+            unreadCount = unreadSnapshot.data().count;
+        } else if (!lastReadTime && lastMessageTime) {
+            // If the user has never read this chat, count all messages from others as unread
+            const messagesPath = `conversations/${conversationId}/messages`;
+            const unreadQuery = query(collection(db, messagesPath), where('userId', '!=', userId));
+            const unreadSnapshot = await getCountFromServer(unreadQuery);
+            unreadCount = unreadSnapshot.data().count;
+        }
 
         const lastMessage = data.lastMessageText ? {
             text: data.lastMessageText,
@@ -514,7 +524,7 @@ export async function getUnreadCount(userId: string): Promise<number> {
     return conversations.reduce((total, conv) => total + conv.unreadCount, 0);
 }
 
-export async function markAsRead(userId: string, conversationId: string) {
+export async function markAsRead(userId: string, conversationId: string): Promise<void> {
     if (!userId || !conversationId) return;
     const userRef = doc(db, 'users', userId);
     await updateDoc(userRef, {
