@@ -336,12 +336,14 @@ function ChatPageContent() {
     }, [allUsers, mentionSearch, user]);
 
     const filteredUsersForDm = useMemo(() => {
+        const existingDmUserIds = new Set(conversations.flatMap(c => c.participants));
         return allUsers.filter(u =>
             u.uid !== user?.uid &&
+            !existingDmUserIds.has(u.uid) &&
             (u.username?.toLowerCase().includes(dmUserSearch.toLowerCase()) || 
              u.email?.toLowerCase().includes(dmUserSearch.toLowerCase()))
         );
-    }, [allUsers, dmUserSearch, user]);
+    }, [allUsers, conversations, dmUserSearch, user]);
 
     const filteredResources = resources.filter(r => r.title.toLowerCase().includes(resourceSearch.toLowerCase()));
 
