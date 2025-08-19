@@ -80,3 +80,5 @@ export type Conversation = {
     lastMessage: Message | null;
     unreadCount: number;
 };
+
+    

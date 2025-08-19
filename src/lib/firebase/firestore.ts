@@ -234,8 +234,8 @@ export async function getMessages({ conversationId, since, lastId }: { conversat
     if (since) {
         // Polling for new messages since a certain timestamp
         q = query(baseQuery, where('createdAt', '>', Timestamp.fromDate(new Date(since))), orderBy('createdAt', 'asc'));
-    } else if (lastId) {
-        // Paginating backwards to get older messages
+    } else if (lastId && conversationId !== 'public') {
+        // Paginating backwards to get older messages (Not applicable for public)
         const lastDocSnap = await getDoc(doc(messagesCol, lastId));
         if (!lastDocSnap.exists()) return [];
         q = query(baseQuery, orderBy('createdAt', 'desc'), startAfter(lastDocSnap), limit(20));
@@ -426,22 +426,28 @@ export async function getUserConversations(userId: string): Promise<Conversation
         const otherParticipantId = data.participants.find((p: string) => p !== userId);
         const otherParticipantProfile = await getUserProfile(otherParticipantId);
         
-        // Fetch last message
-        const messagesQuery = query(collection(db, 'messages'), where('conversationId', '==', doc.id), orderBy('createdAt', 'desc'), limit(1));
-        const lastMessageSnapshot = await getDocs(messagesQuery);
-        const lastMessage = lastMessageSnapshot.empty ? null : { id: lastMessageSnapshot.docs[0].id, ...lastMessageSnapshot.docs[0].data(), createdAt: toISOString(lastMessageSnapshot.docs[0].data().createdAt) } as Message;
-
         // Fetch unread count
         const lastReadTime = lastReadTimestamps[doc.id] ? Timestamp.fromMillis(new Date(lastReadTimestamps[doc.id]).getTime()) : Timestamp.fromMillis(0);
         const unreadQuery = query(collection(db, 'messages'), where('conversationId', '==', doc.id), where('createdAt', '>', lastReadTime), where('userId', '!=', userId));
         const unreadSnapshot = await getCountFromServer(unreadQuery);
         const unreadCount = unreadSnapshot.data().count;
 
+        // Fetch last message for display
+        const messagesQuery = query(collection(db, 'messages'), where('conversationId', '==', doc.id), orderBy('createdAt', 'desc'), limit(1));
+        const lastMessageSnapshot = await getDocs(messagesQuery);
+        const lastMessage = lastMessageSnapshot.empty 
+            ? null 
+            : { 
+                id: lastMessageSnapshot.docs[0].id, 
+                ...lastMessageSnapshot.docs[0].data(), 
+                createdAt: toISOString(lastMessageSnapshot.docs[0].data().createdAt) 
+              } as Message;
+
         return {
             id: doc.id,
             participants: data.participants,
             participantProfiles: [otherParticipantProfile].filter(Boolean).map(p => ({ uid: p!.uid, username: p!.username, photoURL: p!.photoURL })),
-            lastMessage,
+            lastMessage: lastMessage,
             unreadCount
         } as Conversation;
     }));
