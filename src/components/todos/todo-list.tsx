@@ -368,7 +368,7 @@ export function TodoList() {
                               <Edit className="h-4 w-4" />
                               <span className="sr-only">Edit task</span>
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)} disabled={task.source === 'goal'} className="h-8 w-8">
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)} className="h-8 w-8">
                               <Trash2 className="h-4 w-4" />
                               <span className="sr-only">Delete task</span>
                           </Button>
