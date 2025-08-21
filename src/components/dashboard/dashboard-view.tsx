@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/auth-context";
-import { getDashboardStats } from "@/lib/firebase/firestore";
+import { getDashboardStats, updateTaskStatus } from "@/lib/firebase/firestore";
 import type { Task } from "@/lib/types";
 import { SummaryTile } from "@/components/dashboard/summary-tile";
 import { ProgressChart } from "@/components/dashboard/progress-chart";
@@ -28,6 +28,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow, isPast, isToday } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+
 
 type DashboardStats = {
   summary: {
@@ -49,6 +52,7 @@ type DashboardStats = {
 
 export function DashboardView() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -60,15 +64,44 @@ export function DashboardView() {
         setStats(dashboardStats);
       } catch (error) {
         console.error("Error fetching dashboard stats:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not load dashboard data.' });
       } finally {
         setLoading(false);
       }
     }
-  }, [user]);
+  }, [user, toast]);
 
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  const handleToggleTaskStatus = async (taskId: string, currentStatus: 'ongoing' | 'completed') => {
+      const newStatus = currentStatus === 'ongoing' ? 'completed' : 'ongoing';
+
+      // Optimistically update the UI
+      if(stats) {
+          const updatedTasks = stats.relevantTasks.map(task => 
+              task.id === taskId ? { ...task, status: newStatus } : task
+          );
+          setStats({ ...stats, relevantTasks: updatedTasks });
+      }
+
+      try {
+          await updateTaskStatus(taskId, newStatus);
+          toast({ title: newStatus === 'completed' ? "Task completed!" : "Task marked as ongoing." });
+          // Refetch all stats to ensure consistency across the dashboard
+          await fetchStats();
+      } catch (error) {
+          toast({
+              variant: "destructive",
+              title: "Update failed",
+              description: "Could not update the task status. Please try again."
+          });
+          // On error, revert the optimistic update by refetching
+          await fetchStats(); 
+      }
+  };
+
 
   const memoizedStats = useMemo(() => {
     if (!stats) return null;
@@ -134,9 +167,16 @@ export function DashboardView() {
               </TableHeader>
               <TableBody>
                 {memoizedStats.relevantTasks.length > 0 ? memoizedStats.relevantTasks.map((task) => (
-                  <TableRow key={task.id}>
-                    <TableCell><Checkbox disabled /></TableCell>
-                    <TableCell className="font-medium">{task.title}</TableCell>
+                  <TableRow key={task.id} data-state={task.status}>
+                    <TableCell>
+                      <Checkbox 
+                        checked={task.status === 'completed'}
+                        onCheckedChange={() => handleToggleTaskStatus(task.id, task.status)}
+                      />
+                    </TableCell>
+                    <TableCell className={cn("font-medium", task.status === 'completed' && "line-through text-muted-foreground")}>
+                      {task.title}
+                    </TableCell>
                     <TableCell className="text-right">
                       {task.dueDate && <Badge variant={isPast(task.dueDate) && !isToday(task.dueDate) ? 'destructive' : 'outline'}>{formatDistanceToNow(task.dueDate, { addSuffix: true })}</Badge>}
                     </TableCell>
