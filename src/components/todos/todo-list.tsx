@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Plus, Search, Calendar as CalendarIcon, Loader2, Trash2, Target } from "lucide-react";
+import { Plus, Search, Calendar as CalendarIcon, Loader2, Trash2, Target, Edit } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -34,7 +34,7 @@ import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/types";
 import { useAuth } from "@/context/auth-context";
 import { getTasks, updateTaskStatus, deleteTask } from "@/lib/firebase/firestore";
-import { createTaskAction } from "@/lib/firebase/actions";
+import { createTaskAction, updateTaskAction } from "@/lib/firebase/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -45,16 +45,23 @@ export function TodoList() {
   const { user } = useAuth();
   const { toast } = useToast();
   const router = useRouter();
-  const formRef = useRef<HTMLFormElement>(null);
+  const addFormRef = useRef<HTMLFormElement>(null);
+  const editFormRef = useRef<HTMLFormElement>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [newDueDate, setNewDueDate] = useState<Date | undefined>(undefined);
+  const [editDueDate, setEditDueDate] = useState<Date | undefined>(undefined);
+
 
   const fetchTasks = useCallback(async () => {
     if (!user) return;
@@ -83,8 +90,8 @@ export function TodoList() {
       if (a.status !== b.status) {
         return a.status === 'completed' ? 1 : -1;
       }
-      const aDate = a.dueDate ? a.dueDate.getTime() : Infinity;
-      const bDate = b.dueDate ? b.dueDate.getTime() : Infinity;
+      const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+      const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
       return aDate - bDate;
     });
   }, [tasks]);
@@ -97,9 +104,10 @@ export function TodoList() {
         }
         if (filter === "all") return true;
         if (task.status === 'completed') return false; 
-        if (filter === "overdue") return task.dueDate && isPast(task.dueDate) && !isToday(task.dueDate);
-        if (filter === "ongoing") return (task.dueDate && isToday(task.dueDate)) || !task.dueDate;
-        if (filter === "upcoming") return task.dueDate && isFuture(task.dueDate);
+        const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+        if (filter === "overdue") return dueDate && isPast(dueDate) && !isToday(dueDate);
+        if (filter === "ongoing") return (dueDate && isToday(dueDate)) || !dueDate;
+        if (filter === "upcoming") return dueDate && isFuture(dueDate);
         return true;
       })
   }, [sortedTasks, searchTerm, filter]);
@@ -145,16 +153,17 @@ export function TodoList() {
     }
   }
   
-  const getBadgeInfo = (dueDate: Date | null, status: 'ongoing' | 'completed'): { variant: "default" | "secondary" | "destructive" | "outline", label: string } => {
+  const getBadgeInfo = (dueDateStr: string | null, status: 'ongoing' | 'completed'): { variant: "default" | "secondary" | "destructive" | "outline", label: string } => {
     if (status === 'completed') return { variant: "default", label: "Completed" };
-    if (!dueDate) return { variant: "secondary", label: "No Due Date" };
+    if (!dueDateStr) return { variant: "secondary", label: "No Due Date" };
+    const dueDate = new Date(dueDateStr);
     if (isPast(dueDate) && !isToday(dueDate)) return { variant: "destructive", label: `Overdue` };
     if (isToday(dueDate)) return { variant: "outline", label: `Today` };
     if (isFuture(dueDate)) return { variant: "secondary", label: format(dueDate, "MMM d") };
     return { variant: "secondary", label: "N/A" };
   };
 
-  const handleFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleAddFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!user) {
       toast({ variant: "destructive", title: "You must be logged in."});
@@ -172,9 +181,9 @@ export function TodoList() {
     try {
       await createTaskAction(formData);
 
-      formRef.current?.reset();
+      addFormRef.current?.reset();
       setNewDueDate(undefined);
-      setIsDialogOpen(false);
+      setIsAddDialogOpen(false);
       toast({ title: "Task added successfully" });
       fetchTasks(); // Refresh tasks list
     } catch (error) {
@@ -189,6 +198,41 @@ export function TodoList() {
       setIsSubmitting(false);
     }
   };
+
+  const handleEditFormSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user || !editingTask) return;
+    
+    setIsSubmitting(true);
+    const formData = new FormData(event.currentTarget);
+    if (editDueDate) {
+      formData.set('dueDate', editDueDate.toISOString());
+    }
+    formData.set('userId', user.uid);
+    formData.set('taskId', editingTask.id);
+
+    try {
+      await updateTaskAction(formData);
+      editFormRef.current?.reset();
+      setEditDueDate(undefined);
+      setIsEditDialogOpen(false);
+      setEditingTask(null);
+      toast({ title: "Task updated successfully!" });
+      await fetchTasks();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update task.";
+      toast({ variant: "destructive", title: "Error", description: errorMessage });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOpenEditDialog = (task: Task) => {
+    setEditingTask(task);
+    setEditDueDate(task.dueDate ? new Date(task.dueDate) : undefined);
+    setIsEditDialogOpen(true);
+  };
+
 
   return (
     <div className="space-y-4">
@@ -206,7 +250,7 @@ export function TodoList() {
           <Button variant={filter === 'overdue' ? 'outline' : 'ghost'} onClick={() => setFilter(filter === 'overdue' ? 'all' : 'overdue')}>Overdue</Button>
           <Button variant={filter === 'ongoing' ? 'outline' : 'ghost'} onClick={() => setFilter(filter === 'ongoing' ? 'all' : 'ongoing')}>Ongoing</Button>
           <Button variant={filter === 'upcoming' ? 'outline' : 'ghost'} onClick={() => setFilter(filter === 'upcoming' ? 'all' : 'upcoming')}>Upcoming</Button>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" /> Add Task
@@ -220,8 +264,8 @@ export function TodoList() {
                 </DialogDescription>
               </DialogHeader>
               <form 
-                ref={formRef}
-                onSubmit={handleFormSubmit}
+                ref={addFormRef}
+                onSubmit={handleAddFormSubmit}
               >
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
@@ -235,7 +279,7 @@ export function TodoList() {
                           <Button
                             variant={"outline"}
                             className={cn(
-                              "w-[280px] justify-start text-left font-normal",
+                              "col-span-3 justify-start text-left font-normal",
                               !newDueDate && "text-muted-foreground"
                             )}
                           >
@@ -273,7 +317,7 @@ export function TodoList() {
               <TableHead className="w-[50px]">Status</TableHead>
               <TableHead>Task</TableHead>
               <TableHead className="w-[100px] text-center">Due</TableHead>
-              <TableHead className="w-[50px] text-right">Actions</TableHead>
+              <TableHead className="w-[100px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -319,10 +363,16 @@ export function TodoList() {
                       <Badge variant={badgeInfo.variant}>{badgeInfo.label}</Badge>
                     </TableCell>
                      <TableCell className="text-right">
-                       <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)} disabled={task.source === 'goal'}>
-                          <Trash2 className="h-4 w-4" />
-                          <span className="sr-only">Delete task</span>
-                       </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditDialog(task)}>
+                              <Edit className="h-4 w-4" />
+                              <span className="sr-only">Edit task</span>
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteTask(task.id)} disabled={task.source === 'goal'} className="h-8 w-8">
+                              <Trash2 className="h-4 w-4" />
+                              <span className="sr-only">Delete task</span>
+                          </Button>
+                        </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -337,6 +387,50 @@ export function TodoList() {
           </TableBody>
         </Table>
       </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent>
+              <DialogHeader>
+                  <DialogTitle>Edit task</DialogTitle>
+                  <DialogDescription>
+                      Make changes to your task.
+                  </DialogDescription>
+              </DialogHeader>
+              <form ref={editFormRef} onSubmit={handleEditFormSubmit}>
+                  <div className="grid gap-4 py-4">
+                      <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="edit-title" className="text-right">Task</Label>
+                          <Input id="edit-title" name="title" className="col-span-3" defaultValue={editingTask?.title} required />
+                      </div>
+                      <div className="grid grid-cols-4 items-center gap-4">
+                          <Label htmlFor="edit-dueDate" className="text-right">Due Date</Label>
+                          <Popover>
+                              <PopoverTrigger asChild>
+                                  <Button
+                                      variant={"outline"}
+                                      className={cn("col-span-3 justify-start text-left font-normal", !editDueDate && "text-muted-foreground")}
+                                  >
+                                      <CalendarIcon className="mr-2 h-4 w-4" />
+                                      {editDueDate ? format(editDueDate, "PPP") : <span>Pick a date</span>}
+                                  </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0">
+                                  <Calendar mode="single" selected={editDueDate} onSelect={setEditDueDate} initialFocus />
+                              </PopoverContent>
+                          </Popover>
+                      </div>
+                  </div>
+                  <DialogFooter>
+                      <Button type="button" variant="ghost" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+                      <Button type="submit" disabled={isSubmitting}>
+                          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Save Changes
+                      </Button>
+                  </DialogFooter>
+              </form>
+          </DialogContent>
+      </Dialog>
     </div>
   );
 }

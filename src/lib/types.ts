@@ -1,11 +1,12 @@
 
+
 export type Task = {
   id: string;
   userId: string;
   title: string;
   status: 'ongoing' | 'completed';
-  dueDate: Date | null;
-  createdAt: Date;
+  dueDate: string | null; // Changed to string
+  createdAt: string; // Changed to string
   source?: 'user' | 'goal';
   goalId?: string;
 };
@@ -80,5 +81,3 @@ export type Conversation = {
     lastMessage: Message | null;
     unreadCount: number;
 };
-
-    

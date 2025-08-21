@@ -95,13 +95,15 @@ export async function getTasks(userId: string): Promise<Task[]> {
       return {
         id: doc.id,
         ...data,
-        dueDate: data.dueDate?.toDate() || null,
-        createdAt: data.createdAt?.toDate() || new Date(),
+        dueDate: data.dueDate ? toISOString(data.dueDate) : null,
+        createdAt: toISOString(data.createdAt),
       } as Task;
     });
     return tasks.sort((a, b) => {
         if (a.status !== b.status) return a.status === 'completed' ? 1 : -1;
-        return (a.dueDate?.getTime() || Infinity) - (b.dueDate?.getTime() || Infinity);
+        const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+        const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+        return aDate - bDate;
       });
   } catch (error) {
     console.error("[getTasks] Error:", error);
@@ -185,7 +187,11 @@ export async function getDashboardStats(userId: string) {
 
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter((t) => t.status === "completed").length;
-  const missedTasksCount = tasks.filter(t => t.status !== "completed" && t.dueDate && isPast(t.dueDate) && !isToday(t.dueDate)).length;
+  const missedTasksCount = tasks.filter(t => {
+      if (t.status === "completed" || !t.dueDate) return false;
+      const dueDate = new Date(t.dueDate);
+      return isPast(dueDate) && !isToday(dueDate);
+  }).length;
   const accomplishmentRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   
   const completedGoalIds = new Set(tasks.filter(t => t.source === 'goal' && t.status === 'completed').map(t => t.goalId));
@@ -210,17 +216,27 @@ export async function getDashboardStats(userId: string) {
 
   tasks.forEach(task => {
       if (task.dueDate) {
-          const weekDayEntry = weekData.find(d => isSameDay(d.date, task.dueDate));
+          const dueDate = new Date(task.dueDate);
+          const weekDayEntry = weekData.find(d => isSameDay(d.date, dueDate));
           if (weekDayEntry) {
               if (task.status === 'completed') weekDayEntry.accomplished += 1;
-              else if (isPast(task.dueDate) && !isToday(task.dueDate)) weekDayEntry.missed += 1;
+              else if (isPast(dueDate) && !isToday(dueDate)) weekDayEntry.missed += 1;
           }
       }
   });
   
   const relevantTasks = tasks
-    .filter(task => task.status === 'ongoing' && (!task.dueDate || isFuture(task.dueDate) || isToday(task.dueDate) || isPast(task.dueDate)))
-    .sort((a, b) => (a.dueDate?.getTime() || Infinity) - (b.dueDate?.getTime() || Infinity))
+    .filter(task => {
+        if (task.status !== 'ongoing') return false;
+        if (!task.dueDate) return true; // Keep tasks with no due date
+        const dueDate = new Date(task.dueDate);
+        return isToday(dueDate) || isFuture(dueDate) || isPast(dueDate);
+    })
+    .sort((a, b) => {
+        const aDate = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
+        const bDate = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
+        return aDate - bDate;
+    })
     .slice(0, 3);
   
   return { summary, progressChartData: weekData.map(({date, ...rest}) => rest), relevantTasks };
@@ -444,20 +460,22 @@ export async function getUserConversations(userId: string): Promise<Conversation
         )).filter((p): p is UserProfile => p !== null);
 
         let unreadCount = 0;
-        const lastReadTime = lastReadTimestamps[conversationId] ? Timestamp.fromMillis(new Date(lastReadTimestamps[conversationId]).getTime()) : null;
+        const lastReadTime = lastReadTimestamps[conversationId] ? new Date(lastReadTimestamps[conversationId]) : null;
         
-        const lastMessageTime = data.lastMessageAt instanceof Timestamp ? data.lastMessageAt : null;
+        const lastMessageTime = data.lastMessageAt instanceof Timestamp ? data.lastMessageAt.toDate() : null;
         
-        if (lastReadTime && lastMessageTime && lastMessageTime.toMillis() > lastReadTime.toMillis()) {
+        if (lastReadTime && lastMessageTime && lastMessageTime.getTime() > lastReadTime.getTime()) {
             const messagesPath = `conversations/${conversationId}/messages`;
-            const unreadQuery = query(collection(db, messagesPath), where('createdAt', '>', lastReadTime));
+            // Fetch recent messages and filter client-side to avoid composite index
+            const unreadQuery = query(collection(db, messagesPath), where('createdAt', '>', Timestamp.fromDate(lastReadTime)));
             const unreadSnapshot = await getDocs(unreadQuery);
             unreadCount = unreadSnapshot.docs.filter(d => d.data().userId !== userId).length;
         } else if (!lastReadTime && lastMessageTime) {
+            // If the convo has never been read but there are messages
             const messagesPath = `conversations/${conversationId}/messages`;
-            const unreadQuery = query(collection(db, messagesPath), where('userId', '!=', userId));
-            const unreadSnapshot = await getCountFromServer(unreadQuery);
-            unreadCount = unreadSnapshot.data().count;
+            const unreadQuery = query(collection(db, messagesPath));
+            const unreadSnapshot = await getDocs(unreadQuery);
+            unreadCount = unreadSnapshot.docs.filter(d => d.data().userId !== userId).length;
         }
 
         const lastMessage = data.lastMessageText ? {

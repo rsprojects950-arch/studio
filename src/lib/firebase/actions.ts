@@ -4,7 +4,7 @@
 import { revalidatePath } from 'next/cache';
 import { addDoc, collection, Timestamp, serverTimestamp, updateDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Resource, Note, ResourceLink, UserProfile } from '@/lib/types';
+import type { Resource, Note, ResourceLink, UserProfile, Task } from '@/lib/types';
 
 // Helper function to extract resource links from content
 const extractResourceLinks = (content: string): ResourceLink[] => {
@@ -59,6 +59,53 @@ export async function createTaskAction(formData: FormData) {
   } catch (error) {
     console.error("Error adding task to Firestore:", error);
     throw new Error('Could not create task.');
+  }
+
+  revalidatePath('/dashboard/todos');
+  revalidatePath('/dashboard');
+}
+
+export async function updateTaskAction(formData: FormData) {
+  const userId = formData.get('userId') as string;
+  if (!userId) {
+    throw new Error('You must be logged in to update a task.');
+  }
+  
+  const taskId = formData.get('taskId') as string;
+  if (!taskId) {
+    throw new Error('Task ID is missing.');
+  }
+
+  const taskRef = doc(db, 'tasks', taskId);
+  const taskSnap = await getDoc(taskRef);
+
+  if (!taskSnap.exists()) {
+    throw new Error('Task not found.');
+  }
+
+  if (taskSnap.data().userId !== userId) {
+    throw new Error('You are not authorized to edit this task.');
+  }
+
+  const title = formData.get('title') as string;
+  if (!title) {
+    throw new Error('Task title is required.');
+  }
+  
+  const dueDateStr = formData.get('dueDate') as string | null;
+
+  try {
+    const updateData: { title: string; dueDate?: Timestamp | null } = { title };
+    if (dueDateStr && !isNaN(new Date(dueDateStr).getTime())) {
+      updateData.dueDate = Timestamp.fromDate(new Date(dueDateStr));
+    } else {
+      updateData.dueDate = null;
+    }
+    
+    await updateDoc(taskRef, updateData);
+  } catch (error) {
+    console.error("Error updating task in Firestore:", error);
+    throw new Error('Could not update task.');
   }
 
   revalidatePath('/dashboard/todos');
